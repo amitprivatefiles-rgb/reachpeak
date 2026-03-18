@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Upload, X, CheckCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { sendNotification, NotificationTemplates } from '../../lib/notifications';
 
 const QR_URL = 'https://i.ibb.co/FbJYV34w/Avatar.png';
 
@@ -111,6 +112,28 @@ export function PaymentDetails() {
       } as any);
 
       if (error) throw error;
+
+      // Send welcome email with plan + business details
+      const template = NotificationTemplates.welcomeUser(
+        form.contact_person || user.email || '',
+        {
+          planType: plan,
+          amount,
+          businessName: form.business_name,
+          businessType: form.business_type,
+        }
+      );
+      await sendNotification({
+        userId: user.id,
+        userEmail: user.email || '',
+        userName: form.contact_person,
+        title: template.title,
+        message: template.message,
+        type: 'system',
+        emailSubject: template.emailSubject,
+        emailBody: template.emailBody,
+      });
+
       setSubmitted(true);
     } catch (err: any) {
       alert('Error submitting: ' + err.message);

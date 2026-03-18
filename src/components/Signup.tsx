@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -10,29 +10,32 @@ export function Signup() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Clear any existing auth session so signup starts completely fresh
-  // This prevents the admin's email from being autofilled when they visit /signup
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        supabase.auth.signOut();
-      }
-    });
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
           data: { full_name: form.full_name },
         },
       });
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        // Handle Supabase email rate limit error
+        if (signUpError.message?.toLowerCase().includes('rate limit') || signUpError.message?.toLowerCase().includes('email')) {
+          throw new Error('Too many signup attempts. Please wait a few minutes and try again, or contact the admin to create your account.');
+        }
+        throw signUpError;
+      }
+
+      // If user was created but needs email confirmation and identities is empty,
+      // it means the email already exists
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        throw new Error('An account with this email already exists. Please log in instead.');
+      }
+
       navigate('/select-plan');
     } catch (err: any) {
       setError(err.message || 'Error creating account');

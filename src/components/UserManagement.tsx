@@ -23,6 +23,7 @@ export function UserManagement() {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: '', password: '', full_name: '', role: 'user' as 'admin' | 'user',
+    business_name: '', business_type: 'Retail', whatsapp_number: '', contact_person: '', plan_type: 'monthly' as 'monthly' | 'yearly',
   });
 
   const fetchUsers = async () => {
@@ -57,8 +58,8 @@ export function UserManagement() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed to create user');
-      setCreateSuccess(`User "${formData.full_name}" created successfully!`);
-      setFormData({ email: '', password: '', full_name: '', role: 'user' });
+      setCreateSuccess(`User "${formData.full_name}" created successfully! A welcome email has been sent.`);
+      setFormData({ email: '', password: '', full_name: '', role: 'user', business_name: '', business_type: 'Retail', whatsapp_number: '', contact_person: '', plan_type: 'monthly' });
       fetchUsers();
       setTimeout(() => {
         setShowCreateModal(false);
@@ -277,7 +278,7 @@ export function UserManagement() {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-md">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-2xl">
             <h2 className="text-2xl font-bold text-white mb-6">Create New User</h2>
             {createError && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2">
@@ -291,25 +292,74 @@ export function UserManagement() {
                 <p className="text-green-400 text-sm">{createSuccess}</p>
               </div>
             )}
-            <form onSubmit={handleCreateUser} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                <input type="text" value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" />
+            <form onSubmit={handleCreateUser} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <p className="text-gray-400 text-xs border-b border-gray-800 pb-2 mb-2">Account Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
+                  <input type="text" value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="John Doe" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
+                  <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="user@email.com" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Password *</label>
+                  <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={6} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="Min 6 characters" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Role *</label>
+                  <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value as any })} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <p className="text-gray-400 text-xs border-b border-gray-800 pb-2 mb-2 pt-2">Business & Subscription Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Business Name *</label>
+                  <input type="text" value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="Business name" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Business Type *</label>
+                  <select value={formData.business_type} onChange={(e) => setFormData({ ...formData, business_type: e.target.value })} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="Retail">Retail</option>
+                    <option value="E-commerce">E-commerce</option>
+                    <option value="Education">Education</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Real Estate">Real Estate</option>
+                    <option value="Food & Restaurant">Food & Restaurant</option>
+                    <option value="Travel & Tourism">Travel & Tourism</option>
+                    <option value="Finance">Finance</option>
+                    <option value="IT & Software">IT & Software</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">WhatsApp Number *</label>
+                  <input type="tel" value={formData.whatsapp_number} onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="+91 9876543210" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Contact Person</label>
+                  <input type="text" value={formData.contact_person} onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" placeholder="Same as full name if empty" />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={6} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
-                <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value as any })} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand">
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Plan Type *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setFormData({ ...formData, plan_type: 'monthly' })} className={`px-4 py-3 rounded-lg border text-sm font-medium transition ${formData.plan_type === 'monthly' ? 'border-brand bg-brand/20 text-brand-light' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}>
+                    Monthly — ₹999/mo
+                  </button>
+                  <button type="button" onClick={() => setFormData({ ...formData, plan_type: 'yearly' })} className={`px-4 py-3 rounded-lg border text-sm font-medium transition ${formData.plan_type === 'yearly' ? 'border-brand bg-brand/20 text-brand-light' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}>
+                    Yearly — ₹9,999/yr
+                  </button>
+                </div>
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => { setShowCreateModal(false); setCreateError(null); setCreateSuccess(null); }} className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">Cancel</button>

@@ -64,10 +64,15 @@ export function CampaignApprovals() {
   const fetchCampaigns = async () => {
     setLoading(true);
     // Admin fetches ALL campaigns (RLS admin override policy)
-    const { data } = await supabase
+    // Join profiles via user_id FK (NOT NULL, reliable) instead of nullable created_by
+    const { data, error } = await supabase
       .from('campaigns')
-      .select('*, profiles!campaigns_created_by_fkey(full_name, email)')
+      .select('*, profiles!campaigns_user_id_profiles_fkey(full_name, email)')
       .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch campaigns:', error.message, error.details, error.hint);
+    }
 
     setCampaigns((data || []) as Campaign[]);
     setLoading(false);

@@ -115,27 +115,32 @@ export const NotificationTemplates = {
     }),
   }),
 
-  welcomeUser: (userName: string) => ({
+  welcomeUser: (userName: string, details: { planType: string; amount: number; businessName: string; businessType: string }) => ({
     title: 'Welcome to ReachPeak! 🎉',
-    message: `Welcome ${userName}! Your WhatsApp marketing platform is ready. Start by adding contacts and creating your first campaign.`,
+    message: `Welcome ${userName}! Your ${details.planType} plan for "${details.businessName}" is being set up. We'll notify you once your account is activated.`,
     emailSubject: `Welcome to ReachPeak, ${userName}! 🎉`,
     emailBody: generateCampaignEmail({
       heading: `Welcome to ReachPeak! 🎉`,
       campaignName: '',
       bodyText: `Hi <strong>${userName}</strong>,<br><br>
-        Welcome to ReachPeak — your powerful WhatsApp marketing platform!<br><br>
-        Here's how to get started:<br>
+        Thank you for signing up for ReachPeak! Here are your registration details:<br><br>
+        <div style="background:#0f172a;padding:16px;border-radius:8px;margin:12px 0;">
+          <strong style="color:#10b981;">📋 Plan:</strong> <span style="color:#e2e8f0;">${details.planType.charAt(0).toUpperCase() + details.planType.slice(1)} Plan</span><br>
+          <strong style="color:#10b981;">💰 Amount:</strong> <span style="color:#e2e8f0;">₹${details.amount.toLocaleString()}</span><br>
+          <strong style="color:#10b981;">🏢 Business:</strong> <span style="color:#e2e8f0;">${details.businessName}</span><br>
+          <strong style="color:#10b981;">📂 Industry:</strong> <span style="color:#e2e8f0;">${details.businessType}</span>
+        </div><br>
+        Your account is being reviewed and will be activated shortly. Once active, you can:<br><br>
         1️⃣ <strong>Add your contacts</strong> — Single, bulk, or CSV upload<br>
-        2️⃣ <strong>Create a campaign</strong> — Write your message and add interactive buttons<br>
-        3️⃣ <strong>Launch & track</strong> — Monitor delivery in real-time<br><br>
-        Your account is now active and ready to go!`,
+        2️⃣ <strong>Create campaigns</strong> — Write messages and add interactive buttons<br>
+        3️⃣ <strong>Launch & track</strong> — Monitor delivery in real-time`,
       ctaText: 'Go to Dashboard',
       ctaUrl: `${getBaseUrl()}/dashboard`,
-      footerText: 'Need help? Contact us at support@reachpeak.in',
+      footerText: 'Your account will be reviewed and activated within 24 hours. Need help? Contact us at support@reachpeak.in',
     }),
   }),
 
-  accountActivated: (userName: string, businessName: string) => ({
+  accountActivated: (userName: string, businessName: string, planType?: string) => ({
     title: 'Account Activated! 🎉',
     message: `Your business account for "${businessName}" is now active. Start creating campaigns!`,
     emailSubject: `🎉 Your ReachPeak Account is Active!`,
@@ -143,11 +148,11 @@ export const NotificationTemplates = {
       heading: 'Your Account is Active! 🎉',
       campaignName: '',
       bodyText: `Hi <strong>${userName}</strong>,<br><br>
-        Great news! Your business account for <strong>"${businessName}"</strong> has been activated.<br><br>
+        Great news! Your business account for <strong>"${businessName}"</strong> has been activated.${planType ? `<br>Your <strong>${planType}</strong> plan is now live!` : ''}<br><br>
         You now have full access to:<br>
         ✅ WhatsApp campaign management<br>
         ✅ Contact management with tags<br>
-        ✅ Message templates with buttons<br>
+        ✅ Message templates with interactive buttons<br>
         ✅ Real-time delivery tracking<br>
         ✅ Detailed analytics & reports`,
       ctaText: 'Start Creating Campaigns',

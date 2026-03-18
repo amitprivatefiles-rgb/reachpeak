@@ -80,6 +80,46 @@ Deno.serve(async (req: Request) => {
             .eq('metric_date', today);
         }
 
+        // Send completion notification (in-app)
+        await supabase.from('notifications').insert({
+          user_id: campaign.user_id,
+          title: 'Campaign Completed ✅',
+          message: `Your campaign "${campaign.name}" has finished! ${finalSent.toLocaleString()} messages delivered out of ${targetTotal.toLocaleString()}.`,
+          type: 'campaign_completed',
+          campaign_id: campaign.id,
+        });
+
+        // Send completion email via Resend
+        const deliveryRate = targetTotal > 0 ? ((finalSent / targetTotal) * 100).toFixed(1) : '0';
+        try {
+          await supabase.rpc('send_email_via_resend', {
+            recipient: campaign.profiles?.email || '',
+            email_subject: `✅ Campaign "${campaign.name}" Completed`,
+            email_html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0f172a;font-family:sans-serif;">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px;">
+<div style="text-align:center;margin-bottom:32px;">
+<h1 style="color:#10b981;font-size:24px;margin:0;">ReachPeak</h1>
+<p style="color:#64748b;font-size:13px;">WhatsApp Marketing Platform</p>
+</div>
+<div style="background:#1e293b;border-radius:16px;padding:32px;border:1px solid #334155;">
+<h2 style="color:#fff;font-size:20px;margin:0 0 16px;">Campaign Completed! ✅</h2>
+<p style="color:#94a3b8;font-size:13px;padding:8px 12px;background:#0f172a;border-radius:8px;border-left:3px solid #10b981;">Campaign: <strong style="color:#e2e8f0;">${campaign.name}</strong></p>
+<div style="color:#cbd5e1;font-size:14px;line-height:1.6;margin:16px 0 24px;">
+Your campaign has finished delivering messages.<br><br>
+<strong>Messages Sent:</strong> ${finalSent.toLocaleString()}<br>
+<strong>Total Contacts:</strong> ${targetTotal.toLocaleString()}<br>
+<strong>Delivery Rate:</strong> ${deliveryRate}%
+</div>
+<a href="https://reachpeakapi.in/campaigns" style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Full Report</a>
+</div>
+</div></body></html>`,
+          });
+        } catch (e) {
+          // Email send failure shouldn't break the function
+          console.warn('Completion email failed:', e);
+        }
+
         updates.push({ id: campaign.id, status: 'completed', messages_sent: finalSent, messages_failed: finalFailed });
         continue;
       }
