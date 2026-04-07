@@ -113,7 +113,7 @@ export function PublicFooter() {
 
         <div className="mt-14 pt-8 border-t border-gray-700/30 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} ReachPeak API. All rights reserved. Made in Kolkata, India.
+            &copy; {new Date().getFullYear()} ReachPeak API. All rights reserved.
           </p>
           <p className="text-xs text-gray-600">Affordable WhatsApp marketing for growing businesses.</p>
         </div>
