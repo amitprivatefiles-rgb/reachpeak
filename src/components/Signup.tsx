@@ -9,10 +9,12 @@ export function Signup() {
   const [form, setForm] = useState({ full_name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -23,19 +25,32 @@ export function Signup() {
         },
       });
       if (signUpError) {
-        // Handle Supabase email rate limit error
         if (signUpError.message?.toLowerCase().includes('rate limit') || signUpError.message?.toLowerCase().includes('email')) {
           throw new Error('Too many signup attempts. Please wait a few minutes and try again, or contact the admin to create your account.');
         }
         throw signUpError;
       }
 
-      // If user was created but needs email confirmation and identities is empty,
-      // it means the email already exists
+      // If user was created but identities is empty, email already exists
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         throw new Error('An account with this email already exists. Please log in instead.');
       }
 
+      // Try to auto-login immediately (works if email confirmation is disabled)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
+
+      if (signInError) {
+        // Email confirmation is enabled — user needs to confirm email first
+        setSuccess(
+          'Account created successfully! Please check your email to confirm your account, then log in to continue with plan selection.'
+        );
+        return;
+      }
+
+      // Auto-login succeeded — go to plan selection
       navigate('/select-plan');
     } catch (err: any) {
       setError(err.message || 'Error creating account');
@@ -60,6 +75,14 @@ export function Signup() {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
                 {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
+                {success}
+                <Link to="/login" className="block mt-2 text-brand font-medium hover:text-brand-dark">
+                  Go to Login →
+                </Link>
               </div>
             )}
             <div>
