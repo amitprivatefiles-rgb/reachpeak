@@ -138,7 +138,7 @@ export function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-secondary mb-1">Office</h3>
-                    <p className="text-secondary-light text-sm">India</p>
+                    <p className="text-secondary-light text-sm">Kolkata, India</p>
                   </div>
                 </div>
               </div>
