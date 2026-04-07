@@ -76,11 +76,12 @@ export function AboutPage() {
 
       <section className="py-20 sm:py-28 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="w-20 h-20 bg-brand-lighter rounded-full flex items-center justify-center mx-auto mb-6">
-            <img src="https://i.ibb.co/K3M8zPq/Avatar.png" alt="Founder" className="w-16 h-16 rounded-full" />
+          <div className="w-32 h-32 rounded-full mx-auto mb-6 border-4 border-brand/20 shadow-lg overflow-hidden">
+            <img src="https://i.ibb.co/Nd8Bn1Rs/1769794953244.jpg" alt="Amit Rai - Founder" className="w-full h-full object-cover" />
           </div>
           <h3 className="text-xl font-bold text-secondary mb-1">Founded with Purpose</h3>
-          <p className="text-secondary-light mb-6">ReachPeak API Team</p>
+          <p className="text-brand font-semibold mb-1">Amit Rai</p>
+          <p className="text-secondary-light mb-6">Founder, ReachPeak API</p>
           <p className="text-secondary-light leading-relaxed max-w-2xl mx-auto">
             "We started ReachPeak API because we saw businesses struggling with expensive, complicated WhatsApp marketing tools. We believed there had to be a simpler, more affordable way. Today, we are proud to serve hundreds of businesses who trust us to power their customer communication."
           </p>
