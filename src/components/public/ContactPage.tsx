@@ -110,7 +110,7 @@ export function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-secondary mb-1">Email</h3>
-                    <p className="text-secondary-light text-sm">support@reachpeakapi.com</p>
+                    <p className="text-secondary-light text-sm">support@reachpeakapi.in</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
@@ -119,7 +119,7 @@ export function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-secondary mb-1">WhatsApp Support</h3>
-                    <p className="text-secondary-light text-sm">+91 98765 43210</p>
+                    <p className="text-secondary-light text-sm">+91 6290678045</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">

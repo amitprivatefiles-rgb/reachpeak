@@ -68,7 +68,7 @@ export function PrivacyPolicyPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-secondary mb-3">10. Contact Us</h2>
-              <p>If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us at <span className="text-brand font-medium">support@reachpeakapi.com</span>.</p>
+              <p>If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us at <span className="text-brand font-medium">support@reachpeakapi.in</span>.</p>
             </div>
           </div>
         </div>

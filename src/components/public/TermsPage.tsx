@@ -89,7 +89,7 @@ export function TermsPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-secondary mb-3">13. Contact</h2>
-              <p>For questions about these Terms & Conditions, contact us at <span className="text-brand font-medium">support@reachpeakapi.com</span>.</p>
+              <p>For questions about these Terms & Conditions, contact us at <span className="text-brand font-medium">support@reachpeakapi.in</span>.</p>
             </div>
           </div>
         </div>

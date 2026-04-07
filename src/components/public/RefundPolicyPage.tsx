@@ -38,7 +38,7 @@ export function RefundPolicyPage() {
               <h2 className="text-xl font-bold text-secondary mb-3">3. How to Request a Refund</h2>
               <p className="mb-3">To request a refund, please follow these steps:</p>
               <ol className="list-decimal pl-6 space-y-2">
-                <li>Send an email to <span className="text-brand font-medium">support@reachpeakapi.com</span> with the subject line "Refund Request"</li>
+                <li>Send an email to <span className="text-brand font-medium">support@reachpeakapi.in</span> with the subject line "Refund Request"</li>
                 <li>Include your registered email address and payment reference/transaction ID</li>
                 <li>Briefly describe the reason for your refund request</li>
                 <li>Our team will review your request and respond within 24 hours</li>
@@ -64,7 +64,7 @@ export function RefundPolicyPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-secondary mb-3">6. Contact</h2>
-              <p>For any questions about this Refund Policy, please reach out to us at <span className="text-brand font-medium">support@reachpeakapi.com</span>.</p>
+              <p>For any questions about this Refund Policy, please reach out to us at <span className="text-brand font-medium">support@reachpeakapi.in</span>.</p>
             </div>
           </div>
         </div>
