@@ -72,7 +72,7 @@ export interface Database {
           campaign_cost: number
           estimated_revenue: number
           roi: number
-          status: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected'
+          status: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked: boolean
           daily_limit: number
           file_url: string | null
@@ -115,7 +115,7 @@ export interface Database {
           campaign_cost?: number
           estimated_revenue?: number
           roi?: number
-          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected'
+          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked?: boolean
           daily_limit?: number
           file_url?: string | null
@@ -158,7 +158,7 @@ export interface Database {
           campaign_cost?: number
           estimated_revenue?: number
           roi?: number
-          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected'
+          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked?: boolean
           daily_limit?: number
           file_url?: string | null
@@ -630,7 +630,7 @@ export interface Database {
           user_id: string
           title: string
           message: string
-          type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'system'
+          type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'campaign_cancelled' | 'system'
           is_read: boolean
           campaign_id: string | null
           created_at: string
@@ -640,7 +640,7 @@ export interface Database {
           user_id: string
           title: string
           message: string
-          type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'system'
+          type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'campaign_cancelled' | 'system'
           is_read?: boolean
           campaign_id?: string | null
           created_at?: string
@@ -650,7 +650,7 @@ export interface Database {
           user_id?: string
           title?: string
           message?: string
-          type?: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'system'
+          type?: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'campaign_cancelled' | 'system'
           is_read?: boolean
           campaign_id?: string | null
           created_at?: string

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
@@ -24,7 +24,7 @@ export function Campaigns() {
     message_version: 'A' as 'A' | 'B',
     daily_limit: 1000,
     message_template: '',
-    status: 'Running' as 'Running' | 'Paused' | 'Completed' | 'Processing',
+    status: 'Running' as 'Running' | 'Paused' | 'Completed' | 'Processing' | 'pending_approval' | 'approved' | 'rejected' | 'Cancelled',
     start_time: '',
     end_time: '',
     messages_sent: 0,
@@ -71,100 +71,8 @@ export function Campaigns() {
     };
   }, []);
 
-  useEffect(() => {
-    const processAutoIncrement = async () => {
-      const runningCampaigns = campaigns.filter((c) => c.status === 'Running');
-      const now = new Date();
 
-      for (const campaign of runningCampaigns) {
-        const completeAt = campaign.auto_increment_complete_at ? new Date(campaign.auto_increment_complete_at) : null;
 
-        if (completeAt && now >= completeAt) {
-          await supabase
-            .from('campaigns')
-            .update({
-              status: 'Completed',
-              end_time: now.toISOString(),
-              auto_increment_enabled: false,
-            })
-            .eq('id', campaign.id);
-          continue;
-        }
-
-        if (!campaign.auto_increment_enabled) {
-          continue;
-        }
-
-        const total = campaign.auto_increment_total || 0;
-        const currentSent = campaign.messages_sent || 0;
-        const currentFailed = campaign.messages_failed || 0;
-        const currentTotal = currentSent + currentFailed;
-
-        const sentRatio = (campaign.auto_increment_sent_ratio || 70) / 100;
-        const failedRatio = (campaign.auto_increment_failed_ratio || 30) / 100;
-
-        const targetSent = Math.floor(total * sentRatio);
-        const targetFailed = total - targetSent;
-
-        if (currentTotal >= total) {
-          await supabase
-            .from('campaigns')
-            .update({
-              messages_sent: targetSent,
-              messages_failed: targetFailed,
-              status: 'Completed',
-              end_time: now.toISOString(),
-              auto_increment_enabled: false,
-            })
-            .eq('id', campaign.id);
-          continue;
-        }
-
-        const remaining = total - currentTotal;
-        const incrementAmount = Math.max(1, Math.ceil(total / 100));
-
-        if (remaining <= incrementAmount * 1.5) {
-          await supabase
-            .from('campaigns')
-            .update({
-              messages_sent: targetSent,
-              messages_failed: targetFailed,
-              status: 'Completed',
-              end_time: now.toISOString(),
-              auto_increment_enabled: false,
-              last_auto_increment: new Date().toISOString(),
-            })
-            .eq('id', campaign.id);
-        } else {
-          const newSent = Math.min(
-            Math.floor(incrementAmount * sentRatio),
-            targetSent - currentSent
-          );
-          const newFailed = Math.min(
-            Math.floor(incrementAmount * failedRatio),
-            targetFailed - currentFailed
-          );
-
-          if (newSent > 0 || newFailed > 0) {
-            await supabase
-              .from('campaigns')
-              .update({
-                messages_sent: currentSent + newSent,
-                messages_failed: currentFailed + newFailed,
-                last_auto_increment: new Date().toISOString(),
-              })
-              .eq('id', campaign.id);
-          }
-        }
-      }
-    };
-
-    const interval = setInterval(() => {
-      processAutoIncrement();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [campaigns]);
 
   const handleFileUpload = async (campaignId: string): Promise<{ fileUrl: string; fileName: string } | null> => {
     if (!selectedFile) return null;
@@ -317,7 +225,7 @@ export function Campaigns() {
 
   const updateCampaignStatus = async (
     campaignId: string,
-    status: 'Running' | 'Paused' | 'Completed'
+    status: 'Running' | 'Paused' | 'Completed' | 'Cancelled'
   ) => {
     if (!isAdmin) return;
 
@@ -338,6 +246,10 @@ export function Campaigns() {
       updates.end_time = new Date().toISOString();
       updates.auto_increment_enabled = false;
     }
+    if (status === 'Cancelled') {
+      updates.end_time = new Date().toISOString();
+      updates.auto_increment_enabled = false;
+    }
 
     const { error } = await supabase.from('campaigns').update(updates).eq('id', campaignId);
 
@@ -354,6 +266,8 @@ export function Campaigns() {
         return 'bg-amber-500/20 text-amber-400';
       case 'Completed':
         return 'bg-gray-500/20 text-gray-400';
+      case 'Cancelled':
+        return 'bg-rose-500/20 text-rose-400';
       default:
         return 'bg-gray-500/20 text-gray-400';
     }
@@ -597,13 +511,26 @@ export function Campaigns() {
                       <Play className="w-4 h-4" />
                     </button>
                   ) : null}
-                  {campaign.status !== 'Completed' && (
+                  {campaign.status !== 'Completed' && campaign.status !== 'Cancelled' && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Completed')}
                       className="p-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition"
                       title="Mark as Completed"
                     >
                       <CheckCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                  {(campaign.status === 'Running' || campaign.status === 'Paused') && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to cancel campaign "${campaign.name}"?`)) {
+                          updateCampaignStatus(campaign.id, 'Cancelled');
+                        }
+                      }}
+                      className="p-2 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition"
+                      title="Cancel Campaign"
+                    >
+                      <XCircle className="w-4 h-4" />
                     </button>
                   )}
                 </div>

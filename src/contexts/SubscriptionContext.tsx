@@ -38,7 +38,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSubscription = async () => {
+  const fetchSubscription = async (retryCount = 0) => {
     if (!user) {
       setSubscription(null);
       setLoading(false);
@@ -52,6 +52,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (!data && retryCount < 2) {
+      // Retry after a short delay — subscription might not be committed yet
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return fetchSubscription(retryCount + 1);
+    }
 
     setSubscription(data as Subscription | null);
     setLoading(false);

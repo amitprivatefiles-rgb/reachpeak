@@ -49,16 +49,127 @@ export function UserManagement() {
     setCreateError(null);
     setCreateSuccess(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      // Step 1: Create auth user via signUp (no edge function needed)
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: { full_name: formData.full_name },
+        },
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to create user');
-      setCreateSuccess(`User "${formData.full_name}" created successfully! A welcome email has been sent.`);
+
+      if (signUpError) {
+        if (signUpError.message?.toLowerCase().includes('rate limit')) {
+          throw new Error('Too many signup attempts. Please wait a few minutes and try again.');
+        }
+        throw signUpError;
+      }
+
+      // Check for duplicate email
+      if (signUpData.user && signUpData.user.identities && signUpData.user.identities.length === 0) {
+        throw new Error('An account with this email already exists.');
+      }
+
+      if (!signUpData.user) {
+        throw new Error('Failed to create user account.');
+      }
+
+      const newUserId = signUpData.user.id;
+
+      // Step 2: Update profile (trigger already creates it with role='user')
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: newUserId,
+          email: formData.email,
+          full_name: formData.full_name,
+          role: formData.role,
+          is_active: true,
+        }, { onConflict: 'id' });
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        // Profile might not exist yet due to trigger timing, retry after a short delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const { error: retryError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: newUserId,
+            email: formData.email,
+            full_name: formData.full_name,
+            role: formData.role,
+            is_active: true,
+          }, { onConflict: 'id' });
+        if (retryError) {
+          throw new Error('Failed to set up user profile: ' + retryError.message);
+        }
+      }
+
+      // Step 3: Create active subscription if business details provided
+      if (formData.business_name && formData.plan_type) {
+        const now = new Date();
+        const expiresAt = new Date(now);
+        if (formData.plan_type === 'yearly') {
+          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        } else {
+          expiresAt.setMonth(expiresAt.getMonth() + 1);
+        }
+        const amount = formData.plan_type === 'yearly' ? 9999 : 999;
+
+        await supabase.from('subscriptions').insert({
+          user_id: newUserId,
+          plan_type: formData.plan_type,
+          amount,
+          payment_reference: 'ADMIN_CREATED_' + Date.now(),
+          status: 'active',
+          business_name: formData.business_name,
+          business_type: formData.business_type || 'Other',
+          whatsapp_number: formData.whatsapp_number || '',
+          contact_person: formData.contact_person || formData.full_name,
+          approved_by: currentUser!.id,
+          approved_at: now.toISOString(),
+          starts_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+        });
+      }
+
+      // Step 4: Seed default lead sources
+      await supabase.from('lead_sources').insert([
+        { user_id: newUserId, source_name: 'Excel', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+        { user_id: newUserId, source_name: 'Facebook', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+        { user_id: newUserId, source_name: 'Instagram', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+        { user_id: newUserId, source_name: 'Website', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+        { user_id: newUserId, source_name: 'WhatsApp', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+        { user_id: newUserId, source_name: 'Manual', total_numbers: 0, messages_sent: 0, messages_failed: 0, converted_leads: 0 },
+      ]);
+
+      // Step 5: Seed dashboard metrics
+      await supabase.from('dashboard_metrics').insert({
+        user_id: newUserId,
+        metric_date: new Date().toISOString().split('T')[0],
+        total_contacts: 0,
+        total_numbers_uploaded: 0,
+        total_messages_sent: 0,
+        total_messages_failed: 0,
+        messages_pending_retry: 0,
+        active_campaigns: 0,
+        completed_campaigns: 0,
+        delivery_rate: 0,
+        failure_rate: 0,
+        blacklisted_numbers: 0,
+        active_agents: 0,
+      });
+
+      // Step 6: Log activity
+      await supabase.from('activity_logs').insert({
+        user_id: currentUser!.id,
+        action: 'Created new user',
+        entity_type: 'user',
+        entity_id: newUserId,
+        details: { email: formData.email, role: formData.role, business_name: formData.business_name || null },
+      });
+
+      setCreateSuccess(`User "${formData.full_name}" created successfully!`);
       setFormData({ email: '', password: '', full_name: '', role: 'user', business_name: '', business_type: 'Retail', whatsapp_number: '', contact_person: '', plan_type: 'monthly' });
       fetchUsers();
       setTimeout(() => {

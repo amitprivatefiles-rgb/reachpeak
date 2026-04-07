@@ -17,7 +17,7 @@ interface SendNotificationOptions {
   userName: string;
   title: string;
   message: string;
-  type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'system';
+  type: 'campaign_approved' | 'campaign_rejected' | 'campaign_completed' | 'campaign_cancelled' | 'system';
   campaignId?: string;
   emailSubject?: string;
   emailBody?: string;
@@ -158,6 +158,20 @@ export const NotificationTemplates = {
       ctaText: 'Start Creating Campaigns',
       ctaUrl: `${getBaseUrl()}/campaigns`,
       footerText: 'Thank you for choosing ReachPeak!',
+    }),
+  }),
+
+  campaignCancelled: (campaignName: string, reason?: string) => ({
+    title: 'Campaign Stopped ⏹️',
+    message: `Your campaign "${campaignName}" has been stopped.${reason ? ` Reason: ${reason}` : ''} Contact support if you have questions.`,
+    emailSubject: `⏹️ Campaign "${campaignName}" Stopped`,
+    emailBody: generateCampaignEmail({
+      heading: 'Campaign Stopped ⏹️',
+      campaignName,
+      bodyText: `Your WhatsApp campaign <strong>"${campaignName}"</strong> has been stopped by the team.${reason ? `<br><br><em>"${reason}"</em>` : ''}<br><br>If you have any questions, please contact our support team.`,
+      ctaText: 'View Campaigns',
+      ctaUrl: `${getBaseUrl()}/campaigns`,
+      footerText: 'Need help? Contact us at support@reachpeak.in',
     }),
   }),
 };

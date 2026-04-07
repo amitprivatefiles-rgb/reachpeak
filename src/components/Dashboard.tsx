@@ -234,64 +234,10 @@ export function Dashboard() {
       )
       .subscribe();
 
-    const autoIncrementInterval = setInterval(async () => {
-      try {
-        const { data: runningCampaigns } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('user_id', user!.id)
-          .eq('status', 'Running')
-          .eq('auto_increment_enabled', true);
-
-        if (runningCampaigns && runningCampaigns.length > 0) {
-          for (const campaign of runningCampaigns) {
-            const now = new Date();
-            const totalMessages = campaign.messages_sent + campaign.messages_failed;
-            const target = campaign.auto_increment_total || campaign.total_numbers;
-
-            if (totalMessages >= target) {
-              await supabase
-                .from('campaigns')
-                .update({
-                  status: 'Completed',
-                  end_time: now.toISOString(),
-                  auto_increment_enabled: false,
-                })
-                .eq('id', campaign.id);
-              continue;
-            }
-
-            const shouldIncrementSent = Math.random() * 100 < (campaign.auto_increment_sent_ratio || 70);
-
-            if (shouldIncrementSent) {
-              await supabase
-                .from('campaigns')
-                .update({
-                  messages_sent: campaign.messages_sent + 1,
-                  last_auto_increment: now.toISOString(),
-                })
-                .eq('id', campaign.id);
-            } else {
-              await supabase
-                .from('campaigns')
-                .update({
-                  messages_failed: campaign.messages_failed + 1,
-                  last_auto_increment: now.toISOString(),
-                })
-                .eq('id', campaign.id);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error auto-incrementing campaigns:', error);
-      }
-    }, 1000);
-
     return () => {
       supabase.removeChannel(contactsChannel);
       supabase.removeChannel(campaignsChannel);
       supabase.removeChannel(metricsChannel);
-      clearInterval(autoIncrementInterval);
     };
   }, [startDate, endDate]);
 

@@ -12,7 +12,7 @@ type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
   profiles?: { full_name: string; email: string } | null;
 };
 
-type FilterTab = 'all' | 'pending_approval' | 'approved' | 'Running' | 'Completed' | 'rejected';
+type FilterTab = 'all' | 'pending_approval' | 'approved' | 'Running' | 'Completed' | 'rejected' | 'Cancelled';
 
 interface ApprovalConfig {
   auto_increment_total: number;
@@ -38,6 +38,7 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }>
   Completed: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Completed' },
   Processing: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Processing' },
   rejected: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Rejected' },
+  Cancelled: { bg: 'bg-rose-500/20', text: 'text-rose-400', label: 'Cancelled' },
 };
 
 export function CampaignApprovals() {
@@ -49,6 +50,8 @@ export function CampaignApprovals() {
   const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
   const [config, setConfig] = useState<ApprovalConfig>({
@@ -273,12 +276,55 @@ export function CampaignApprovals() {
     return 'unknown';
   };
 
+  const handleCancelCampaign = async () => {
+    if (!reviewCampaign || !user) return;
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'Cancelled',
+          auto_increment_enabled: false,
+          end_time: new Date().toISOString(),
+        })
+        .eq('id', reviewCampaign.id);
+
+      if (error) throw error;
+
+      const template = NotificationTemplates.campaignCancelled(
+        reviewCampaign.name,
+        cancelReason || undefined
+      );
+      await sendNotification({
+        userId: reviewCampaign.user_id,
+        userEmail: reviewCampaign.profiles?.email || '',
+        userName: reviewCampaign.profiles?.full_name || '',
+        title: template.title,
+        message: template.message,
+        type: 'campaign_cancelled',
+        campaignId: reviewCampaign.id,
+        emailSubject: template.emailSubject,
+        emailBody: template.emailBody,
+      });
+
+      setReviewCampaign(null);
+      setShowCancelModal(false);
+      setCancelReason('');
+      fetchCampaigns();
+    } catch (err: any) {
+      alert('Error cancelling campaign: ' + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const tabs: { id: FilterTab; label: string; count?: number }[] = [
     { id: 'all', label: 'All', count: campaigns.length },
     { id: 'pending_approval', label: 'Pending', count: pendingCount },
     { id: 'approved', label: 'Approved' },
     { id: 'Running', label: 'Running' },
     { id: 'Completed', label: 'Completed' },
+    { id: 'Cancelled', label: 'Cancelled' },
     { id: 'rejected', label: 'Rejected' },
   ];
 
@@ -400,7 +446,7 @@ export function CampaignApprovals() {
                       </button>
                     </>
                   )}
-                  {(campaign.status === 'Running' || campaign.status === 'approved' || campaign.status === 'Completed') && (
+                  {(campaign.status === 'Running' || campaign.status === 'approved' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (
                     <button
                       onClick={() => openReview(campaign)}
                       className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition text-sm font-medium"
@@ -422,7 +468,7 @@ export function CampaignApprovals() {
               </div>
 
               {/* Stats row for running/completed campaigns */}
-              {(campaign.status === 'Running' || campaign.status === 'Completed') && (
+              {(campaign.status === 'Running' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (
                 <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-800">
                   <div>
                     <p className="text-gray-500 text-xs">Sent</p>
@@ -647,8 +693,8 @@ export function CampaignApprovals() {
                 </div>
               )}
 
-              {/* Existing stats for running/completed campaigns */}
-              {(reviewCampaign.status === 'Running' || reviewCampaign.status === 'Completed') && (
+              {/* Existing stats for running/completed/cancelled campaigns */}
+              {(reviewCampaign.status === 'Running' || reviewCampaign.status === 'Completed' || reviewCampaign.status === 'Cancelled') && (
                 <div className="bg-gray-800/50 rounded-xl p-5">
                   <h3 className="text-lg font-semibold text-white mb-4">Campaign Statistics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -678,6 +724,20 @@ export function CampaignApprovals() {
                       </p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Cancel button for running/approved campaigns */}
+              {(reviewCampaign.status === 'Running' || reviewCampaign.status === 'approved') && (
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    disabled={processing}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-lg hover:bg-rose-500/20 transition font-medium disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Cancel Campaign
+                  </button>
                 </div>
               )}
 
@@ -755,6 +815,50 @@ export function CampaignApprovals() {
                 className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium disabled:opacity-50"
               >
                 Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Reason Modal */}
+      {showCancelModal && reviewCampaign && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-md">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-rose-500/20 rounded-lg flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Cancel Campaign</h3>
+                <p className="text-gray-400 text-sm">"{reviewCampaign.name}"</p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-gray-300 mb-2">Reason (Optional)</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                placeholder="Explain why this campaign is being cancelled..."
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowCancelModal(false); setCancelReason(''); }}
+                className="flex-1 px-4 py-2.5 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition font-medium"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleCancelCampaign}
+                disabled={processing}
+                className="flex-1 px-4 py-2.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition font-medium disabled:opacity-50"
+              >
+                Confirm Cancel
               </button>
             </div>
           </div>
