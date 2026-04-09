@@ -180,6 +180,10 @@ export function CampaignApprovals() {
             : null,
           daily_limit: config.daily_limit,
           priority: config.priority,
+          // Reset counters to ensure clean start
+          messages_sent: 0,
+          messages_failed: 0,
+          last_auto_increment: null,
         })
         .eq('id', reviewCampaign.id);
 
@@ -227,6 +231,10 @@ export function CampaignApprovals() {
             : null,
           daily_limit: config.daily_limit,
           priority: config.priority,
+          // Reset counters to ensure clean start
+          messages_sent: 0,
+          messages_failed: 0,
+          last_auto_increment: null,
         })
         .eq('id', reviewCampaign.id);
 
@@ -903,8 +911,9 @@ export function CampaignApprovals() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={handleApproveAndStart}
-                    disabled={processing}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium disabled:opacity-50"
+                    disabled={processing || !config.auto_increment_complete_at || config.auto_increment_total <= 0}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!config.auto_increment_complete_at ? 'Set Target Completion Time first' : ''}
                   >
                     <Play className="w-4 h-4" />
                     Approve & Start Now
