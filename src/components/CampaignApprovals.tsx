@@ -128,7 +128,7 @@ export function CampaignApprovals() {
       const { data } = await supabase
         .from('contacts')
         .select('phone_number, name')
-        .eq('user_id', campaign.user_id)
+        .eq('campaign_id', campaign.id)
         .order('created_at', { ascending: false })
         .limit(5000);
       setCampaignContacts(data || []);
