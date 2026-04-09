@@ -735,9 +735,26 @@ export function CampaignApprovals() {
                     </div>
                   </div>
 
+                  {/* Target Completion Time — REQUIRED */}
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-amber-400 mb-2">
+                      🎯 Target Completion Time *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={config.auto_increment_complete_at}
+                      onChange={(e) => setConfig({ ...config, auto_increment_complete_at: e.target.value })}
+                      min={new Date().toISOString().slice(0, 16)}
+                      className="w-full px-3 py-2.5 bg-gray-800 border border-amber-500/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Campaign will finish exactly at this time. Messages will be paced automatically to complete on schedule.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Target Total</label>
+                      <label className="block text-sm text-gray-400 mb-1">Target Total Messages</label>
                       <input
                         type="number"
                         value={config.auto_increment_total}
@@ -746,11 +763,12 @@ export function CampaignApprovals() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Daily Limit</label>
+                      <label className="block text-sm text-gray-400 mb-1">Priority</label>
                       <input
                         type="number"
-                        value={config.daily_limit}
-                        onChange={(e) => setConfig({ ...config, daily_limit: parseInt(e.target.value) || 0 })}
+                        value={config.priority}
+                        onChange={(e) => setConfig({ ...config, priority: parseInt(e.target.value) || 1 })}
+                        min="1"
                         className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
@@ -776,37 +794,59 @@ export function CampaignApprovals() {
                         className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-400 text-sm"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Interval (seconds)</label>
-                      <input
-                        type="number"
-                        value={config.auto_increment_interval}
-                        onChange={(e) => setConfig({ ...config, auto_increment_interval: parseInt(e.target.value) || 5 })}
-                        min="1"
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Priority</label>
-                      <input
-                        type="number"
-                        value={config.priority}
-                        onChange={(e) => setConfig({ ...config, priority: parseInt(e.target.value) || 1 })}
-                        min="1"
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Target Completion Time (Optional)</label>
-                    <input
-                      type="datetime-local"
-                      value={config.auto_increment_complete_at}
-                      onChange={(e) => setConfig({ ...config, auto_increment_complete_at: e.target.value })}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
+                  {/* Live Calculation Preview */}
+                  {config.auto_increment_complete_at && config.auto_increment_total > 0 && (() => {
+                    const now = new Date();
+                    const completeAt = new Date(config.auto_increment_complete_at);
+                    const durationMs = completeAt.getTime() - now.getTime();
+                    const durationMinutes = Math.max(1, durationMs / 60000);
+                    const durationHours = durationMinutes / 60;
+                    const total = config.auto_increment_total;
+                    const sentRatio = config.auto_increment_sent_ratio / 100;
+                    const estimatedSent = Math.round(total * sentRatio);
+                    const estimatedFailed = total - estimatedSent;
+                    const messagesPerMinute = total / durationMinutes;
+                    const messagesPerSecond = total / (durationMinutes * 60);
+                    const isValid = durationMs > 0;
+
+                    return (
+                      <div className={`rounded-lg p-4 border ${isValid ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                        <p className={`text-sm font-medium mb-3 ${isValid ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isValid ? '📊 Calculated Delivery Plan' : '⚠️ Invalid — Completion time must be in the future'}
+                        </p>
+                        {isValid && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="bg-gray-900/50 rounded-lg p-2.5">
+                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Duration</p>
+                              <p className="text-white text-sm font-bold">
+                                {durationHours >= 1
+                                  ? `${Math.floor(durationHours)}h ${Math.round(durationMinutes % 60)}m`
+                                  : `${Math.round(durationMinutes)}m`}
+                              </p>
+                            </div>
+                            <div className="bg-gray-900/50 rounded-lg p-2.5">
+                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Speed</p>
+                              <p className="text-white text-sm font-bold">
+                                {messagesPerMinute >= 1
+                                  ? `${messagesPerMinute.toFixed(1)}/min`
+                                  : `${(messagesPerSecond * 60).toFixed(2)}/min`}
+                              </p>
+                            </div>
+                            <div className="bg-gray-900/50 rounded-lg p-2.5">
+                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Est. Sent</p>
+                              <p className="text-emerald-400 text-sm font-bold">{estimatedSent.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-gray-900/50 rounded-lg p-2.5">
+                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Est. Failed</p>
+                              <p className="text-red-400 text-sm font-bold">{estimatedFailed.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
