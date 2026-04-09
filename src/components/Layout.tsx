@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useAutoIncrement } from '../hooks/useAutoIncrement';
 import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare } from 'lucide-react';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
@@ -15,6 +16,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { profile, isAdmin, signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+
+  // Auto-increment engine: processes running campaigns in the background
+  useAutoIncrement();
 
   // Fetch pending approval count for admin badge
   useEffect(() => {
