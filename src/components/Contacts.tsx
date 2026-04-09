@@ -20,6 +20,9 @@ export function Contacts() {
   const [filterSource, setFilterSource] = useState('');
   const [filterCampaign, setFilterCampaign] = useState('');
   const [filterTag, setFilterTag] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 50;
 
   // Add contact modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,7 +44,11 @@ export function Contacts() {
   const [uploadData, setUploadData] = useState({
     source: 'Excel' as Contact['source'],
     campaign_id: '',
+    tag_id: '',
   });
+
+  // Tag for single/bulk add
+  const [addTagId, setAddTagId] = useState('');
 
   // Bulk assign
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
@@ -71,13 +78,24 @@ export function Contacts() {
 
   const fetchData = async () => {
     setLoading(true);
+    const from = (currentPage - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    // Get total count first
+    let countQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
+    if (filterSource) countQuery = countQuery.eq('source', filterSource as Contact['source']);
+    if (filterCampaign) countQuery = countQuery.eq('campaign_id', filterCampaign);
+    if (searchTerm) countQuery = countQuery.or(`phone_number.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+    const { count: totalC } = await countQuery;
+    setTotalCount(totalC || 0);
+
     let query = supabase.from('contacts').select('*').eq('user_id', user!.id).order('created_at', { ascending: false });
 
     if (filterSource) query = query.eq('source', filterSource as Contact['source']);
     if (filterCampaign) query = query.eq('campaign_id', filterCampaign);
     if (searchTerm) query = query.or(`phone_number.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
 
-    const { data } = await query.limit(200);
+    const { data } = await query.range(from, to);
     let contactsList = data || [];
 
     // Fetch campaigns
@@ -135,6 +153,11 @@ export function Contacts() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', filter: `user_id=eq.${user!.id}` }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  }, [filterSource, filterCampaign, searchTerm, filterTag, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
   }, [filterSource, filterCampaign, searchTerm, filterTag]);
 
   // ====== SINGLE ADD ======
@@ -152,8 +175,16 @@ export function Contacts() {
         user_id: user!.id,
       });
       if (error) throw error;
+      // Auto-assign tag if selected
+      if (addTagId) {
+        const { data: inserted } = await supabase.from('contacts').select('id').eq('phone_number', phone).eq('user_id', user!.id).single();
+        if (inserted) {
+          await supabase.from('contact_tags').insert({ contact_id: inserted.id, tag_id: addTagId, user_id: user!.id });
+        }
+      }
       alert('Contact added successfully!');
       setSingleForm({ phone_number: '', name: '', city: '', state: '', source: 'Manual' });
+      setAddTagId('');
       setShowAddModal(false);
       fetchData();
     } catch (err: any) { alert('Error: ' + err.message); }
@@ -200,11 +231,22 @@ export function Contacts() {
       );
       if (error) throw error;
 
+      // Auto-assign tag if selected
+      if (addTagId && toInsert.length > 0) {
+        const { data: insertedContacts } = await supabase.from('contacts').select('id').eq('user_id', user!.id)
+          .in('phone_number', toInsert.map(u => u.phone));
+        if (insertedContacts && insertedContacts.length > 0) {
+          const tagInserts = insertedContacts.map(c => ({ contact_id: c.id, tag_id: addTagId, user_id: user!.id }));
+          await supabase.from('contact_tags').insert(tagInserts);
+        }
+      }
+
       let msg = `Added ${toInsert.length} contacts.`;
       if (existingSet.size > 0) msg += ` ${existingSet.size} already existed.`;
       if (unique.length < lines.length) msg += ` ${lines.length - unique.length} duplicates in paste skipped.`;
       alert(msg);
       setBulkText('');
+      setAddTagId('');
       setShowAddModal(false);
       fetchData();
     } catch (err: any) { alert('Error: ' + err.message); }
@@ -284,10 +326,26 @@ export function Contacts() {
         let msg = `Uploaded ${toInsert.length} contacts.`;
         if (existSet.size > 0) msg += ` ${existSet.size} already existed.`;
         if (invalid > 0) msg += ` ${invalid} invalid numbers.`;
+
+        // Auto-assign tag if selected
+        if (uploadData.tag_id && toInsert.length > 0) {
+          const phones = toInsert.map((c: any) => c.phone_number);
+          const { data: insertedContacts } = await supabase.from('contacts').select('id').eq('user_id', user!.id)
+            .in('phone_number', phones);
+          if (insertedContacts && insertedContacts.length > 0) {
+            const tagInserts = insertedContacts.map(c => ({ contact_id: c.id, tag_id: uploadData.tag_id, user_id: user!.id }));
+            const batchSize = 500;
+            for (let i = 0; i < tagInserts.length; i += batchSize) {
+              await supabase.from('contact_tags').insert(tagInserts.slice(i, i + batchSize));
+            }
+          }
+        }
+
         alert(msg);
         fetchData();
         setShowAddModal(false);
         setSelectedFile(null);
+        setUploadData({ ...uploadData, tag_id: '' });
       } else {
         alert('No new contacts to upload. All already exist.');
       }
@@ -581,6 +639,54 @@ export function Contacts() {
         {contacts.length === 0 && (
           <div className="p-12 text-center"><p className="text-gray-400">No contacts found</p></div>
         )}
+
+        {/* Pagination */}
+        {totalCount > pageSize && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800">
+            <p className="text-sm text-gray-500">
+              Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} contacts
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                Previous
+              </button>
+              {(() => {
+                const totalPages = Math.ceil(totalCount / pageSize);
+                const pages: (number | string)[] = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  pages.push(1);
+                  if (currentPage > 3) pages.push('...');
+                  for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+                  if (currentPage < totalPages - 2) pages.push('...');
+                  pages.push(totalPages);
+                }
+                return pages.map((p, idx) => (
+                  typeof p === 'number' ? (
+                    <button key={idx} onClick={() => setCurrentPage(p)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                        currentPage === p ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                      }`}>{p}</button>
+                  ) : (
+                    <span key={idx} className="px-2 text-gray-600">…</span>
+                  )
+                ));
+              })()}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ====== ADD CONTACTS MODAL ====== */}
@@ -639,6 +745,14 @@ export function Contacts() {
                     {['Manual', 'Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <select value={addTagId} onChange={e => setAddTagId(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    <option value="">No tag</option>
+                    {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
                 <button onClick={handleSingleAdd}
                   className="w-full py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium">
                   Add Contact
@@ -667,6 +781,14 @@ export function Contacts() {
                     {['Manual', 'Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <select value={addTagId} onChange={e => setAddTagId(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    <option value="">No tag</option>
+                    {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
                 <button onClick={handleBulkPaste}
                   className="w-full py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium">
                   Add {bulkText.split('\n').filter(l => l.trim()).length} Contacts
@@ -690,6 +812,14 @@ export function Contacts() {
                     className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     <option value="">None</option>
                     {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <select value={uploadData.tag_id} onChange={e => setUploadData({ ...uploadData, tag_id: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    <option value="">No tag</option>
+                    {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div>

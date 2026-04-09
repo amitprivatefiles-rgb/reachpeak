@@ -72,7 +72,7 @@ export interface Database {
           campaign_cost: number
           estimated_revenue: number
           roi: number
-          status: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
+          status: 'draft' | 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked: boolean
           daily_limit: number
           file_url: string | null
@@ -115,7 +115,7 @@ export interface Database {
           campaign_cost?: number
           estimated_revenue?: number
           roi?: number
-          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
+          status?: 'draft' | 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked?: boolean
           daily_limit?: number
           file_url?: string | null
@@ -158,7 +158,7 @@ export interface Database {
           campaign_cost?: number
           estimated_revenue?: number
           roi?: number
-          status?: 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
+          status?: 'draft' | 'pending_approval' | 'approved' | 'Running' | 'Paused' | 'Completed' | 'Processing' | 'rejected' | 'Cancelled'
           is_locked?: boolean
           daily_limit?: number
           file_url?: string | null

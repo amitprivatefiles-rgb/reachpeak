@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   CheckCircle, XCircle, Clock, Play, Eye, X, Zap, Shield, AlertTriangle,
-  MessageSquare, Image as ImageIcon, Video, Download, Search, Filter
+  MessageSquare, Image as ImageIcon, Video, Download, Search, Filter, Copy, ExternalLink, Phone
 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import { sendNotification, NotificationTemplates } from '../lib/notifications';
@@ -53,6 +53,9 @@ export function CampaignApprovals() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [campaignContacts, setCampaignContacts] = useState<{phone_number: string; name: string | null}[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [copiedFeedback, setCopiedFeedback] = useState('');
 
   const [config, setConfig] = useState<ApprovalConfig>({
     auto_increment_total: 0,
@@ -107,7 +110,7 @@ export function CampaignApprovals() {
 
   const pendingCount = campaigns.filter((c) => c.status === 'pending_approval').length;
 
-  const openReview = (campaign: Campaign) => {
+  const openReview = async (campaign: Campaign) => {
     setReviewCampaign(campaign);
     setConfig({
       auto_increment_total: campaign.total_numbers || 0,
@@ -118,6 +121,33 @@ export function CampaignApprovals() {
       daily_limit: campaign.daily_limit || 1000,
       priority: campaign.priority || 1,
     });
+    // Fetch campaign contacts
+    setCampaignContacts([]);
+    setLoadingContacts(true);
+    try {
+      const { data } = await supabase
+        .from('contacts')
+        .select('phone_number, name')
+        .eq('user_id', campaign.user_id)
+        .order('created_at', { ascending: false })
+        .limit(5000);
+      setCampaignContacts(data || []);
+    } catch (err) {
+      console.error('Failed to fetch contacts:', err);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedFeedback(label);
+    setTimeout(() => setCopiedFeedback(''), 2000);
+  };
+
+  const copyAllNumbers = () => {
+    const numbers = campaignContacts.map(c => c.phone_number).join('\n');
+    copyToClipboard(numbers, 'all');
   };
 
   const applyPreset = (key: string) => {
@@ -547,6 +577,14 @@ export function CampaignApprovals() {
                     <p className="text-gray-500 text-xs mb-1">Total Contacts</p>
                     <p className="text-white font-medium">{(reviewCampaign.total_numbers || 0).toLocaleString()}</p>
                   </div>
+                  <div>
+                    <p className="text-gray-500 text-xs mb-1">Daily Limit</p>
+                    <p className="text-white font-medium">{(reviewCampaign.daily_limit || 1000).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs mb-1">Priority</p>
+                    <p className="text-white font-medium">{reviewCampaign.priority}</p>
+                  </div>
                   {reviewCampaign.scheduled_start && (
                     <div>
                       <p className="text-gray-500 text-xs mb-1">Scheduled Start</p>
@@ -559,15 +597,56 @@ export function CampaignApprovals() {
                       <p className="text-white font-medium capitalize">
                         {(reviewCampaign.selected_audience as any).mode || 'All contacts'}
                         {(reviewCampaign.selected_audience as any).source_filter && ` — Source: ${(reviewCampaign.selected_audience as any).source_filter}`}
+                        {(reviewCampaign.selected_audience as any).tag_filter && ` — Tag: ${(reviewCampaign.selected_audience as any).tag_filter}`}
+                        {(reviewCampaign.selected_audience as any).campaign_filter && ` — Campaign: ${(reviewCampaign.selected_audience as any).campaign_filter}`}
                       </p>
                     </div>
                   )}
                 </div>
 
+                {/* Timestamps */}
+                <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                  <span>Created: {new Date(reviewCampaign.created_at).toLocaleString()}</span>
+                  {reviewCampaign.submitted_at && <span>Submitted: {new Date(reviewCampaign.submitted_at).toLocaleString()}</span>}
+                  {reviewCampaign.approved_at && <span>Approved: {new Date(reviewCampaign.approved_at).toLocaleString()}</span>}
+                  {reviewCampaign.start_time && <span>Started: {new Date(reviewCampaign.start_time).toLocaleString()}</span>}
+                  {reviewCampaign.end_time && <span>Ended: {new Date(reviewCampaign.end_time).toLocaleString()}</span>}
+                </div>
+
                 {reviewCampaign.message_template && (
                   <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
-                    <p className="text-xs text-gray-500 mb-1">Message Template</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-gray-500">Message Template</p>
+                      <button onClick={() => copyToClipboard(reviewCampaign.message_template || '', 'template')}
+                        className="text-xs text-gray-500 hover:text-white flex items-center gap-1 transition">
+                        <Copy className="w-3 h-3" /> {copiedFeedback === 'template' ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
                     <p className="text-gray-300 text-sm whitespace-pre-wrap">{reviewCampaign.message_template}</p>
+                  </div>
+                )}
+
+                {/* Message Buttons */}
+                {reviewCampaign.message_buttons && Array.isArray(reviewCampaign.message_buttons) && (reviewCampaign.message_buttons as any[]).length > 0 && (
+                  <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                    <p className="text-xs text-gray-500 mb-2">Message Buttons</p>
+                    <div className="space-y-2">
+                      {(reviewCampaign.message_buttons as any[]).map((btn: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg">
+                          {btn.type === 'quick_reply' && <MessageSquare className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+                          {btn.type === 'url' && <ExternalLink className="w-4 h-4 text-blue-400 flex-shrink-0" />}
+                          {btn.type === 'phone' && <Phone className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-medium">{btn.text}</p>
+                            {btn.type === 'url' && btn.url && <p className="text-xs text-blue-400 truncate">{btn.url}</p>}
+                            {btn.type === 'phone' && btn.phone_number && <p className="text-xs text-green-400">{btn.phone_number}</p>}
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 flex-shrink-0">
+                            {btn.type === 'quick_reply' ? 'Quick Reply' : btn.type === 'url' ? 'URL' : 'Call'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -583,6 +662,44 @@ export function CampaignApprovals() {
                         <p className="text-sm text-white">{reviewCampaign.file_name}</p>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Campaign Contacts — Phone Numbers */}
+              <div className="bg-gray-800/50 rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-blue-400" />
+                    Campaign Contacts ({campaignContacts.length.toLocaleString()})
+                  </h3>
+                  {campaignContacts.length > 0 && (
+                    <button onClick={copyAllNumbers}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition text-sm font-medium">
+                      <Copy className="w-3.5 h-3.5" />
+                      {copiedFeedback === 'all' ? 'Copied!' : 'Copy All Numbers'}
+                    </button>
+                  )}
+                </div>
+                {loadingContacts ? (
+                  <p className="text-gray-500 text-sm">Loading contacts...</p>
+                ) : campaignContacts.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No contacts found for this user.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {campaignContacts.map((c, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-3 py-1.5 bg-gray-900/50 rounded-lg hover:bg-gray-900 transition group">
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-600 text-xs w-8">{idx + 1}.</span>
+                          <span className="text-white font-mono text-sm">{c.phone_number}</span>
+                          {c.name && <span className="text-gray-500 text-xs">({c.name})</span>}
+                        </div>
+                        <button onClick={() => copyToClipboard(c.phone_number, `phone-${idx}`)}
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition p-1">
+                          {copiedFeedback === `phone-${idx}` ? <CheckCircle className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

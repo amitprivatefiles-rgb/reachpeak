@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone } from 'lucide-react';
+import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone, Edit3 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -30,6 +30,7 @@ interface FormData {
 }
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string; pulse?: boolean }> = {
+  draft: { bg: 'bg-slate-500/20', text: 'text-slate-400', label: 'Draft' },
   pending_approval: { bg: 'bg-amber-500/20', text: 'text-amber-400', label: 'Pending Approval' },
   approved: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Approved' },
   Running: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Running', pulse: true },
@@ -49,6 +50,7 @@ export function UserCampaigns() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [contactCount, setContactCount] = useState(0);
   const [availableSources, setAvailableSources] = useState<string[]>([]);
   const [existingCampaigns, setExistingCampaigns] = useState<{ id: string; name: string }[]>([]);
@@ -172,7 +174,7 @@ export function UserCampaigns() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, asDraft = false) => {
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
@@ -191,14 +193,13 @@ export function UserCampaigns() {
         message_version: formData.message_version,
         message_template: formData.message_template || null,
         message_buttons: formData.message_buttons.length > 0 ? formData.message_buttons : null,
-        status: 'pending_approval',
-        submitted_at: new Date().toISOString(),
+        status: asDraft ? 'draft' : 'pending_approval',
+        submitted_at: asDraft ? null : new Date().toISOString(),
         total_numbers: contactCount,
         selected_audience: selectedAudience,
         scheduled_start: formData.scheduled_start ? new Date(formData.scheduled_start).toISOString() : null,
         user_id: user.id,
         created_by: user.id,
-        // These fields are set by admin during approval — left as defaults
         auto_increment_enabled: false,
         auto_increment_total: 0,
         messages_sent: 0,
@@ -207,19 +208,32 @@ export function UserCampaigns() {
         daily_limit: 1000,
       };
 
-      const { data: newCampaign, error: insertError } = await supabase
-        .from('campaigns')
-        .insert(campaignData)
-        .select()
-        .single();
+      let campaignId: string;
 
-      if (insertError) throw insertError;
+      if (editingDraftId) {
+        // Update existing draft
+        const { error: updateError } = await supabase
+          .from('campaigns')
+          .update(campaignData)
+          .eq('id', editingDraftId);
+        if (updateError) throw updateError;
+        campaignId = editingDraftId;
+      } else {
+        // Insert new campaign
+        const { data: newCampaign, error: insertError } = await supabase
+          .from('campaigns')
+          .insert(campaignData)
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        campaignId = newCampaign.id;
+      }
 
       // Upload media file if selected
-      if (selectedFile && newCampaign) {
+      if (selectedFile && campaignId) {
         setUploadingFile(true);
         const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${newCampaign.id}-${Date.now()}.${fileExt}`;
+        const fileName = `${campaignId}-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('campaign-files')
           .upload(fileName, selectedFile, { cacheControl: '3600', upsert: false });
@@ -229,13 +243,14 @@ export function UserCampaigns() {
           await supabase
             .from('campaigns')
             .update({ file_url: publicUrl, file_name: selectedFile.name })
-            .eq('id', newCampaign.id);
+            .eq('id', campaignId);
         }
         setUploadingFile(false);
       }
 
       // Reset form
       setShowModal(false);
+      setEditingDraftId(null);
       clearFile();
       setFormData({
         name: '', type: 'Promotion', message_version: 'A', message_template: '',
@@ -243,12 +258,30 @@ export function UserCampaigns() {
         message_buttons: [],
       });
       fetchCampaigns();
-      addToast('Campaign submitted for approval! ✅', 'success');
+      addToast(asDraft ? 'Campaign saved as draft! 📝' : (editingDraftId ? 'Draft submitted for approval! ✅' : 'Campaign submitted for approval! ✅'), 'success');
     } catch (err: any) {
-      addToast('Error submitting campaign: ' + err.message, 'error');
+      addToast('Error saving campaign: ' + err.message, 'error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const loadDraft = (campaign: Campaign) => {
+    setEditingDraftId(campaign.id);
+    setFormData({
+      name: campaign.name,
+      type: campaign.type,
+      message_version: campaign.message_version,
+      message_template: campaign.message_template || '',
+      contact_selection: (campaign.selected_audience as any)?.mode || 'all',
+      contact_source_filter: (campaign.selected_audience as any)?.source_filter || '',
+      contact_campaign_filter: (campaign.selected_audience as any)?.campaign_filter || '',
+      contact_tag_filter: (campaign.selected_audience as any)?.tag_filter || '',
+      scheduled_start: campaign.scheduled_start ? new Date(campaign.scheduled_start).toISOString().slice(0, 16) : '',
+      message_buttons: Array.isArray(campaign.message_buttons) ? campaign.message_buttons as MessageButton[] : [],
+    });
+    clearFile();
+    setShowModal(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -389,12 +422,20 @@ export function UserCampaigns() {
                   </div>
                 )}
               </div>
-              <button className="p-2 text-gray-500 hover:text-white transition ml-4">
-                <Eye className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 ml-4">
+                {campaign.status === 'draft' && (
+                  <button onClick={(e) => { e.stopPropagation(); loadDraft(campaign); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition text-sm font-medium">
+                    <Edit3 className="w-3.5 h-3.5" /> Edit & Submit
+                  </button>
+                )}
+                <button className="p-2 text-gray-500 hover:text-white transition">
+                  <Eye className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-800">
-              <span>Submitted: {campaign.submitted_at ? new Date(campaign.submitted_at).toLocaleDateString() : new Date(campaign.created_at).toLocaleDateString()}</span>
+              <span>{campaign.status === 'draft' ? 'Created' : 'Submitted'}: {campaign.submitted_at ? new Date(campaign.submitted_at).toLocaleDateString() : new Date(campaign.created_at).toLocaleDateString()}</span>
               {campaign.approved_at && <span>Approved: {new Date(campaign.approved_at).toLocaleDateString()}</span>}
               <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">Version {campaign.message_version}</span>
             </div>
@@ -818,10 +859,19 @@ export function UserCampaigns() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(false); clearFile(); }}
+                  onClick={() => { setShowModal(false); setEditingDraftId(null); clearFile(); }}
                   className="px-5 py-2.5 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition font-medium"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e as any, true)}
+                  disabled={submitting || uploadingFile || !formData.name.trim()}
+                  className="px-5 py-2.5 bg-slate-600 text-white rounded-lg hover:bg-slate-500 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Save Draft
                 </button>
                 <button
                   type="submit"

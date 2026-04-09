@@ -334,7 +334,7 @@ END $$;
 -- Update status constraint to include all values
 ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_status_check;
 ALTER TABLE campaigns ADD CONSTRAINT campaigns_status_check
-  CHECK (status IN ('pending_approval', 'approved', 'Running', 'Paused', 'Completed', 'Processing', 'rejected'));
+  CHECK (status IN ('draft', 'pending_approval', 'approved', 'Running', 'Paused', 'Completed', 'Processing', 'rejected'));
 
 -- ============================================================
 -- PART 6: ADD user_id FOR MULTI-TENANCY
