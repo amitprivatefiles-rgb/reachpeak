@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone, Edit3 } from 'lucide-react';
+import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone, Edit3, Users, Copy } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -56,6 +56,9 @@ export function UserCampaigns() {
   const [existingCampaigns, setExistingCampaigns] = useState<{ id: string; name: string }[]>([]);
   const [availableTags, setAvailableTags] = useState<TagType[]>([]);
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' }[]>([]);
+  const [detailContacts, setDetailContacts] = useState<{phone_number: string; name: string | null}[]>([]);
+  const [loadingDetailContacts, setLoadingDetailContacts] = useState(false);
+  const [copiedFeedback, setCopiedFeedback] = useState('');
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -138,6 +141,58 @@ export function UserCampaigns() {
 
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  // Fetch contacts when detail modal opens
+  useEffect(() => {
+    if (!showDetail || !user) {
+      setDetailContacts([]);
+      return;
+    }
+    const fetchDetailContacts = async () => {
+      setLoadingDetailContacts(true);
+      try {
+        const audience = showDetail.selected_audience as any;
+        let contacts: {phone_number: string; name: string | null}[] = [];
+
+        if (audience?.mode === 'tag' && audience?.tag_filter) {
+          // Tag-based audience: fetch contact IDs from contact_tags, then fetch contacts
+          const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', audience.tag_filter).eq('user_id', user.id);
+          const ids = (ctData || []).map((ct: any) => ct.contact_id);
+          if (ids.length > 0) {
+            const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', user.id).in('id', ids).order('created_at', { ascending: false }).limit(5000);
+            contacts = data || [];
+          }
+        } else if (audience?.mode === 'source' && audience?.source_filter) {
+          const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', user.id).eq('source', audience.source_filter).order('created_at', { ascending: false }).limit(5000);
+          contacts = data || [];
+        } else if (audience?.mode === 'campaign' && audience?.campaign_filter) {
+          const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', user.id).eq('campaign_id', audience.campaign_filter).order('created_at', { ascending: false }).limit(5000);
+          contacts = data || [];
+        } else {
+          // 'all' or fallback: try campaign_id first, then all contacts
+          const { data: byCampaign } = await supabase.from('contacts').select('phone_number, name').eq('campaign_id', showDetail.id).order('created_at', { ascending: false }).limit(5000);
+          if (byCampaign && byCampaign.length > 0) {
+            contacts = byCampaign;
+          } else {
+            const { data: allContacts } = await supabase.from('contacts').select('phone_number, name').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5000);
+            contacts = allContacts || [];
+          }
+        }
+        setDetailContacts(contacts);
+      } catch (err) {
+        console.error('Failed to fetch campaign contacts:', err);
+      } finally {
+        setLoadingDetailContacts(false);
+      }
+    };
+    fetchDetailContacts();
+  }, [showDetail, user]);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedFeedback(label);
+    setTimeout(() => setCopiedFeedback(''), 2000);
+  };
 
   useEffect(() => {
     const updateCount = async () => {
@@ -499,6 +554,44 @@ export function UserCampaigns() {
               </div>
             )}
 
+            {/* Message Buttons */}
+            {showDetail.message_buttons && Array.isArray(showDetail.message_buttons) && (showDetail.message_buttons as any[]).length > 0 && (
+              <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <p className="text-xs text-gray-500 mb-2">Message Buttons</p>
+                <div className="flex flex-wrap gap-2">
+                  {(showDetail.message_buttons as any[]).map((btn: any, idx: number) => (
+                    <span key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                      btn.type === 'quick_reply' ? 'bg-emerald-500/20 text-emerald-400' :
+                      btn.type === 'url' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-green-500/20 text-green-400'
+                    }`}>
+                      {btn.type === 'url' ? <ExternalLink className="w-3 h-3" /> : btn.type === 'phone' ? <Phone className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                      {btn.text}
+                      {btn.type === 'url' && btn.url && <span className="text-gray-500 ml-1">({btn.url})</span>}
+                      {btn.type === 'phone' && btn.phone_number && <span className="text-gray-500 ml-1">({btn.phone_number})</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Audience Selection Info */}
+            {showDetail.selected_audience && (
+              <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-gray-300">Audience Selection</span>
+                </div>
+                <p className="text-sm text-gray-400 capitalize">
+                  {(showDetail.selected_audience as any).mode === 'all' ? 'All contacts' :
+                   (showDetail.selected_audience as any).mode === 'source' ? `Source: ${(showDetail.selected_audience as any).source_filter}` :
+                   (showDetail.selected_audience as any).mode === 'campaign' ? `Campaign filter` :
+                   (showDetail.selected_audience as any).mode === 'tag' ? `Tag filter` :
+                   (showDetail.selected_audience as any).mode || 'All contacts'}
+                </p>
+              </div>
+            )}
+
             {showDetail.status === 'rejected' && showDetail.rejection_reason && (
               <div className="mb-4 p-4 bg-red-500/10 rounded-lg border border-red-500/30">
                 <div className="flex items-center gap-2 mb-2">
@@ -562,6 +655,44 @@ export function UserCampaigns() {
                 </div>
               </div>
             )}
+
+            {/* Campaign Contacts */}
+            <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-gray-300">Campaign Contacts ({detailContacts.length.toLocaleString()})</span>
+                </div>
+                {detailContacts.length > 0 && (
+                  <button onClick={() => { const nums = detailContacts.map(c => c.phone_number).join('\n'); copyToClipboard(nums, 'all-nums'); }}
+                    className="flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-xs hover:bg-blue-500/20 transition">
+                    <Copy className="w-3 h-3" />
+                    {copiedFeedback === 'all-nums' ? 'Copied!' : 'Copy All'}
+                  </button>
+                )}
+              </div>
+              {loadingDetailContacts ? (
+                <p className="text-gray-500 text-sm">Loading contacts...</p>
+              ) : detailContacts.length === 0 ? (
+                <p className="text-gray-500 text-sm">No contacts found</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                  {detailContacts.map((c, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-3 py-1.5 bg-gray-900/50 rounded-lg hover:bg-gray-900 transition group">
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-600 text-xs w-8">{idx + 1}.</span>
+                        <span className="text-white font-mono text-sm">{c.phone_number}</span>
+                        {c.name && <span className="text-gray-500 text-xs">({c.name})</span>}
+                      </div>
+                      <button onClick={() => copyToClipboard(c.phone_number, `p-${idx}`)}
+                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition p-1">
+                        {copiedFeedback === `p-${idx}` ? <CheckCircle className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-800">
               <span>Submitted: {showDetail.submitted_at ? new Date(showDetail.submitted_at).toLocaleString() : new Date(showDetail.created_at).toLocaleString()}</span>

@@ -121,17 +121,38 @@ export function CampaignApprovals() {
       daily_limit: campaign.daily_limit || 1000,
       priority: campaign.priority || 1,
     });
-    // Fetch campaign contacts
+    // Fetch campaign contacts based on selected_audience
     setCampaignContacts([]);
     setLoadingContacts(true);
     try {
-      const { data } = await supabase
-        .from('contacts')
-        .select('phone_number, name')
-        .eq('campaign_id', campaign.id)
-        .order('created_at', { ascending: false })
-        .limit(5000);
-      setCampaignContacts(data || []);
+      const audience = campaign.selected_audience as any;
+      let contacts: {phone_number: string; name: string | null}[] = [];
+
+      if (audience?.mode === 'tag' && audience?.tag_filter) {
+        // Tag-based: get contact IDs from contact_tags, then fetch contacts
+        const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', audience.tag_filter).eq('user_id', campaign.user_id);
+        const ids = (ctData || []).map((ct: any) => ct.contact_id);
+        if (ids.length > 0) {
+          const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).in('id', ids).order('created_at', { ascending: false }).limit(5000);
+          contacts = data || [];
+        }
+      } else if (audience?.mode === 'source' && audience?.source_filter) {
+        const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).eq('source', audience.source_filter).order('created_at', { ascending: false }).limit(5000);
+        contacts = data || [];
+      } else if (audience?.mode === 'campaign' && audience?.campaign_filter) {
+        const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).eq('campaign_id', audience.campaign_filter).order('created_at', { ascending: false }).limit(5000);
+        contacts = data || [];
+      } else {
+        // 'all' or fallback: try campaign_id first, then all user contacts
+        const { data: byCampaign } = await supabase.from('contacts').select('phone_number, name').eq('campaign_id', campaign.id).order('created_at', { ascending: false }).limit(5000);
+        if (byCampaign && byCampaign.length > 0) {
+          contacts = byCampaign;
+        } else {
+          const { data: allContacts } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).order('created_at', { ascending: false }).limit(5000);
+          contacts = allContacts || [];
+        }
+      }
+      setCampaignContacts(contacts);
     } catch (err) {
       console.error('Failed to fetch contacts:', err);
     } finally {
