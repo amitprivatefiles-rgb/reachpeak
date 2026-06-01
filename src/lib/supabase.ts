@@ -14,6 +14,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
         <p style="color:#64748b;font-size:12px;margin-top:16px;">Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY</p>
       </div>
     </div>`;
+  throw new Error('Missing Supabase environment variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY');
 }
 
 export const supabase = createClient<Database>(supabaseUrl || '', supabaseAnonKey || '');

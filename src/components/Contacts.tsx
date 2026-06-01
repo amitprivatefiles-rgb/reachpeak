@@ -17,6 +17,7 @@ export function Contacts() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterCampaign, setFilterCampaign] = useState('');
   const [filterTag, setFilterTag] = useState('');
@@ -70,22 +71,48 @@ export function Contacts() {
   const [assignTagContactId, setAssignTagContactId] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [showBulkTagModal, setShowBulkTagModal] = useState(false);
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
 
   const TAG_COLORS = [
     '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
     '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
   ];
 
+  // Debounce search to prevent refetch on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const fetchData = async () => {
     setLoading(true);
     const from = (currentPage - 1) * pageSize;
     const to = from + pageSize - 1;
 
+    // Pre-fetch tagged contact IDs if tag filter is active (server-side filtering)
+    let taggedContactIds: string[] | null = null;
+    if (filterTag) {
+      const { data: ctData } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .eq('tag_id', filterTag)
+        .eq('user_id', user!.id);
+      taggedContactIds = (ctData || []).map((ct: any) => ct.contact_id);
+      if (taggedContactIds.length === 0) {
+        setTotalCount(0);
+        setContacts([]);
+        setContactTags({});
+        setLoading(false);
+        return;
+      }
+    }
+
     // Get total count first
     let countQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
     if (filterSource) countQuery = countQuery.eq('source', filterSource as Contact['source']);
     if (filterCampaign) countQuery = countQuery.eq('campaign_id', filterCampaign);
-    if (searchTerm) countQuery = countQuery.or(`phone_number.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+    if (debouncedSearch) countQuery = countQuery.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
+    if (taggedContactIds) countQuery = countQuery.in('id', taggedContactIds);
     const { count: totalC } = await countQuery;
     setTotalCount(totalC || 0);
 
@@ -93,10 +120,11 @@ export function Contacts() {
 
     if (filterSource) query = query.eq('source', filterSource as Contact['source']);
     if (filterCampaign) query = query.eq('campaign_id', filterCampaign);
-    if (searchTerm) query = query.or(`phone_number.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+    if (debouncedSearch) query = query.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
+    if (taggedContactIds) query = query.in('id', taggedContactIds);
 
     const { data } = await query.range(from, to);
-    let contactsList = data || [];
+    const contactsList = data || [];
 
     // Fetch campaigns
     const { data: campaignsData } = await supabase.from('campaigns').select('id, name').eq('user_id', user!.id).order('name');
@@ -125,12 +153,8 @@ export function Contacts() {
         }
       });
       setContactTags(tagMap);
-
-      // Filter by tag if selected
-      if (filterTag) {
-        const taggedIds = new Set((ctData || []).filter((ct: any) => ct.tag_id === filterTag).map((ct: any) => ct.contact_id));
-        contactsList = contactsList.filter(c => taggedIds.has(c.id));
-      }
+    } else {
+      setContactTags({});
     }
 
     setContacts(contactsList);
@@ -146,14 +170,19 @@ export function Contacts() {
     setLoading(false);
   };
 
+  // Data fetching effect — triggered by filters and pagination
   useEffect(() => {
     fetchData();
+  }, [filterSource, filterCampaign, debouncedSearch, filterTag, currentPage]);
+
+  // Realtime channel — set up once, not recreated on filter changes
+  useEffect(() => {
     const channel = supabase
       .channel('contacts-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', filter: `user_id=eq.${user!.id}` }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [filterSource, filterCampaign, searchTerm, filterTag, currentPage]);
+  }, []);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -166,6 +195,18 @@ export function Contacts() {
     if (!phone || phone.length < 10) { alert('Please enter a valid phone number (min 10 digits)'); return; }
 
     try {
+      // Check for duplicate
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', user!.id)
+        .eq('phone_number', phone)
+        .maybeSingle();
+      if (existing) {
+        alert('This phone number already exists in your contacts.');
+        return;
+      }
+
       const { error } = await supabase.from('contacts').insert({
         phone_number: phone,
         name: singleForm.name || null,
@@ -385,13 +426,34 @@ export function Contacts() {
   };
 
   const bulkAssignTag = async (tagId: string) => {
-    if (selectedContacts.size === 0) return;
     try {
-      const inserts = Array.from(selectedContacts).map(cid => ({ contact_id: cid, tag_id: tagId, user_id: user!.id }));
-      const { error } = await supabase.from('contact_tags').insert(inserts);
-      if (error && !error.message.includes('duplicate')) throw error;
-      alert(`Tag assigned to ${selectedContacts.size} contacts`);
+      let contactIds: string[];
+      if (selectAllMatching) {
+        // Fetch ALL matching contact IDs across all pages
+        let query = supabase.from('contacts').select('id').eq('user_id', user!.id);
+        if (filterSource) query = query.eq('source', filterSource as Contact['source']);
+        if (filterCampaign) query = query.eq('campaign_id', filterCampaign);
+        if (debouncedSearch) query = query.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
+        if (filterTag) {
+          const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', filterTag).eq('user_id', user!.id);
+          const tagIds = (ctData || []).map((ct: any) => ct.contact_id);
+          if (tagIds.length > 0) query = query.in('id', tagIds);
+        }
+        const { data } = await query.limit(10000);
+        contactIds = (data || []).map((c: any) => c.id);
+      } else {
+        contactIds = Array.from(selectedContacts);
+      }
+      if (contactIds.length === 0) return;
+      const inserts = contactIds.map(cid => ({ contact_id: cid, tag_id: tagId, user_id: user!.id }));
+      // Batch insert in chunks of 500
+      for (let i = 0; i < inserts.length; i += 500) {
+        const { error } = await supabase.from('contact_tags').insert(inserts.slice(i, i + 500));
+        if (error && !error.message.includes('duplicate')) throw error;
+      }
+      alert(`Tag assigned to ${contactIds.length} contacts`);
       setSelectedContacts(new Set());
+      setSelectAllMatching(false);
       setShowBulkTagModal(false);
       fetchData();
     } catch (err: any) { alert('Error: ' + err.message); }
@@ -448,7 +510,7 @@ export function Contacts() {
         (contactTags[c.id] || []).map(t => t.name).join('; '),
         c.is_blacklisted ? 'Yes' : 'No',
       ]),
-    ].map(r => r.join(',')).join('\n');
+    ].map(r => r.map(f => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = window.URL.createObjectURL(blob);
@@ -463,8 +525,9 @@ export function Contacts() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedContacts.size === contacts.length) {
+    if (selectedContacts.size === contacts.length && contacts.length > 0) {
       setSelectedContacts(new Set());
+      setSelectAllMatching(false);
     } else {
       setSelectedContacts(new Set(contacts.map(c => c.id)));
     }
@@ -497,7 +560,7 @@ export function Contacts() {
           {selectedContacts.size > 0 && (
             <button onClick={() => setShowBulkTagModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition">
-              <Tag className="w-4 h-4" /> Tag {selectedContacts.size} Selected
+              <Tag className="w-4 h-4" /> Tag {selectAllMatching ? totalCount.toLocaleString() : selectedContacts.size} Selected
             </button>
           )}
           {unassignedCount > 0 && (
@@ -549,6 +612,28 @@ export function Contacts() {
           </select>
         </div>
       </div>
+
+      {/* Cross-page selection banner */}
+      {selectedContacts.size === contacts.length && contacts.length > 0 && totalCount > pageSize && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 flex items-center justify-between">
+          <p className="text-blue-300 text-sm">
+            {selectAllMatching
+              ? `All ${totalCount.toLocaleString()} matching contacts selected`
+              : `All ${contacts.length} contacts on this page are selected.`}
+          </p>
+          {!selectAllMatching ? (
+            <button onClick={() => setSelectAllMatching(true)}
+              className="text-blue-400 hover:text-blue-300 text-sm font-medium underline">
+              Select all {totalCount.toLocaleString()} matching contacts
+            </button>
+          ) : (
+            <button onClick={() => { setSelectAllMatching(false); setSelectedContacts(new Set()); }}
+              className="text-blue-400 hover:text-blue-300 text-sm font-medium underline">
+              Clear selection
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">

@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
 import { useAutoIncrement } from '../hooks/useAutoIncrement';
 import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare } from 'lucide-react';
@@ -14,11 +15,15 @@ interface LayoutProps {
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { profile, isAdmin, signOut } = useAuth();
+  const { subscription } = useSubscription();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Auto-increment engine: processes running campaigns in the background
-  useAutoIncrement();
+  // Use customer's business logo if available, fallback to ReachPeak brand
+  const logoUrl = subscription?.logo_url || LOGO_URL;
+
+  // Auto-increment engine: only runs for admin users
+  useAutoIncrement(!!isAdmin);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {
@@ -82,7 +87,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         <div className="p-6 border-b border-gray-800">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src={LOGO_URL} alt="ReachPeak API" className="w-10 h-10 rounded-lg" />
+              <img src={logoUrl} alt="ReachPeak API" className="w-10 h-10 rounded-lg object-cover" />
               <h1 className="text-white font-bold text-lg">ReachPeak API</h1>
             </div>
             <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden text-gray-400 hover:text-white">
@@ -148,7 +153,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-2">
-              <img src={LOGO_URL} alt="ReachPeak API" className="w-8 h-8 rounded-lg" />
+              <img src={logoUrl} alt="ReachPeak API" className="w-8 h-8 rounded-lg object-cover" />
               <h1 className="text-white font-bold text-base">ReachPeak API</h1>
             </div>
             <div className="w-6" />

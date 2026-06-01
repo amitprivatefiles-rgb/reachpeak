@@ -9,12 +9,11 @@ import {
 export function Settings() {
   const { profile, isAdmin, user } = useAuth();
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'profile' | 'api' | 'notifications' | 'account' | 'activity'>('profile');
 
   // Profile editing
   const [editName, setEditName] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

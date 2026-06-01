@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
@@ -108,6 +108,7 @@ export function Campaigns() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       setSelectedFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -430,6 +431,22 @@ export function Campaigns() {
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+                {campaign.message_buttons && Array.isArray(campaign.message_buttons) && (campaign.message_buttons as any[]).length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {(campaign.message_buttons as any[]).map((btn: any, idx: number) => (
+                      <span key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                        btn.type === 'quick_reply' ? 'bg-emerald-500/20 text-emerald-400' :
+                        btn.type === 'url' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                        {btn.type === 'url' ? <ExternalLink className="w-3 h-3" /> : btn.type === 'phone' ? <Phone className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                        {btn.text}
+                        {btn.type === 'url' && btn.url && <span className="text-gray-500 ml-1">({btn.url})</span>}
+                        {btn.type === 'phone' && btn.phone_number && <span className="text-gray-500 ml-1">({btn.phone_number})</span>}
+                      </span>
+                    ))}
                   </div>
                 )}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">

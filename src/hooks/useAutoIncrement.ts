@@ -28,11 +28,12 @@ import { supabase } from '../lib/supabase';
 const TICK_INTERVAL_MS = 3000; // Poll every 3 seconds
 const MIN_UPDATE_GAP_S = 2;   // Minimum gap between updates (dedup for multiple tabs)
 
-export function useAutoIncrement() {
+export function useAutoIncrement(enabled = true) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runningRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
     const tick = async () => {
       // Prevent overlapping ticks
       if (runningRef.current) return;

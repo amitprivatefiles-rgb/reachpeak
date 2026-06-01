@@ -18,12 +18,15 @@ export function Reports() {
 
     try {
       switch (reportType) {
-        case 'campaign':
-          const { data: campaigns } = await supabase
+        case 'campaign': {
+          let query = supabase
             .from('campaigns')
             .select('*')
             .eq('user_id', user!.id)
             .order('created_at', { ascending: false });
+          if (dateFrom) query = query.gte('created_at', dateFrom);
+          if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
+          const { data: campaigns } = await query;
           data = campaigns || [];
           headers = [
             'Name',
@@ -41,14 +44,18 @@ export function Reports() {
           ];
           filename = 'campaign-report';
           break;
+        }
 
-        case 'contact':
-          const { data: contacts } = await supabase
+        case 'contact': {
+          let query = supabase
             .from('contacts')
             .select('*')
             .eq('user_id', user!.id)
             .order('created_at', { ascending: false })
             .limit(10000);
+          if (dateFrom) query = query.gte('created_at', dateFrom);
+          if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
+          const { data: contacts } = await query;
           data = contacts || [];
           headers = [
             'Phone Number',
@@ -65,13 +72,17 @@ export function Reports() {
           ];
           filename = 'contact-report';
           break;
+        }
 
-        case 'failed':
-          const { data: failed } = await supabase
+        case 'failed': {
+          let query = supabase
             .from('failed_messages')
             .select('*')
             .eq('user_id', user!.id)
             .order('last_attempt_date', { ascending: false });
+          if (dateFrom) query = query.gte('created_at', dateFrom);
+          if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
+          const { data: failed } = await query;
           data = failed || [];
           headers = [
             'Phone Number',
@@ -83,9 +94,13 @@ export function Reports() {
           ];
           filename = 'failed-messages-report';
           break;
+        }
 
-        case 'agent':
-          const { data: agents } = await supabase.from('agents').select('*').eq('user_id', user!.id).order('name');
+        case 'agent': {
+          let query = supabase.from('agents').select('*').eq('user_id', user!.id).order('name');
+          if (dateFrom) query = query.gte('created_at', dateFrom);
+          if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
+          const { data: agents } = await query;
           data = agents || [];
           headers = [
             'Name',
@@ -99,6 +114,7 @@ export function Reports() {
           ];
           filename = 'agent-performance-report';
           break;
+        }
       }
 
       const csvRows = [headers];
@@ -163,7 +179,8 @@ export function Reports() {
         csvRows.push(row);
       });
 
-      const csv = csvRows.map((row) => row.join(',')).join('\n');
+      const escapeCsv = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+      const csv = csvRows.map((row) => row.map(escapeCsv).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -37,6 +37,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSubscription = async (retryCount = 0) => {
     if (!user) {
@@ -55,8 +56,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     if (!data && retryCount < 2) {
       // Retry after a short delay — subscription might not be committed yet
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      return fetchSubscription(retryCount + 1);
+      retryTimeoutRef.current = setTimeout(() => fetchSubscription(retryCount + 1), 1500);
+      return;
     }
 
     setSubscription(data as Subscription | null);
@@ -65,6 +66,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchSubscription();
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
   }, [user]);
 
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { Users, Upload, Send, AlertCircle, Play, CheckCircle, TrendingUp, TrendingDown, Ban, UserCheck, Clock, RefreshCw, CreditCard as Edit2, Save, X, Calendar, CreditCard, Megaphone } from 'lucide-react';
+import { Users, Upload, Send, AlertCircle, Play, CheckCircle, TrendingUp, TrendingDown, Ban, UserCheck, Clock, RefreshCw, CreditCard as Edit2, Save, X, Calendar, CreditCard, Megaphone, MessageSquare, Download } from 'lucide-react';
 
 interface DashboardMetrics {
   total_contacts: number;
@@ -52,8 +52,6 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ messages_sent: number; messages_failed: number }>({ messages_sent: 0, messages_failed: 0 });
-  const [_editingMetrics, _setEditingMetrics] = useState(false);
-  const [_metricsEditValues, _setMetricsEditValues] = useState<Partial<DashboardMetrics>>({});
   const [pendingApprovals, setPendingApprovals] = useState(0);
 
   const [startDate, setStartDate] = useState<string>('');
@@ -183,9 +181,13 @@ export function Dashboard() {
     }
   };
 
+  // Data fetching — triggered by date filters
   useEffect(() => {
     fetchData();
+  }, [startDate, endDate]);
 
+  // Realtime channels — set up once
+  useEffect(() => {
     const contactsChannel = supabase
       .channel('dashboard-contacts')
       .on(
@@ -239,7 +241,7 @@ export function Dashboard() {
       supabase.removeChannel(campaignsChannel);
       supabase.removeChannel(metricsChannel);
     };
-  }, [startDate, endDate]);
+  }, []);
 
   const startEditing = (campaign: Campaign) => {
     setEditingCampaign(campaign.id);
@@ -518,6 +520,45 @@ export function Dashboard() {
                         )}
                       </div>
                     </div>
+
+                    {campaign.message_template && (
+                      <div className="mt-2 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-xs font-medium text-gray-300">Message</span>
+                        </div>
+                        <p className="text-sm text-gray-400 line-clamp-3 whitespace-pre-wrap">{campaign.message_template}</p>
+                      </div>
+                    )}
+
+                    {campaign.file_name && campaign.file_url && (
+                      <div className="mt-2 bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+                        {['jpg','jpeg','png','gif','webp'].includes(campaign.file_name.split('.').pop()?.toLowerCase() || '') ? (
+                          <img src={campaign.file_url} alt={campaign.file_name} className="w-full h-40 object-cover" />
+                        ) : ['mp4','webm','mov'].includes(campaign.file_name.split('.').pop()?.toLowerCase() || '') ? (
+                          <video src={campaign.file_url} controls className="w-full h-40 object-cover bg-black" />
+                        ) : (
+                          <div className="flex items-center gap-2 p-3">
+                            <Download className="w-4 h-4 text-blue-400" />
+                            <span className="text-sm text-white">{campaign.file_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {campaign.message_buttons && Array.isArray(campaign.message_buttons) && (campaign.message_buttons as any[]).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(campaign.message_buttons as any[]).map((btn: any, idx: number) => (
+                          <span key={idx} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                            btn.type === 'quick_reply' ? 'bg-emerald-500/20 text-emerald-400' :
+                            btn.type === 'url' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-green-500/20 text-green-400'
+                          }`}>
+                            {btn.type === 'url' ? '🔗' : btn.type === 'phone' ? '📞' : '💬'} {btn.text}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -49,6 +49,10 @@ export function UserManagement() {
     setCreateError(null);
     setCreateSuccess(null);
     try {
+      // Save admin session before signUp — Supabase can switch to the new user's session
+      const { data: adminSessionData } = await supabase.auth.getSession();
+      const adminSession = adminSessionData?.session;
+
       // Step 1: Create auth user via signUp (no edge function needed)
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
@@ -57,6 +61,14 @@ export function UserManagement() {
           data: { full_name: formData.full_name },
         },
       });
+
+      // Restore admin session immediately to prevent session hijack
+      if (adminSession) {
+        await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        });
+      }
 
       if (signUpError) {
         if (signUpError.message?.toLowerCase().includes('rate limit')) {

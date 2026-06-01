@@ -177,7 +177,7 @@ export function FailedRetry() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-gray-400 text-sm">
-                  {new Date(message.last_attempt_date).toLocaleString()}
+                  {message.last_attempt_date ? new Date(message.last_attempt_date).toLocaleString() : 'N/A'}
                 </td>
                 <td className="px-6 py-4">
                   <span
