@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Upload, Search, Filter, CreditCard as Edit2, Trash2, Ban, Download, Plus, Users, Tag, X, Hash } from 'lucide-react';
+import { Upload, Search, Filter, CreditCard as Edit2, Trash2, Ban, Download, Plus, Users, Tag, X, Hash, Loader2 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import * as XLSX from 'xlsx';
 
@@ -16,6 +16,8 @@ export function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);  // distinguishes first load from refetch
+  const [fetchError, setFetchError] = useState<string | null>(null);  // inline error banner
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterSource, setFilterSource] = useState('');
@@ -24,6 +26,9 @@ export function Contacts() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+
+  // Stale-response guard: monotonically increasing request ID
+  const requestIdRef = useRef(0);
 
   // Add contact modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -69,6 +74,7 @@ export function Contacts() {
   const [newTagColor, setNewTagColor] = useState('#3b82f6');
   const [showAssignTagModal, setShowAssignTagModal] = useState(false);
   const [assignTagContactId, setAssignTagContactId] = useState('');
+  // Cross-page persistent selections
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [showBulkTagModal, setShowBulkTagModal] = useState(false);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
@@ -78,39 +84,57 @@ export function Contacts() {
     '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
   ];
 
-  // Debounce search to prevent refetch on every keystroke
+  // ==================== DEBOUNCE ====================
+  // Debounce search — only this timer sets debouncedSearch
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchData = async (page?: number, size?: number) => {
+  // Immediate search: bypass debounce on Enter key or Search button click
+  const applySearchNow = useCallback(() => {
+    setDebouncedSearch(searchTerm);
+  }, [searchTerm]);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applySearchNow();
+    }
+  }, [applySearchNow]);
+
+  // ==================== DATA FETCHING ====================
+  const fetchData = useCallback(async () => {
+    // Increment request ID and capture it for this fetch
+    const thisRequestId = ++requestIdRef.current;
     setLoading(true);
-    const activePage = page ?? currentPage;
-    const activeSize = size ?? pageSize;
-    const from = (activePage - 1) * activeSize;
-    const to = from + activeSize - 1;
+    setFetchError(null);
+
+    const activePage = currentPage;
+    const activeSize = pageSize;
 
     try {
       // Pre-fetch tagged contact IDs if tag filter is active (server-side filtering)
       let taggedContactIds: string[] | null = null;
       if (filterTag) {
-        const { data: ctData } = await supabase
+        const { data: ctData, error: tagFetchErr } = await supabase
           .from('contact_tags')
           .select('contact_id')
           .eq('tag_id', filterTag)
           .eq('user_id', user!.id);
-        taggedContactIds = (ctData || []).map((ct: any) => ct.contact_id);
+        if (tagFetchErr) throw new Error('Failed to load tag filter: ' + tagFetchErr.message);
+        // Stale guard: if a newer request was launched while we awaited, discard
+        if (thisRequestId !== requestIdRef.current) return;
+        taggedContactIds = (ctData || []).map((ct: { contact_id: string }) => ct.contact_id);
         if (taggedContactIds.length === 0) {
           setTotalCount(0);
           setContacts([]);
           setContactTags({});
-          setLoading(false);
-          return;
+          return; // finally block will clear loading
         }
       }
 
-      // Build base filters helper
+      // Build base filters helper — shared between count and data queries
       const applyFilters = (q: any) => {
         if (filterSource) q = q.eq('source', filterSource as Contact['source']);
         if (filterCampaign) q = q.eq('campaign_id', filterCampaign);
@@ -122,77 +146,105 @@ export function Contacts() {
       // Get total count
       let countQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
       countQuery = applyFilters(countQuery);
-      const { count: totalC } = await countQuery;
+      const { count: totalC, error: countErr } = await countQuery;
+      if (countErr) throw new Error('Failed to count contacts: ' + countErr.message);
+      if (thisRequestId !== requestIdRef.current) return;  // stale guard
       const newTotalCount = totalC || 0;
-      setTotalCount(newTotalCount);
 
-      // Safety: if current page would be beyond total pages, clamp to last page
+      // Page clamping: if current page is beyond last page, snap to last valid page
       const totalPages = Math.max(1, Math.ceil(newTotalCount / activeSize));
       let safePage = activePage;
       if (safePage > totalPages) {
         safePage = totalPages;
+        // Note: this will trigger a re-fetch via the effect, but the stale guard
+        // will discard THIS request's remaining results. The new fetch with the
+        // corrected page will produce the final state.
         setCurrentPage(safePage);
+        return;  // let the re-triggered effect handle it
       }
+
       const safeFrom = (safePage - 1) * activeSize;
       const safeTo = safeFrom + activeSize - 1;
 
+      // Fetch contacts
       let query = supabase.from('contacts').select('*').eq('user_id', user!.id).order('created_at', { ascending: false });
       query = applyFilters(query);
-
-      const { data } = await query.range(safeFrom, safeTo);
-      const contactsList = data || [];
+      const { data, error: dataErr } = await query.range(safeFrom, safeTo);
+      if (dataErr) throw new Error('Failed to load contacts: ' + dataErr.message);
+      if (thisRequestId !== requestIdRef.current) return;  // stale guard
+      const contactsList = (data || []) as Contact[];
 
       // Fetch campaigns
-      const { data: campaignsData } = await supabase.from('campaigns').select('id, name').eq('user_id', user!.id).order('name');
-      setCampaigns((campaignsData || []) as Campaign[]);
+      const { data: campaignsData, error: campErr } = await supabase.from('campaigns').select('id, name').eq('user_id', user!.id).order('name');
+      if (campErr) throw new Error('Failed to load campaigns: ' + campErr.message);
+      if (thisRequestId !== requestIdRef.current) return;
 
       // Fetch tags
-      const { data: tagsData } = await supabase.from('tags').select('*').eq('user_id', user!.id).order('name');
-      setTags(tagsData || []);
+      const { data: tagsData, error: tagsErr } = await supabase.from('tags').select('*').eq('user_id', user!.id).order('name');
+      if (tagsErr) throw new Error('Failed to load tags: ' + tagsErr.message);
+      if (thisRequestId !== requestIdRef.current) return;
 
       // Fetch contact_tags for displayed contacts
+      let tagMap: Record<string, TagType[]> = {};
       if (contactsList.length > 0) {
         const ids = contactsList.map(c => c.id);
-        const { data: ctData } = await supabase
+        const { data: ctData, error: ctErr } = await supabase
           .from('contact_tags')
           .select('contact_id, tag_id')
           .eq('user_id', user!.id)
           .in('contact_id', ids);
+        if (ctErr) throw new Error('Failed to load contact tags: ' + ctErr.message);
+        if (thisRequestId !== requestIdRef.current) return;
 
-        const tagMap: Record<string, TagType[]> = {};
         const allTags = tagsData || [];
-        (ctData || []).forEach((ct: any) => {
+        (ctData || []).forEach((ct: { contact_id: string; tag_id: string }) => {
           const tag = allTags.find(t => t.id === ct.tag_id);
           if (tag) {
             if (!tagMap[ct.contact_id]) tagMap[ct.contact_id] = [];
             tagMap[ct.contact_id].push(tag);
           }
         });
-        setContactTags(tagMap);
-      } else {
-        setContactTags({});
       }
 
-      setContacts(contactsList);
-
       // Unassigned count
-      const { count } = await supabase
+      const { count: unassCount, error: unassErr } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user!.id)
         .is('campaign_id', null);
-      setUnassignedCount(count || 0);
-    } catch (err) {
-      console.error('Error fetching contacts:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (unassErr) throw new Error('Failed to count unassigned: ' + unassErr.message);
+      if (thisRequestId !== requestIdRef.current) return;
 
-  // Data fetching effect — triggered by filters and pagination
+      // === ALL queries succeeded & this is still the latest request ===
+      // Commit all state in one batch (React batches these in event handlers and effects)
+      setTotalCount(newTotalCount);
+      setContacts(contactsList);
+      setCampaigns((campaignsData || []) as Campaign[]);
+      setTags(tagsData || []);
+      setContactTags(tagMap);
+      setUnassignedCount(unassCount || 0);
+      setInitialLoad(false);
+    } catch (err: unknown) {
+      // Only set error if this is still the latest request
+      if (thisRequestId === requestIdRef.current) {
+        const message = err instanceof Error ? err.message : 'Unknown error loading contacts';
+        setFetchError(message);
+        console.error('Contacts fetch error:', err);
+      }
+    } finally {
+      // Only clear loading if this is still the latest request
+      if (thisRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [filterSource, filterCampaign, debouncedSearch, filterTag, currentPage, pageSize, user]);
+
+  // ==================== EFFECTS ====================
+
+  // SINGLE data-fetching effect — the ONLY path that triggers fetchData for filter/page changes
   useEffect(() => {
     fetchData();
-  }, [filterSource, filterCampaign, debouncedSearch, filterTag, currentPage, pageSize]);
+  }, [fetchData]);
 
   // Realtime channel — set up once, not recreated on filter changes
   useEffect(() => {
@@ -201,14 +253,16 @@ export function Contacts() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', filter: `user_id=eq.${user!.id}` }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset to page 1 and clear selections when filters or page size change
+  // Reset page to 1 AND clear selections when FILTER criteria change (not on page navigation).
+  // Uses debouncedSearch (not searchTerm) so it fires exactly once, in sync with the fetch effect.
   useEffect(() => {
     setCurrentPage(1);
     setSelectedContacts(new Set());
     setSelectAllMatching(false);
-  }, [filterSource, filterCampaign, searchTerm, filterTag, pageSize]);
+  }, [filterSource, filterCampaign, debouncedSearch, filterTag, pageSize]);
 
   // ====== SINGLE ADD ======
   const handleSingleAdd = async () => {
@@ -489,6 +543,8 @@ export function Contacts() {
   const deleteContact = async (id: string) => {
     if (!confirm('Delete this contact?')) return;
     await supabase.from('contacts').delete().eq('id', id);
+    // Remove from selections if selected
+    setSelectedContacts(prev => { const next = new Set(prev); next.delete(id); return next; });
     fetchData();
   };
 
@@ -539,45 +595,68 @@ export function Contacts() {
     a.click();
   };
 
+  // ==================== SELECTION (cross-page persistent) ====================
   const toggleSelectContact = (id: string) => {
-    const next = new Set(selectedContacts);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelectedContacts(next);
-    // If user manually unchecks, disable select-all-matching
-    if (next.size < contacts.length) setSelectAllMatching(false);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedContacts.size === contacts.length && contacts.length > 0) {
-      setSelectedContacts(new Set());
-      setSelectAllMatching(false);
-    } else {
-      setSelectedContacts(new Set(contacts.map(c => c.id)));
-    }
-  };
-
-  // Handle page change — clear per-page selections
-  const handlePageChange = (newPage: number) => {
-    setSelectedContacts(new Set());
+    setSelectedContacts(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+    // If user manually unchecks something, disable select-all-matching mode
     setSelectAllMatching(false);
+  };
+
+  // Toggle all on CURRENT page — adds/removes current page IDs from the persistent set
+  const toggleSelectAllOnPage = () => {
+    const pageIds = contacts.map(c => c.id);
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedContacts.has(id));
+    setSelectedContacts(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        // Deselect this page
+        pageIds.forEach(id => next.delete(id));
+      } else {
+        // Select this page (adds to existing cross-page selections)
+        pageIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+    if (allPageSelected) setSelectAllMatching(false);
+  };
+
+  // Checkbox state for current page header
+  const pageIds = contacts.map(c => c.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedContacts.has(id));
+  const somePageSelected = pageIds.some(id => selectedContacts.has(id));
+  const headerCheckboxChecked = allPageSelected;
+  const headerCheckboxIndeterminate = somePageSelected && !allPageSelected;
+
+  // Handle page change — DO NOT clear selections (cross-page persistent)
+  const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
   };
 
   // Handle page size change
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
-    setCurrentPage(1);
-    setSelectedContacts(new Set());
-    setSelectAllMatching(false);
+    // pageSize is in the reset effect deps, so page resets to 1 and selections clear automatically
   };
 
-  if (loading) {
+  // ==================== RENDER ====================
+
+  // First-load: show full skeleton
+  if (initialLoad && loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading contacts...</div>
+        <div className="flex items-center gap-3 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Loading contacts...
+        </div>
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="space-y-6">
@@ -595,7 +674,7 @@ export function Contacts() {
           </p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          {selectedContacts.size > 0 && (
+          {(selectedContacts.size > 0 || selectAllMatching) && (
             <button onClick={() => setShowBulkTagModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition">
               <Tag className="w-4 h-4" /> Tag {selectAllMatching ? totalCount.toLocaleString() : selectedContacts.size} Selected
@@ -624,12 +703,19 @@ export function Contacts() {
 
       {/* Filters */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input type="text" placeholder="Search by phone or name..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="relative md:col-span-2 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input type="text" placeholder="Search by phone or name..." value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <button onClick={applySearchNow}
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition text-sm font-medium whitespace-nowrap">
+              Search
+            </button>
           </div>
           <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}
             className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
@@ -651,37 +737,58 @@ export function Contacts() {
         </div>
       </div>
 
-      {/* Cross-page selection banner */}
-      {selectedContacts.size === contacts.length && contacts.length > 0 && totalCount > pageSize && (
+      {/* Inline error banner */}
+      {fetchError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-center justify-between">
+          <p className="text-red-400 text-sm">⚠️ {fetchError}</p>
+          <button onClick={() => { setFetchError(null); fetchData(); }}
+            className="text-red-300 hover:text-red-200 text-sm font-medium underline">Retry</button>
+        </div>
+      )}
+
+      {/* Persistent selection bar */}
+      {(selectedContacts.size > 0 || selectAllMatching) && (
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 flex items-center justify-between">
           <p className="text-blue-300 text-sm">
             {selectAllMatching
               ? `All ${totalCount.toLocaleString()} matching contacts selected`
-              : `All ${contacts.length} contacts on this page are selected.`}
+              : `${selectedContacts.size.toLocaleString()} contact${selectedContacts.size !== 1 ? 's' : ''} selected across pages`}
           </p>
-          {!selectAllMatching ? (
-            <button onClick={() => setSelectAllMatching(true)}
-              className="text-blue-400 hover:text-blue-300 text-sm font-medium underline">
-              Select all {totalCount.toLocaleString()} matching contacts
-            </button>
-          ) : (
+          <div className="flex items-center gap-3">
+            {!selectAllMatching && totalCount > selectedContacts.size && (
+              <button onClick={() => setSelectAllMatching(true)}
+                className="text-blue-400 hover:text-blue-300 text-sm font-medium underline">
+                Select all {totalCount.toLocaleString()} matching
+              </button>
+            )}
             <button onClick={() => { setSelectAllMatching(false); setSelectedContacts(new Set()); }}
               className="text-blue-400 hover:text-blue-300 text-sm font-medium underline">
               Clear selection
             </button>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      {/* Table with inline loading overlay */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden relative">
+        {/* Loading overlay — dims the table but keeps it visible and interactive */}
+        {loading && !initialLoad && (
+          <div className="absolute inset-0 bg-gray-900/60 z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+              <span className="text-sm text-gray-300">Updating...</span>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-800 border-b border-gray-700">
               <tr>
                 <th className="px-4 py-4 text-left">
-                  <input type="checkbox" checked={selectedContacts.size === contacts.length && contacts.length > 0}
-                    onChange={toggleSelectAll}
+                  <input type="checkbox"
+                    checked={headerCheckboxChecked}
+                    ref={(el) => { if (el) el.indeterminate = headerCheckboxIndeterminate; }}
+                    onChange={toggleSelectAllOnPage}
                     className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500" />
                 </th>
                 <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Phone</th>
@@ -695,7 +802,7 @@ export function Contacts() {
             </thead>
             <tbody className="divide-y divide-gray-800">
               {contacts.map((contact) => (
-                <tr key={contact.id} className="hover:bg-gray-800/50 transition">
+                <tr key={contact.id} className={`hover:bg-gray-800/50 transition ${selectedContacts.has(contact.id) ? 'bg-emerald-500/5' : ''}`}>
                   <td className="px-4 py-3">
                     <input type="checkbox" checked={selectedContacts.has(contact.id)}
                       onChange={() => toggleSelectContact(contact.id)}
@@ -759,11 +866,11 @@ export function Contacts() {
             </tbody>
           </table>
         </div>
-        {contacts.length === 0 && (
+        {contacts.length === 0 && !loading && (
           <div className="p-12 text-center"><p className="text-gray-400">No contacts found</p></div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination — always visible */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <p className="text-sm text-gray-500">
@@ -800,7 +907,6 @@ export function Contacts() {
                 Previous
               </button>
               {(() => {
-                const totalPages = Math.ceil(totalCount / pageSize);
                 const pages: (number | string)[] = [];
                 if (totalPages <= 7) {
                   for (let i = 1; i <= totalPages; i++) pages.push(i);
@@ -823,15 +929,15 @@ export function Contacts() {
                 ));
               })()}
               <button
-                onClick={() => handlePageChange(Math.min(Math.ceil(totalCount / pageSize), currentPage + 1))}
-                disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage >= totalPages}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
               >
                 Next
               </button>
               <button
-                onClick={() => handlePageChange(Math.ceil(totalCount / pageSize))}
-                disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage >= totalPages}
                 className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
               >
                 Last
@@ -1067,7 +1173,7 @@ export function Contacts() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Tag {selectedContacts.size} contacts</h2>
+              <h2 className="text-lg font-bold text-white">Tag {selectAllMatching ? totalCount.toLocaleString() : selectedContacts.size} contacts</h2>
               <button onClick={() => setShowBulkTagModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-2">
