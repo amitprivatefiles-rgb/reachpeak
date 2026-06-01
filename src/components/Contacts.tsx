@@ -23,7 +23,7 @@ export function Contacts() {
   const [filterTag, setFilterTag] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState(50);
 
   // Add contact modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -84,96 +84,115 @@ export function Contacts() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchData = async () => {
+  const fetchData = async (page?: number, size?: number) => {
     setLoading(true);
-    const from = (currentPage - 1) * pageSize;
-    const to = from + pageSize - 1;
+    const activePage = page ?? currentPage;
+    const activeSize = size ?? pageSize;
+    const from = (activePage - 1) * activeSize;
+    const to = from + activeSize - 1;
 
-    // Pre-fetch tagged contact IDs if tag filter is active (server-side filtering)
-    let taggedContactIds: string[] | null = null;
-    if (filterTag) {
-      const { data: ctData } = await supabase
-        .from('contact_tags')
-        .select('contact_id')
-        .eq('tag_id', filterTag)
-        .eq('user_id', user!.id);
-      taggedContactIds = (ctData || []).map((ct: any) => ct.contact_id);
-      if (taggedContactIds.length === 0) {
-        setTotalCount(0);
-        setContacts([]);
-        setContactTags({});
-        setLoading(false);
-        return;
-      }
-    }
-
-    // Get total count first
-    let countQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
-    if (filterSource) countQuery = countQuery.eq('source', filterSource as Contact['source']);
-    if (filterCampaign) countQuery = countQuery.eq('campaign_id', filterCampaign);
-    if (debouncedSearch) countQuery = countQuery.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
-    if (taggedContactIds) countQuery = countQuery.in('id', taggedContactIds);
-    const { count: totalC } = await countQuery;
-    setTotalCount(totalC || 0);
-
-    let query = supabase.from('contacts').select('*').eq('user_id', user!.id).order('created_at', { ascending: false });
-
-    if (filterSource) query = query.eq('source', filterSource as Contact['source']);
-    if (filterCampaign) query = query.eq('campaign_id', filterCampaign);
-    if (debouncedSearch) query = query.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
-    if (taggedContactIds) query = query.in('id', taggedContactIds);
-
-    const { data } = await query.range(from, to);
-    const contactsList = data || [];
-
-    // Fetch campaigns
-    const { data: campaignsData } = await supabase.from('campaigns').select('id, name').eq('user_id', user!.id).order('name');
-    setCampaigns((campaignsData || []) as Campaign[]);
-
-    // Fetch tags
-    const { data: tagsData } = await supabase.from('tags').select('*').eq('user_id', user!.id).order('name');
-    setTags(tagsData || []);
-
-    // Fetch contact_tags for displayed contacts
-    if (contactsList.length > 0) {
-      const ids = contactsList.map(c => c.id);
-      const { data: ctData } = await supabase
-        .from('contact_tags')
-        .select('contact_id, tag_id')
-        .eq('user_id', user!.id)
-        .in('contact_id', ids);
-
-      const tagMap: Record<string, TagType[]> = {};
-      const allTags = tagsData || [];
-      (ctData || []).forEach((ct: any) => {
-        const tag = allTags.find(t => t.id === ct.tag_id);
-        if (tag) {
-          if (!tagMap[ct.contact_id]) tagMap[ct.contact_id] = [];
-          tagMap[ct.contact_id].push(tag);
+    try {
+      // Pre-fetch tagged contact IDs if tag filter is active (server-side filtering)
+      let taggedContactIds: string[] | null = null;
+      if (filterTag) {
+        const { data: ctData } = await supabase
+          .from('contact_tags')
+          .select('contact_id')
+          .eq('tag_id', filterTag)
+          .eq('user_id', user!.id);
+        taggedContactIds = (ctData || []).map((ct: any) => ct.contact_id);
+        if (taggedContactIds.length === 0) {
+          setTotalCount(0);
+          setContacts([]);
+          setContactTags({});
+          setLoading(false);
+          return;
         }
-      });
-      setContactTags(tagMap);
-    } else {
-      setContactTags({});
+      }
+
+      // Build base filters helper
+      const applyFilters = (q: any) => {
+        if (filterSource) q = q.eq('source', filterSource as Contact['source']);
+        if (filterCampaign) q = q.eq('campaign_id', filterCampaign);
+        if (debouncedSearch) q = q.or(`phone_number.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
+        if (taggedContactIds) q = q.in('id', taggedContactIds);
+        return q;
+      };
+
+      // Get total count
+      let countQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
+      countQuery = applyFilters(countQuery);
+      const { count: totalC } = await countQuery;
+      const newTotalCount = totalC || 0;
+      setTotalCount(newTotalCount);
+
+      // Safety: if current page would be beyond total pages, clamp to last page
+      const totalPages = Math.max(1, Math.ceil(newTotalCount / activeSize));
+      let safePage = activePage;
+      if (safePage > totalPages) {
+        safePage = totalPages;
+        setCurrentPage(safePage);
+      }
+      const safeFrom = (safePage - 1) * activeSize;
+      const safeTo = safeFrom + activeSize - 1;
+
+      let query = supabase.from('contacts').select('*').eq('user_id', user!.id).order('created_at', { ascending: false });
+      query = applyFilters(query);
+
+      const { data } = await query.range(safeFrom, safeTo);
+      const contactsList = data || [];
+
+      // Fetch campaigns
+      const { data: campaignsData } = await supabase.from('campaigns').select('id, name').eq('user_id', user!.id).order('name');
+      setCampaigns((campaignsData || []) as Campaign[]);
+
+      // Fetch tags
+      const { data: tagsData } = await supabase.from('tags').select('*').eq('user_id', user!.id).order('name');
+      setTags(tagsData || []);
+
+      // Fetch contact_tags for displayed contacts
+      if (contactsList.length > 0) {
+        const ids = contactsList.map(c => c.id);
+        const { data: ctData } = await supabase
+          .from('contact_tags')
+          .select('contact_id, tag_id')
+          .eq('user_id', user!.id)
+          .in('contact_id', ids);
+
+        const tagMap: Record<string, TagType[]> = {};
+        const allTags = tagsData || [];
+        (ctData || []).forEach((ct: any) => {
+          const tag = allTags.find(t => t.id === ct.tag_id);
+          if (tag) {
+            if (!tagMap[ct.contact_id]) tagMap[ct.contact_id] = [];
+            tagMap[ct.contact_id].push(tag);
+          }
+        });
+        setContactTags(tagMap);
+      } else {
+        setContactTags({});
+      }
+
+      setContacts(contactsList);
+
+      // Unassigned count
+      const { count } = await supabase
+        .from('contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .is('campaign_id', null);
+      setUnassignedCount(count || 0);
+    } catch (err) {
+      console.error('Error fetching contacts:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setContacts(contactsList);
-
-    // Unassigned count
-    const { count } = await supabase
-      .from('contacts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user!.id)
-      .is('campaign_id', null);
-    setUnassignedCount(count || 0);
-
-    setLoading(false);
   };
 
   // Data fetching effect — triggered by filters and pagination
   useEffect(() => {
     fetchData();
-  }, [filterSource, filterCampaign, debouncedSearch, filterTag, currentPage]);
+  }, [filterSource, filterCampaign, debouncedSearch, filterTag, currentPage, pageSize]);
 
   // Realtime channel — set up once, not recreated on filter changes
   useEffect(() => {
@@ -184,10 +203,12 @@ export function Contacts() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 and clear selections when filters or page size change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterSource, filterCampaign, searchTerm, filterTag]);
+    setSelectedContacts(new Set());
+    setSelectAllMatching(false);
+  }, [filterSource, filterCampaign, searchTerm, filterTag, pageSize]);
 
   // ====== SINGLE ADD ======
   const handleSingleAdd = async () => {
@@ -522,6 +543,8 @@ export function Contacts() {
     const next = new Set(selectedContacts);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelectedContacts(next);
+    // If user manually unchecks, disable select-all-matching
+    if (next.size < contacts.length) setSelectAllMatching(false);
   };
 
   const toggleSelectAll = () => {
@@ -531,6 +554,21 @@ export function Contacts() {
     } else {
       setSelectedContacts(new Set(contacts.map(c => c.id)));
     }
+  };
+
+  // Handle page change — clear per-page selections
+  const handlePageChange = (newPage: number) => {
+    setSelectedContacts(new Set());
+    setSelectAllMatching(false);
+    setCurrentPage(newPage);
+  };
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setSelectedContacts(new Set());
+    setSelectAllMatching(false);
   };
 
   if (loading) {
@@ -726,14 +764,36 @@ export function Contacts() {
         )}
 
         {/* Pagination */}
-        {totalCount > pageSize && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 flex-wrap gap-3">
+          <div className="flex items-center gap-3">
             <p className="text-sm text-gray-500">
-              Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} contacts
+              Showing {totalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()}
             </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+          </div>
+          {totalCount > pageSize && (
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                First
+              </button>
+              <button
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
               >
@@ -753,7 +813,7 @@ export function Contacts() {
                 }
                 return pages.map((p, idx) => (
                   typeof p === 'number' ? (
-                    <button key={idx} onClick={() => setCurrentPage(p)}
+                    <button key={idx} onClick={() => handlePageChange(p)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                         currentPage === p ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
                       }`}>{p}</button>
@@ -763,15 +823,22 @@ export function Contacts() {
                 ));
               })()}
               <button
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                onClick={() => handlePageChange(Math.min(Math.ceil(totalCount / pageSize), currentPage + 1))}
                 disabled={currentPage >= Math.ceil(totalCount / pageSize)}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
               >
                 Next
               </button>
+              <button
+                onClick={() => handlePageChange(Math.ceil(totalCount / pageSize))}
+                disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                Last
+              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ====== ADD CONTACTS MODAL ====== */}
