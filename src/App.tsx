@@ -11,6 +11,7 @@ import { TermsPage } from './components/public/TermsPage';
 import { RefundPolicyPage } from './components/public/RefundPolicyPage';
 import { ContactPage } from './components/public/ContactPage';
 import { UseCasesPage } from './components/public/UseCasesPage';
+import { DataDeletionPage } from './components/public/DataDeletionPage';
 import { Login } from './components/Login';
 import { Signup } from './components/Signup';
 import { PlanSelection } from './components/onboarding/PlanSelection';
@@ -115,6 +116,7 @@ function AppRoutes() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/use-cases" element={<UseCasesPage />} />
+        <Route path="/data-deletion" element={<DataDeletionPage />} />
       </Route>
 
       <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />
