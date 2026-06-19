@@ -33,9 +33,13 @@ import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
-  if (user) return <Navigate to="/app" replace />;
+  const { user, loading, isAdmin } = useAuth();
+  const { subscription, loading: subLoading } = useSubscription();
+  if (loading || subLoading) return <LoadingScreen />;
+  // Only redirect if user is fully set up (admin or has active subscription)
+  if (user && (isAdmin || (subscription && subscription.status === 'active'))) {
+    return <Navigate to="/app" replace />;
+  }
   return <>{children}</>;
 }
 

@@ -73,6 +73,7 @@ export function PublicFooter() {
                 { to: '/privacy-policy', label: 'Privacy Policy' },
                 { to: '/terms', label: 'Terms & Conditions' },
                 { to: '/refund-policy', label: 'Refund Policy' },
+                { to: '/data-deletion', label: 'Data Deletion' },
               ].map((link) => (
                 <li key={link.to}>
                   <Link to={link.to} className="text-sm text-gray-400 hover:text-brand transition-colors duration-300">
