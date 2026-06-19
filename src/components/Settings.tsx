@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { WhatsAppSettings } from './WhatsAppSettings';
 import { 
   Activity, Database, Shield, User, Key, Bell, CreditCard, 
-  Trash2, Download, Save, Eye, EyeOff, AlertTriangle, Check, X, Globe, Webhook 
+  Trash2, Download, Save, Eye, EyeOff, AlertTriangle, Check, X 
 } from 'lucide-react';
 
 export function Settings() {
   const { profile, isAdmin, user } = useAuth();
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'profile' | 'api' | 'notifications' | 'account' | 'activity'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'whatsapp' | 'notifications' | 'account' | 'activity'>('profile');
 
   // Profile editing
   const [editName, setEditName] = useState('');
@@ -19,12 +20,6 @@ export function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  // API config
-  const [apiKey, setApiKey] = useState('');
-  const [apiUrl, setApiUrl] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
 
   // Notification prefs
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -36,9 +31,6 @@ export function Settings() {
   useEffect(() => {
     if (profile) {
       setEditName(profile.full_name);
-      setApiKey((profile as any).whatsapp_api_key || '');
-      setApiUrl((profile as any).whatsapp_api_url || '');
-      setWebhookUrl((profile as any).webhook_url || '');
       setEmailNotifications((profile as any).notification_email !== false);
       setInAppNotifications((profile as any).notification_in_app !== false);
     }
@@ -93,23 +85,8 @@ export function Settings() {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       showMsg('Password changed successfully!', 'success');
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) { showMsg('Error: ' + err.message, 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const saveApiConfig = async () => {
-    setSaving(true);
-    try {
-      const { error } = await supabase.from('profiles').update({
-        whatsapp_api_key: apiKey || null,
-        whatsapp_api_url: apiUrl || null,
-        webhook_url: webhookUrl || null,
-      } as any).eq('id', user!.id);
-      if (error) throw error;
-      showMsg('API configuration saved!', 'success');
     } catch (err: any) { showMsg('Error: ' + err.message, 'error'); }
     finally { setSaving(false); }
   };
@@ -162,7 +139,7 @@ export function Settings() {
 
   const tabs = [
     { key: 'profile', label: 'Profile', icon: User },
-    { key: 'api', label: 'WhatsApp API', icon: Key },
+    { key: 'whatsapp', label: 'WhatsApp', icon: Key },
     { key: 'notifications', label: 'Notifications', icon: Bell },
     { key: 'account', label: 'Account', icon: CreditCard },
     { key: 'activity', label: 'Activity', icon: Activity },
@@ -265,79 +242,8 @@ export function Settings() {
         </div>
       )}
 
-      {/* ====== API TAB ====== */}
-      {activeTab === 'api' && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
-              <Key className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-semibold text-lg">WhatsApp API Configuration</h3>
-              <p className="text-gray-400 text-sm">Configure your WhatsApp Business API credentials</p>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                <Globe className="w-3.5 h-3.5 inline mr-1" /> API Base URL
-              </label>
-              <input type="url" value={apiUrl} onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://api.whatsapp.com/v1" 
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <p className="text-xs text-gray-500 mt-1">Your WhatsApp Business API endpoint URL</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                <Key className="w-3.5 h-3.5 inline mr-1" /> API Key / Access Token
-              </label>
-              <div className="relative">
-                <input type={showApiKey ? 'text' : 'password'} value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter your API key or access token"
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white pr-10 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-                <button type="button" onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-white">
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Your authentication token for API access</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                <Webhook className="w-3.5 h-3.5 inline mr-1" /> Webhook URL
-              </label>
-              <input type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)}
-                placeholder="https://your-domain.com/webhook"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <p className="text-xs text-gray-500 mt-1">URL for receiving message delivery status callbacks</p>
-            </div>
-
-            {/* Connection status */}
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Database className="w-5 h-5 text-emerald-400" />
-                  <div>
-                    <p className="text-white text-sm font-medium">Platform Status</p>
-                    <p className="text-gray-500 text-xs">Last synced: {new Date().toLocaleTimeString()}</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" /> Connected
-                </span>
-              </div>
-            </div>
-
-            <button onClick={saveApiConfig} disabled={saving}
-              className="px-6 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium disabled:opacity-50 flex items-center gap-2">
-              <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save API Settings'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ====== WHATSAPP TAB ====== */}
+      {activeTab === 'whatsapp' && <WhatsAppSettings />}
 
       {/* ====== NOTIFICATIONS TAB ====== */}
       {activeTab === 'notifications' && (

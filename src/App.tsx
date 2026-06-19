@@ -20,6 +20,7 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Campaigns } from './components/Campaigns';
 import { UserCampaigns } from './components/UserCampaigns';
+import { Templates } from './components/Templates';
 import { CampaignApprovals } from './components/CampaignApprovals';
 import { Contacts } from './components/Contacts';
 import { FailedRetry } from './components/FailedRetry';
@@ -80,6 +81,7 @@ function AppDashboard() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
+      case 'templates': return <Templates />;
       case 'approvals': return <CampaignApprovals />;
       case 'contacts': return <Contacts />;
       case 'failed': return <FailedRetry />;

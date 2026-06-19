@@ -2,8 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { useAutoIncrement } from '../hooks/useAutoIncrement';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare, FileText } from 'lucide-react';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
@@ -21,9 +20,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
 
   // Use customer's business logo if available, fallback to ReachPeak brand
   const logoUrl = subscription?.logo_url || LOGO_URL;
-
-  // Auto-increment engine: only runs for admin users
-  useAutoIncrement(!!isAdmin);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {
@@ -47,6 +43,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'approvals', label: 'Campaign Approvals', icon: CheckSquare, badge: pendingCount > 0 ? pendingCount : undefined },
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
+    { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'All Contacts', icon: Users },
     { id: 'failed', label: 'Failed & Retry', icon: AlertCircle },
     { id: 'sources', label: 'Lead Sources', icon: BarChart3 },
@@ -59,6 +56,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const userNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
+    { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'My Contacts', icon: Users },
     { id: 'reports', label: 'Reports', icon: Activity },
     { id: 'settings', label: 'Settings', icon: Settings },

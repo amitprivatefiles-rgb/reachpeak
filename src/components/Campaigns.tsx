@@ -1,12 +1,68 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone } from 'lucide-react';
-import type { Database } from '../lib/database.types';
+import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban } from 'lucide-react';
 
-type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
+// Contact fields available for variable mapping (matches contacts table schema)
+const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
+
+interface ApprovedTemplate {
+  id: string;
+  name: string;
+  language: string;
+  body_text: string | null;
+  components: any[] | null;
+  variables: any;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  type: string;
+  priority: number;
+  message_version: string;
+  daily_limit: number;
+  message_template: string;
+  status: string;
+  start_time: string | null;
+  end_time: string | null;
+  messages_sent: number;
+  messages_failed: number;
+  total_numbers: number;
+  pending_retry: number;
+  delivery_percentage: number;
+  failure_percentage: number;
+  campaign_cost: number;
+  estimated_revenue: number;
+  roi: number;
+  is_locked: boolean;
+  file_url: string | null;
+  file_name: string | null;
+  created_by: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  whatsapp_account_id: string | null;
+  template_language: string | null;
   profiles?: { full_name: string; email: string } | null;
-};
+}
+
+interface CampaignMetrics {
+  campaign_id: string;
+  messages_sent: number;
+  messages_delivered: number;
+  messages_read: number;
+  messages_failed: number;
+  messages_pending: number;
+  total_messages: number;
+  delivery_rate: number;
+  failure_rate: number;
+}
+
+interface WhatsAppAccount {
+  id: string;
+  display_phone_number: string;
+}
 
 export function Campaigns() {
   const { isAdmin, user } = useAuth();
@@ -17,6 +73,12 @@ export function Campaigns() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [startingCampaign, setStartingCampaign] = useState<string | null>(null);
+  const [metricsMap, setMetricsMap] = useState<Record<string, CampaignMetrics>>({});
+  const [waAccounts, setWaAccounts] = useState<WhatsAppAccount[]>([]);
+  const [approvedTemplates, setApprovedTemplates] = useState<ApprovedTemplate[]>([]);
+  const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
+
   const [formData, setFormData] = useState({
     name: '',
     type: 'Promotion' as 'Promotion' | 'Follow-up' | 'Offer' | 'Reminder',
@@ -24,22 +86,46 @@ export function Campaigns() {
     message_version: 'A' as 'A' | 'B',
     daily_limit: 1000,
     message_template: '',
-    status: 'Running' as 'Running' | 'Paused' | 'Completed' | 'Processing' | 'pending_approval' | 'approved' | 'rejected' | 'Cancelled',
+    status: 'Running' as string,
     start_time: '',
     end_time: '',
-    messages_sent: 0,
-    messages_failed: 0,
-    auto_increment_enabled: false,
-    auto_increment_total: 0,
-    auto_increment_sent_ratio: 70,
-    auto_increment_failed_ratio: 30,
-    auto_increment_interval: 5,
-    auto_increment_complete_at: '',
+    whatsapp_account_id: '',
+    template_language: 'en_US',
+    template_id: '',
   });
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      type: 'Promotion',
+      priority: 1,
+      message_version: 'A',
+      daily_limit: 1000,
+      message_template: '',
+      status: 'Running',
+      start_time: '',
+      end_time: '',
+      whatsapp_account_id: '',
+      template_language: 'en_US',
+      template_id: '',
+    });
+    setVariableMapping({});
+    clearFile();
+  };
+
+  // Detect variables in the selected template
+  const selectedTemplate = useMemo(() => {
+    return approvedTemplates.find(t => t.id === formData.template_id) || null;
+  }, [formData.template_id, approvedTemplates]);
+
+  const templateVariables = useMemo(() => {
+    if (!selectedTemplate?.body_text) return [];
+    const matches = selectedTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].sort();
+  }, [selectedTemplate]);
 
   const fetchCampaigns = async () => {
     setLoading(true);
-    // Admin sees ALL users' campaigns (RLS admin override policy)
     const { data } = await supabase
       .from('campaigns')
       .select('*, profiles!campaigns_created_by_fkey(full_name, email)')
@@ -48,54 +134,252 @@ export function Campaigns() {
     setLoading(false);
   };
 
+  const fetchMetrics = async () => {
+    const { data } = await supabase
+      .from('campaign_real_metrics')
+      .select('*');
+    if (data) {
+      const map: Record<string, CampaignMetrics> = {};
+      for (const m of data) {
+        map[m.campaign_id] = m as CampaignMetrics;
+      }
+      setMetricsMap(map);
+    }
+  };
+
+  const fetchApprovedTemplates = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('templates')
+      .select('id, name, language, body_text, components, variables')
+      .eq('user_id', user.id)
+      .eq('status', 'approved')
+      .order('name');
+    setApprovedTemplates((data || []) as ApprovedTemplate[]);
+  };
+
+  const fetchWaAccounts = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('whatsapp_accounts')
+      .select('id, display_phone_number')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+    setWaAccounts(data || []);
+  };
+
   useEffect(() => {
     fetchCampaigns();
+    fetchMetrics();
+    fetchWaAccounts();
+    fetchApprovedTemplates();
 
     const channel = supabase
       .channel('campaigns-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'campaigns',
-        },
-        () => {
-          fetchCampaigns();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, () => {
+        fetchCampaigns();
+        fetchMetrics();
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // ─── Start Campaign: batch-insert queued messages ───
+  const startCampaign = async (campaignId: string) => {
+    setStartingCampaign(campaignId);
+    try {
+      // 1. Get campaign details
+      const { data: campaign, error: campErr } = await supabase
+        .from('campaigns')
+        .select('whatsapp_account_id, message_template, template_language, template_id, variable_mapping')
+        .eq('id', campaignId)
+        .single();
 
+      if (campErr || !campaign) {
+        alert('Campaign not found');
+        return;
+      }
 
+      if (!campaign.whatsapp_account_id) {
+        alert('No WhatsApp account linked to this campaign. Edit the campaign and select one.');
+        return;
+      }
 
+      // 2. Get whatsapp account display number (for wa_from)
+      const { data: waAccount } = await supabase
+        .from('whatsapp_accounts')
+        .select('id, display_phone_number')
+        .eq('id', campaign.whatsapp_account_id)
+        .single();
+
+      if (!waAccount) {
+        alert('WhatsApp account not found or inactive');
+        return;
+      }
+
+      // 3. Fetch contacts assigned to this campaign (all variable-mappable fields)
+      const { data: contacts, error: contactsErr } = await supabase
+        .from('contacts')
+        .select('id, phone_number, name, city, state, lead_type, source, notes')
+        .eq('campaign_id', campaignId)
+        .eq('is_blacklisted', false);
+
+      if (contactsErr || !contacts?.length) {
+        alert(contactsErr ? contactsErr.message : 'No eligible contacts assigned to this campaign');
+        return;
+      }
+
+      // 4. Batch-insert queued messages with per-contact variable mapping
+      const templateName = campaign.message_template || 'hello_world';
+      const lang = campaign.template_language || 'en_US';
+      const waFrom = waAccount.display_phone_number.replace(/[^0-9]/g, '');
+      const varMap: Record<string, string> = campaign.variable_mapping || {};
+      const paramKeys = Object.keys(varMap).sort((a, b) => parseInt(a) - parseInt(b));
+
+      // Validate + build per-contact components.
+      // Returns { components, missingField } — missingField is set if any mapped value is null/empty.
+      const validateContact = (contact: any): { components: any[]; missingField: string | null } => {
+        if (paramKeys.length === 0) return { components: [], missingField: null };
+
+        for (const key of paramKeys) {
+          const field = varMap[key];
+          const value = contact[field];
+          if (value === null || value === undefined || String(value).trim() === '') {
+            return { components: [], missingField: field };
+          }
+        }
+
+        const parameters = paramKeys.map((key) => ({
+          type: 'text' as const,
+          text: String(contact[varMap[key]]),
+        }));
+
+        return { components: [{ type: 'body', parameters }], missingField: null };
+      };
+
+      // Split contacts into valid (queued) and skipped (failed due to missing variable)
+      const queuedRows: any[] = [];
+      const failedRows: any[] = [];
+
+      for (const c of contacts) {
+        const { components, missingField } = validateContact(c);
+        const baseRow = {
+          user_id: user!.id,
+          whatsapp_account_id: campaign.whatsapp_account_id,
+          contact_id: c.id,
+          campaign_id: campaignId,
+          direction: 'outbound' as const,
+          wa_from: waFrom,
+          wa_to: c.phone_number.replace(/[^0-9]/g, ''),
+          message_type: 'template',
+          template_name: templateName,
+        };
+
+        if (missingField) {
+          failedRows.push({
+            ...baseRow,
+            content: { template: { name: templateName, language: { code: lang }, components: [] } },
+            status: 'failed' as const,
+            error_code: 'MISSING_VARIABLE',
+            error_message: `missing_variable:${missingField}`,
+            failed_at: new Date().toISOString(),
+          });
+        } else {
+          queuedRows.push({
+            ...baseRow,
+            content: { template: { name: templateName, language: { code: lang }, components } },
+            status: 'queued' as const,
+          });
+        }
+      }
+
+      // Insert failed rows first (so they're visible immediately)
+      if (failedRows.length > 0) {
+        for (let i = 0; i < failedRows.length; i += 500) {
+          const batch = failedRows.slice(i, i + 500);
+          await supabase.from('messages').insert(batch);
+        }
+        console.warn(`[Campaign ${campaignId}] ${failedRows.length} contacts skipped — missing variable`);
+      }
+
+      // Insert queued rows in batches
+      for (let i = 0; i < queuedRows.length; i += 500) {
+        const batch = queuedRows.slice(i, i + 500);
+        const { error: insertErr } = await supabase.from('messages').insert(batch);
+        if (insertErr) {
+          alert(`Error inserting messages batch ${i / 500 + 1}: ${insertErr.message}`);
+          return;
+        }
+      }
+
+      // 5. Update campaign status to 'Sending'
+      await supabase
+        .from('campaigns')
+        .update({ status: 'Sending', total_numbers: contacts.length })
+        .eq('id', campaignId);
+
+      // Surface skipped contacts count
+      if (failedRows.length > 0) {
+        alert(`Campaign started: ${queuedRows.length} messages queued, ${failedRows.length} contacts skipped (missing variable data).`);
+      }
+
+      fetchCampaigns();
+      fetchMetrics();
+    } catch (err: any) {
+      alert('Error starting campaign: ' + err.message);
+    } finally {
+      setStartingCampaign(null);
+    }
+  };
+
+  // ─── Update campaign status (rewired to real queue) ───
+  const updateCampaignStatus = async (campaignId: string, newStatus: string) => {
+    try {
+      // Cancel: mark remaining queued messages as cancelled so worker never sends them
+      if (newStatus === 'Cancelled') {
+        if (!confirm('Cancel this campaign? All unsent messages will be permanently cancelled.')) return;
+        const { error: cancelErr } = await supabase
+          .from('messages')
+          .update({
+            status: 'cancelled',
+            error_code: 'CAMPAIGN_CANCELLED',
+            error_message: 'Campaign was cancelled by admin',
+            failed_at: new Date().toISOString(),
+          })
+          .eq('campaign_id', campaignId)
+          .eq('status', 'queued');
+        if (cancelErr) {
+          alert('Error cancelling queued messages: ' + cancelErr.message);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('campaigns')
+        .update({ status: newStatus })
+        .eq('id', campaignId);
+
+      if (error) throw error;
+      fetchCampaigns();
+      fetchMetrics();
+    } catch (err: any) {
+      alert('Error updating campaign: ' + err.message);
+    }
+  };
+
+  // ─── File handling (kept from original) ───
   const handleFileUpload = async (campaignId: string): Promise<{ fileUrl: string; fileName: string } | null> => {
     if (!selectedFile) return null;
-
     try {
       setUploadingFile(true);
       const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${campaignId}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
       const { error: uploadError } = await supabase.storage
         .from('campaign-files')
-        .upload(filePath, selectedFile, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
+        .upload(fileName, selectedFile, { cacheControl: '3600', upsert: false });
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('campaign-files')
-        .getPublicUrl(filePath);
-
+      const { data: { publicUrl } } = supabase.storage.from('campaign-files').getPublicUrl(fileName);
       return { fileUrl: publicUrl, fileName: selectedFile.name };
     } catch (error: any) {
       alert('Error uploading file: ' + error.message);
@@ -110,556 +394,346 @@ export function Campaigns() {
     if (file) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setSelectedFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
   const clearFile = () => {
     setSelectedFile(null);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
   };
 
+  const downloadFile = async (fileUrl: string, fileName: string) => {
+    const response = await fetch(fileUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // ─── Submit campaign (create/update) ───
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
 
     try {
-      let campaignData = {
-        ...formData,
+      const campaignData: any = {
+        name: formData.name,
+        type: formData.type,
+        priority: formData.priority,
+        message_version: formData.message_version,
+        daily_limit: formData.daily_limit,
+        message_template: formData.message_template,
+        status: formData.status,
         start_time: formData.start_time ? new Date(formData.start_time).toISOString() : null,
         end_time: formData.end_time ? new Date(formData.end_time).toISOString() : null,
-        auto_increment_complete_at: formData.auto_increment_complete_at ? new Date(formData.auto_increment_complete_at).toISOString() : null,
+        whatsapp_account_id: formData.whatsapp_account_id || null,
+        template_language: formData.template_language || 'en_US',
+        template_id: formData.template_id || null,
+        variable_mapping: Object.keys(variableMapping).length > 0 ? variableMapping : null,
       };
 
       if (editingCampaign) {
         if (selectedFile) {
           const fileData = await handleFileUpload(editingCampaign.id);
           if (fileData) {
-            campaignData = {
-              ...campaignData,
-              file_url: fileData.fileUrl,
-              file_name: fileData.fileName,
-            } as any;
+            campaignData.file_url = fileData.fileUrl;
+            campaignData.file_name = fileData.fileName;
           }
         }
-
-        const { error } = await supabase
-          .from('campaigns')
-          .update(campaignData)
-          .eq('id', editingCampaign.id);
+        const { error } = await supabase.from('campaigns').update(campaignData).eq('id', editingCampaign.id);
         if (error) throw error;
       } else {
         const { data: newCampaign, error: insertError } = await supabase
           .from('campaigns')
-          .insert({
-            ...campaignData,
-            user_id: user!.id,
-            created_by: user?.id,
-          })
+          .insert({ ...campaignData, user_id: user!.id, created_by: user?.id })
           .select()
           .single();
-
         if (insertError) throw insertError;
-
         if (selectedFile && newCampaign) {
           const fileData = await handleFileUpload(newCampaign.id);
           if (fileData) {
-            await supabase
-              .from('campaigns')
-              .update({
-                file_url: fileData.fileUrl,
-                file_name: fileData.fileName,
-              })
-              .eq('id', newCampaign.id);
+            await supabase.from('campaigns').update({ file_url: fileData.fileUrl, file_name: fileData.fileName }).eq('id', newCampaign.id);
           }
         }
       }
 
       setShowModal(false);
       setEditingCampaign(null);
-      clearFile();
-      setFormData({
-        name: '',
-        type: 'Promotion',
-        priority: 1,
-        message_version: 'A',
-        daily_limit: 1000,
-        message_template: '',
-        status: 'Running',
-        start_time: '',
-        end_time: '',
-        messages_sent: 0,
-        messages_failed: 0,
-        auto_increment_enabled: false,
-        auto_increment_total: 0,
-        auto_increment_sent_ratio: 70,
-        auto_increment_failed_ratio: 30,
-        auto_increment_interval: 5,
-        auto_increment_complete_at: '',
-      });
+      resetForm();
       fetchCampaigns();
     } catch (error: any) {
       alert('Error saving campaign: ' + error.message);
     }
   };
 
-  const downloadFile = async (fileUrl: string, fileName: string) => {
-    try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error: any) {
-      alert('Error downloading file: ' + error.message);
-    }
-  };
-
-  const updateCampaignStatus = async (
-    campaignId: string,
-    status: 'Running' | 'Paused' | 'Completed' | 'Cancelled'
-  ) => {
-    if (!isAdmin) return;
-
-    const campaign = campaigns.find((c) => c.id === campaignId);
-    const updates: any = { status };
-
-    if (status === 'Running' && !campaign?.start_time) {
-      updates.start_time = new Date().toISOString();
-      updates.auto_increment_enabled = true;
-      updates.auto_increment_total = campaign?.total_numbers || 1000;
-      updates.auto_increment_sent_ratio = 70;
-      updates.auto_increment_failed_ratio = 30;
-    }
-    if (status === 'Paused') {
-      updates.auto_increment_enabled = false;
-    }
-    if (status === 'Completed') {
-      updates.end_time = new Date().toISOString();
-      updates.auto_increment_enabled = false;
-    }
-    if (status === 'Cancelled') {
-      updates.end_time = new Date().toISOString();
-      updates.auto_increment_enabled = false;
-    }
-
-    const { error } = await supabase.from('campaigns').update(updates).eq('id', campaignId);
-
-    if (!error) {
-      fetchCampaigns();
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Running':
-        return 'bg-green-500/20 text-green-400';
-      case 'Paused':
-        return 'bg-amber-500/20 text-amber-400';
-      case 'Completed':
-        return 'bg-gray-500/20 text-gray-400';
-      case 'Cancelled':
-        return 'bg-rose-500/20 text-rose-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
-    }
-  };
-
-  const openEditModal = (campaign: Campaign) => {
+  const openEdit = (campaign: Campaign) => {
     setEditingCampaign(campaign);
     setFormData({
       name: campaign.name,
-      type: campaign.type,
+      type: campaign.type as any,
       priority: campaign.priority,
-      message_version: campaign.message_version,
+      message_version: campaign.message_version as any,
       daily_limit: campaign.daily_limit,
       message_template: campaign.message_template || '',
       status: campaign.status,
       start_time: campaign.start_time ? new Date(campaign.start_time).toISOString().slice(0, 16) : '',
       end_time: campaign.end_time ? new Date(campaign.end_time).toISOString().slice(0, 16) : '',
-      messages_sent: campaign.messages_sent,
-      messages_failed: campaign.messages_failed,
-      auto_increment_enabled: campaign.auto_increment_enabled || false,
-      auto_increment_total: campaign.auto_increment_total || 0,
-      auto_increment_sent_ratio: campaign.auto_increment_sent_ratio || 70,
-      auto_increment_failed_ratio: campaign.auto_increment_failed_ratio || 30,
-      auto_increment_interval: campaign.auto_increment_interval || 5,
-      auto_increment_complete_at: campaign.auto_increment_complete_at ? new Date(campaign.auto_increment_complete_at).toISOString().slice(0, 16) : '',
+      whatsapp_account_id: campaign.whatsapp_account_id || '',
+      template_language: campaign.template_language || 'en_US',
+      template_id: (campaign as any).template_id || '',
     });
-    clearFile();
+    setVariableMapping((campaign as any).variable_mapping || {});
     setShowModal(true);
   };
 
-  const getFileType = (fileName: string): 'image' | 'video' | 'unknown' => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return 'image';
-    if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) return 'video';
-    return 'unknown';
+  // ─── Status helpers ───
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'Running': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'Sending': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'Paused': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'Completed': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      case 'Cancelled': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'pending_approval': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'approved': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+    }
   };
+
+  const getMetrics = (campaignId: string) => metricsMap[campaignId] || null;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading campaigns...</div>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-green-400" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">All Campaigns</h1>
-          <p className="text-gray-400">Manage all users' WhatsApp marketing campaigns</p>
+          <h1 className="text-2xl font-bold text-white">Campaigns</h1>
+          <p className="text-gray-400 text-sm mt-1">{campaigns.length} total campaigns</p>
         </div>
         {isAdmin && (
           <button
-            onClick={() => {
-              setEditingCampaign(null);
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition"
+            onClick={() => { resetForm(); setEditingCampaign(null); setShowModal(true); }}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
           >
-            <Plus className="w-4 h-4" />
-            New Campaign
+            <Plus className="h-4 w-4" />
+            <span>New Campaign</span>
           </button>
         )}
       </div>
 
-      <div className="grid gap-4">
-        {campaigns.map((campaign) => (
-          <div
-            key={campaign.id}
-            className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-white">{campaign.name}</h3>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(campaign.status)}`}>
-                    {campaign.status}
-                  </span>
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400">
-                    {campaign.type}
-                  </span>
-                  {campaign.is_locked && (
-                    <Lock className="w-4 h-4 text-gray-500" />
-                  )}
-                </div>
-                {campaign.profiles && (
-                  <p className="text-gray-400 text-sm mb-1">
-                    Submitted by: <span className="text-gray-300">{campaign.profiles.full_name || campaign.profiles.email}</span>
+      {/* Campaign Cards */}
+      <div className="grid grid-cols-1 gap-4">
+        {campaigns.map((campaign) => {
+          const m = getMetrics(campaign.id);
+          return (
+            <div key={campaign.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3 mb-1">
+                    <h3 className="text-white font-semibold text-lg">{campaign.name}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor(campaign.status)}`}>
+                      {campaign.status === 'Sending' && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
+                      {campaign.status}
+                    </span>
+                  </div>
+                  <p className="text-gray-400 text-sm">
+                    {campaign.type} • Priority {campaign.priority} • Version {campaign.message_version}
+                    {campaign.profiles && <span> • by {campaign.profiles.full_name}</span>}
                   </p>
-                )}
-
-                {campaign.message_template && (
-                  <div className="mb-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm font-medium text-gray-300">Message Template</span>
-                    </div>
-                    <p className="text-sm text-gray-400 whitespace-pre-wrap">{campaign.message_template}</p>
-                  </div>
-                )}
-
-                {campaign.file_name && campaign.file_url && (
-                  <div className="mb-3 bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
-                    {getFileType(campaign.file_name) === 'image' ? (
-                      <div className="relative">
-                        <img
-                          src={campaign.file_url}
-                          alt={campaign.file_name}
-                          className="w-full h-64 object-cover"
-                        />
-                        <div className="absolute top-3 right-3">
-                          <button
-                            onClick={() => downloadFile(campaign.file_url!, campaign.file_name!)}
-                            className="flex items-center gap-2 px-3 py-2 bg-black/60 backdrop-blur-sm text-white rounded-lg hover:bg-black/80 transition text-sm"
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
-                        </div>
-                        <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-lg">
-                          <ImageIcon className="w-4 h-4 text-blue-400" />
-                          <span className="text-xs text-white">{campaign.file_name}</span>
-                        </div>
-                      </div>
-                    ) : getFileType(campaign.file_name) === 'video' ? (
-                      <div className="relative">
-                        <video
-                          src={campaign.file_url}
-                          controls
-                          className="w-full h-64 object-cover bg-black"
-                        />
-                        <div className="absolute top-3 right-3">
-                          <button
-                            onClick={() => downloadFile(campaign.file_url!, campaign.file_name!)}
-                            className="flex items-center gap-2 px-3 py-2 bg-black/60 backdrop-blur-sm text-white rounded-lg hover:bg-black/80 transition text-sm"
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
-                        </div>
-                        <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-lg">
-                          <Video className="w-4 h-4 text-purple-400" />
-                          <span className="text-xs text-white">{campaign.file_name}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-3">
-                        <Download className="w-5 h-5 text-blue-400" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-white">{campaign.file_name}</p>
-                          <p className="text-xs text-gray-400">Campaign file</p>
-                        </div>
-                        <button
-                          onClick={() => downloadFile(campaign.file_url!, campaign.file_name!)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition text-sm"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {campaign.message_buttons && Array.isArray(campaign.message_buttons) && (campaign.message_buttons as any[]).length > 0 && (
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {(campaign.message_buttons as any[]).map((btn: any, idx: number) => (
-                      <span key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                        btn.type === 'quick_reply' ? 'bg-emerald-500/20 text-emerald-400' :
-                        btn.type === 'url' ? 'bg-blue-500/20 text-blue-400' :
-                        'bg-green-500/20 text-green-400'
-                      }`}>
-                        {btn.type === 'url' ? <ExternalLink className="w-3 h-3" /> : btn.type === 'phone' ? <Phone className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-                        {btn.text}
-                        {btn.type === 'url' && btn.url && <span className="text-gray-500 ml-1">({btn.url})</span>}
-                        {btn.type === 'phone' && btn.phone_number && <span className="text-gray-500 ml-1">({btn.phone_number})</span>}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Total Numbers</p>
-                    <p className="text-white text-lg font-semibold">
-                      {(campaign.total_numbers || (campaign.messages_sent + campaign.messages_failed)).toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Messages Sent</p>
-                    <p className="text-white text-lg font-semibold">{campaign.messages_sent.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Failed</p>
-                    <p className="text-white text-lg font-semibold">{campaign.messages_failed.toLocaleString()}</p>
-                    <p className="text-gray-500 text-xs mt-1">Meta API limits</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Pending Retry</p>
-                    <p className="text-white text-lg font-semibold">{campaign.messages_failed.toLocaleString()}</p>
-                    <p className="text-gray-500 text-xs mt-1">Retry every 30 min</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Delivery Rate</p>
-                    <p className="text-green-400 text-lg font-semibold">
-                      {(() => {
-                        const totalAttempted = campaign.messages_sent + campaign.messages_failed;
-                        return totalAttempted > 0
-                          ? ((campaign.messages_sent / totalAttempted) * 100).toFixed(1)
-                          : '0.0';
-                      })()}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1">Failure Rate</p>
-                    <p className="text-red-400 text-lg font-semibold">
-                      {(() => {
-                        const totalAttempted = campaign.messages_sent + campaign.messages_failed;
-                        return totalAttempted > 0
-                          ? ((campaign.messages_failed / totalAttempted) * 100).toFixed(1)
-                          : '0.0';
-                      })()}%
-                    </p>
-                  </div>
                 </div>
-              </div>
-              {isAdmin && (
-                <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={() => openEditModal(campaign)}
-                    className="p-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition"
-                    title="Edit Campaign"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  {campaign.status === 'Running' ? (
+
+                {/* Action buttons */}
+                <div className="flex items-center space-x-2 ml-4">
+                  {isAdmin && (campaign.status === 'Running' || campaign.status === 'approved') && (
+                    <button
+                      onClick={() => startCampaign(campaign.id)}
+                      disabled={startingCampaign === campaign.id}
+                      className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                      title="Start sending messages"
+                    >
+                      {startingCampaign === campaign.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Rocket className="h-4 w-4" />
+                      )}
+                      <span>Send</span>
+                    </button>
+                  )}
+                  {isAdmin && !campaign.is_locked && (
+                    <button
+                      onClick={() => openEdit(campaign)}
+                      className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {/* Status action buttons */}
+                  {isAdmin && campaign.status === 'Running' && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Paused')}
-                      className="p-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
-                      title="Pause Campaign"
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-400 rounded-lg text-xs font-medium transition-colors border border-yellow-600/30"
+                      title="Pause campaign"
                     >
-                      <Pause className="w-4 h-4" />
+                      <Pause className="h-3.5 w-3.5" />
+                      <span>Pause</span>
                     </button>
-                  ) : campaign.status === 'Paused' ? (
+                  )}
+                  {isAdmin && campaign.status === 'Paused' && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Running')}
-                      className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
-                      title="Resume Campaign"
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded-lg text-xs font-medium transition-colors border border-green-600/30"
+                      title="Resume campaign"
                     >
-                      <Play className="w-4 h-4" />
+                      <Play className="h-3.5 w-3.5" />
+                      <span>Resume</span>
                     </button>
-                  ) : campaign.status === 'Completed' ? (
+                  )}
+                  {isAdmin && campaign.status === 'Completed' && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Running')}
-                      className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
-                      title="Restart Campaign"
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium transition-colors border border-blue-600/30"
+                      title="Restart campaign"
                     >
-                      <Play className="w-4 h-4" />
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Restart</span>
                     </button>
-                  ) : null}
-                  {campaign.status !== 'Completed' && campaign.status !== 'Cancelled' && (
+                  )}
+                  {isAdmin && !['Completed', 'Cancelled'].includes(campaign.status) && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Completed')}
-                      className="p-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition"
-                      title="Mark as Completed"
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-gray-600/20 hover:bg-gray-600/40 text-gray-300 rounded-lg text-xs font-medium transition-colors border border-gray-600/30"
+                      title="Mark as completed"
                     >
-                      <CheckCircle className="w-4 h-4" />
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      <span>Complete</span>
                     </button>
                   )}
-                  {(campaign.status === 'Running' || campaign.status === 'Paused') && (
+                  {isAdmin && ['Running', 'Paused', 'Sending'].includes(campaign.status) && (
                     <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to cancel campaign "${campaign.name}"?`)) {
-                          updateCampaignStatus(campaign.id, 'Cancelled');
-                        }
-                      }}
-                      className="p-2 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition"
-                      title="Cancel Campaign"
+                      onClick={() => updateCampaignStatus(campaign.id, 'Cancelled')}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-600/30"
+                      title="Cancel campaign"
                     >
-                      <XCircle className="w-4 h-4" />
+                      <Ban className="h-3.5 w-3.5" />
+                      <span>Cancel</span>
                     </button>
                   )}
+
+                  {campaign.file_url && campaign.file_name && (
+                    <button
+                      onClick={() => downloadFile(campaign.file_url!, campaign.file_name!)}
+                      className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                      title="Download file"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Real Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-gray-400 text-xs">Contacts</p>
+                  <p className="text-white font-semibold">{campaign.total_numbers || 0}</p>
+                </div>
+                <div className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-gray-400 text-xs">Sent</p>
+                  <p className="text-green-400 font-semibold">{m?.messages_sent || 0}</p>
+                </div>
+                <div className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-gray-400 text-xs">Delivered</p>
+                  <p className="text-blue-400 font-semibold">{m?.messages_delivered || 0}</p>
+                </div>
+                <div className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-gray-400 text-xs">Failed</p>
+                  <p className="text-red-400 font-semibold">{m?.messages_failed || 0}</p>
+                </div>
+                <div className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-gray-400 text-xs">Pending</p>
+                  <p className="text-yellow-400 font-semibold">{m?.messages_pending || 0}</p>
+                </div>
+              </div>
+
+              {/* Delivery rate bar */}
+              {m && m.total_messages > 0 && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                    <span>Delivery: {m.delivery_rate || 0}%</span>
+                    <span>Failure: {m.failure_rate || 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-green-500 h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(m.delivery_rate || 0, 100)}%` }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {campaigns.length === 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-            <p className="text-gray-400">No campaigns created yet</p>
+          <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700">
+            <MessageSquare className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-400 text-lg">No campaigns yet</p>
+            <p className="text-gray-500 text-sm mt-1">Create your first campaign to get started</p>
           </div>
         )}
       </div>
 
+      {/* Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-white mb-6">
-              {editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <div className="p-6 border-b border-gray-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">
+                  {editingCampaign ? 'Edit Campaign' : 'New Campaign'}
+                </h2>
+                <button onClick={() => { setShowModal(false); setEditingCampaign(null); resetForm(); }} className="text-gray-400 hover:text-white">
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1">Campaign Name</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                  required
+                />
+              </div>
+
+              {/* Type + Priority */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Campaign Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Message Template</label>
-                  <textarea
-                    value={formData.message_template}
-                    onChange={(e) => setFormData({ ...formData, message_template: e.target.value })}
-                    rows={4}
-                    placeholder="Enter the message template for this campaign..."
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Upload Template Media (Image/Video)</label>
-                  {previewUrl || (editingCampaign?.file_url && !selectedFile) ? (
-                    <div className="relative bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                      {previewUrl ? (
-                        selectedFile?.type.startsWith('image/') ? (
-                          <img src={previewUrl} alt="Preview" className="w-full h-48 object-cover" />
-                        ) : (
-                          <video src={previewUrl} controls className="w-full h-48 object-cover bg-black" />
-                        )
-                      ) : editingCampaign?.file_url && (
-                        getFileType(editingCampaign.file_name || '') === 'image' ? (
-                          <img src={editingCampaign.file_url} alt="Current" className="w-full h-48 object-cover" />
-                        ) : (
-                          <video src={editingCampaign.file_url} controls className="w-full h-48 object-cover bg-black" />
-                        )
-                      )}
-                      <button
-                        type="button"
-                        onClick={clearFile}
-                        className="absolute top-3 right-3 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center h-48 px-4 py-3 bg-gray-800 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750 transition">
-                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-gray-400 text-sm text-center">
-                        Click to upload image or video
-                      </span>
-                      <span className="text-gray-500 text-xs mt-1">
-                        PNG, JPG, GIF, MP4, WEBM
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Messages Sent</label>
-                  <input
-                    type="number"
-                    value={formData.messages_sent}
-                    onChange={(e) => setFormData({ ...formData, messages_sent: parseInt(e.target.value) || 0 })}
-                    min="0"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Messages Failed</label>
-                  <input
-                    type="number"
-                    value={formData.messages_failed}
-                    onChange={(e) => setFormData({ ...formData, messages_failed: parseInt(e.target.value) || 0 })}
-                    min="0"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Type</label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   >
                     <option value="Promotion">Promotion</option>
                     <option value="Follow-up">Follow-up</option>
@@ -668,182 +742,199 @@ export function Campaigns() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-                  <input
-                    type="number"
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Priority</label>
+                  <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
-                    min="1"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
+                  >
+                    {[1, 2, 3, 4, 5].map((p) => <option key={p} value={p}>Priority {p}</option>)}
+                  </select>
                 </div>
+              </div>
+
+              {/* WhatsApp Account */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1">
+                  WhatsApp Account <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.whatsapp_account_id}
+                  onChange={(e) => setFormData({ ...formData, whatsapp_account_id: e.target.value })}
+                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
+                  required
+                >
+                  <option value="">Select WhatsApp account...</option>
+                  {waAccounts.map((wa) => (
+                    <option key={wa.id} value={wa.id}>{wa.display_phone_number}</option>
+                  ))}
+                </select>
+                {waAccounts.length === 0 && (
+                  <p className="text-yellow-400 text-xs mt-1">No WhatsApp accounts connected. Go to Settings → WhatsApp to add one.</p>
+                )}
+              </div>
+
+              {/* Template (approved-only picker) */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1">
+                  Template <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.template_id}
+                  onChange={(e) => {
+                    const tpl = approvedTemplates.find(t => t.id === e.target.value);
+                    setFormData({
+                      ...formData,
+                      template_id: e.target.value,
+                      message_template: tpl?.name || '',
+                      template_language: tpl?.language || 'en_US',
+                    });
+                    setVariableMapping({});
+                  }}
+                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
+                  required
+                >
+                  <option value="">Select an approved template...</option>
+                  {approvedTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                  ))}
+                </select>
+                {approvedTemplates.length === 0 && (
+                  <p className="text-yellow-400 text-xs mt-1">No approved templates. Go to Templates to create and submit one for Meta approval.</p>
+                )}
+                {selectedTemplate?.body_text && (
+                  <p className="text-gray-500 text-xs mt-1 truncate">Body: {selectedTemplate.body_text}</p>
+                )}
+              </div>
+
+              {/* Variable Mapping */}
+              {templateVariables.length > 0 && (
+                <div className="bg-gray-700/50 rounded-lg p-4">
+                  <p className="text-gray-300 text-sm font-medium mb-2">Variable Mapping</p>
+                  <p className="text-gray-500 text-xs mb-3">Map each template variable to a contact field</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {templateVariables.map((v) => {
+                      const num = v.replace(/[{}]/g, '');
+                      return (
+                        <div key={v} className="flex items-center space-x-2">
+                          <span className="text-gray-400 text-sm font-mono w-12">{v}</span>
+                          <span className="text-gray-500">→</span>
+                          <select
+                            value={variableMapping[num] || ''}
+                            onChange={(e) => setVariableMapping({ ...variableMapping, [num]: e.target.value })}
+                            className="flex-1 bg-gray-600 text-white rounded-lg px-3 py-1.5 border border-gray-500 text-sm"
+                          >
+                            <option value="">Select field...</option>
+                            {CONTACT_FIELDS.map((f) => (
+                              <option key={f} value={f}>{f}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Message Version + Daily Limit */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Message Version</label>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Message Version</label>
                   <select
                     value={formData.message_version}
-                    onChange={(e) => setFormData({ ...formData, message_version: e.target.value as 'A' | 'B' })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    onChange={(e) => setFormData({ ...formData, message_version: e.target.value as any })}
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   >
                     <option value="A">Version A</option>
                     <option value="B">Version B</option>
                   </select>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Daily Limit</label>
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Daily Limit</label>
                   <input
                     type="number"
                     value={formData.daily_limit}
-                    onChange={(e) => setFormData({ ...formData, daily_limit: parseInt(e.target.value) })}
-                    min="1"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    onChange={(e) => setFormData({ ...formData, daily_limit: parseInt(e.target.value) || 1000 })}
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="Running">Running</option>
-                    <option value="Paused">Paused</option>
-                    <option value="Processing">Processing</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
+              </div>
+
+              {/* Start/End Time */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Start Time</label>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Start Time</label>
                   <input
                     type="datetime-local"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">End Time</label>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">End Time</label>
                   <input
                     type="datetime-local"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   />
                 </div>
+              </div>
 
-                <div className="col-span-2 pt-4 border-t border-gray-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <input
-                      type="checkbox"
-                      id="auto-increment"
-                      checked={formData.auto_increment_enabled}
-                      onChange={(e) => setFormData({ ...formData, auto_increment_enabled: e.target.checked })}
-                      className="w-4 h-4 bg-gray-800 border-gray-700 rounded text-emerald-500 focus:ring-emerald-500"
-                    />
-                    <label htmlFor="auto-increment" className="text-sm font-medium text-gray-300">
-                      Enable Auto-Increment for Sent/Failed Messages
-                    </label>
-                  </div>
-                  {formData.auto_increment_enabled && (
-                    <div className="grid grid-cols-2 gap-4 pl-7">
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Total Contacts (Target)
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.auto_increment_total}
-                          onChange={(e) => setFormData({ ...formData, auto_increment_total: parseInt(e.target.value) || 0 })}
-                          min="0"
-                          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="e.g., 10000"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Sent Ratio (%)
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.auto_increment_sent_ratio}
-                          onChange={(e) => {
-                            const sent = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                            const failed = Math.max(0, 100 - sent);
-                            setFormData({
-                              ...formData,
-                              auto_increment_sent_ratio: sent,
-                              auto_increment_failed_ratio: failed
-                            });
-                          }}
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Failed Ratio (%)
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.auto_increment_failed_ratio}
-                          onChange={(e) => {
-                            const failed = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                            const sent = Math.max(0, 100 - failed);
-                            setFormData({
-                              ...formData,
-                              auto_increment_sent_ratio: sent,
-                              auto_increment_failed_ratio: failed
-                            });
-                          }}
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Target Completion Time (Optional)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={formData.auto_increment_complete_at}
-                          onChange={(e) => setFormData({ ...formData, auto_increment_complete_at: e.target.value })}
-                          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                          Set when the campaign should automatically complete. Leave empty to complete only when target is reached.
-                        </p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-xs text-gray-400">
-                          The system will automatically increment sent ({formData.auto_increment_sent_ratio}%) and failed ({formData.auto_increment_failed_ratio}%) messages in real-time when the campaign is Running. The campaign will automatically complete when the target total is reached or when the completion time arrives.
-                        </p>
-                      </div>
+              {/* Status (for editing) */}
+              {editingCampaign && (
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
+                  >
+                    <option value="Running">Running</option>
+                    <option value="Paused">Paused</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+              )}
+
+              {/* File Upload */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1">Attachment</label>
+                <div className="flex items-center space-x-3">
+                  <label className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg cursor-pointer transition-colors border border-gray-600">
+                    <Upload className="h-4 w-4" />
+                    <span className="text-sm">Choose File</span>
+                    <input type="file" onChange={handleFileSelect} className="hidden" accept="image/*,video/*,.pdf,.doc,.docx" />
+                  </label>
+                  {selectedFile && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-300">
+                      <span>{selectedFile.name}</span>
+                      <button type="button" onClick={clearFile} className="text-red-400 hover:text-red-300">
+                        <XCircle className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex gap-3 pt-4">
+
+              {/* Submit */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingCampaign(null);
-                    clearFile();
-                  }}
-                  disabled={uploadingFile}
-                  className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => { setShowModal(false); setEditingCampaign(null); resetForm(); }}
+                  className="px-4 py-2.5 text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={uploadingFile}
-                  className="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center space-x-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
                 >
-                  {uploadingFile ? 'Uploading...' : editingCampaign ? 'Update Campaign' : 'Create Campaign'}
+                  {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  <span>{editingCampaign ? 'Update' : 'Create'} Campaign</span>
                 </button>
               </div>
             </form>
