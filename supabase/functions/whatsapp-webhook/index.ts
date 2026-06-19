@@ -1,25 +1,16 @@
 // Supabase Edge Function: whatsapp-webhook
-// Receives WhatsApp Cloud API webhooks — delivery/read/failed statuses and
-// inbound customer messages. THIS is what replaces the simulated counters
-// with real data: every status update and reply lands here.
+// Receives WhatsApp Cloud API webhooks — delivery/read/failed statuses,
+// inbound messages, and template approval updates.
+// Also manages conversations table and downloads inbound media.
 //
-// Deploy PUBLIC (Meta calls it with NO Supabase JWT — this flag is required):
+// Deploy PUBLIC (Meta calls it with NO Supabase JWT):
 //   supabase functions deploy whatsapp-webhook --no-verify-jwt
-//
-// Secrets:
-//   supabase secrets set WHATSAPP_VERIFY_TOKEN=pick-a-long-random-string
-//   supabase secrets set WHATSAPP_APP_SECRET=your_meta_app_secret   (recommended)
-//   (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are injected automatically)
-//
-// Then in Meta → WhatsApp → Configuration → Edit webhook:
-//   Callback URL = https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook
-//   Verify token = the WHATSAPP_VERIFY_TOKEN value above
-//   Save, then click "Manage" and subscribe to the "messages" field.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || '';
 const APP_SECRET = Deno.env.get('WHATSAPP_APP_SECRET') || '';
+const GRAPH_API_VERSION = Deno.env.get('GRAPH_API_VERSION') || 'v25.0';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -27,9 +18,8 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// Verify Meta's X-Hub-Signature-256 (HMAC-SHA256 of the raw body using the app secret)
 async function verifySignature(rawBody: string, signature: string | null): Promise<boolean> {
-  if (!APP_SECRET) return true; // skipped until you set the secret — DO set it for production
+  if (!APP_SECRET) return true;
   if (!signature) return false;
   const key = await crypto.subtle.importKey(
     'raw',
@@ -50,6 +40,135 @@ async function verifySignature(rawBody: string, signature: string | null): Promi
 function tsToIso(ts?: string): string {
   const n = ts ? parseInt(ts, 10) : NaN;
   return Number.isFinite(n) ? new Date(n * 1000).toISOString() : new Date().toISOString();
+}
+
+// Download media from WhatsApp Graph API and store in Supabase Storage
+async function downloadAndStoreMedia(
+  mediaId: string,
+  accessToken: string,
+  userId: string,
+  mimeType: string,
+): Promise<string | null> {
+  try {
+    // 1. Get media URL from Graph API
+    const metaRes = await fetch(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!metaRes.ok) {
+      console.error('Failed to get media URL:', await metaRes.text());
+      return null;
+    }
+    const metaData = await metaRes.json();
+    const mediaUrl = metaData.url;
+    if (!mediaUrl) return null;
+
+    // 2. Download the actual media file
+    const fileRes = await fetch(mediaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!fileRes.ok) {
+      console.error('Failed to download media:', fileRes.status);
+      return null;
+    }
+    const fileBlob = await fileRes.blob();
+
+    // 3. Determine file extension from mime type
+    const extMap: Record<string, string> = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+      'video/mp4': 'mp4', 'video/webm': 'webm',
+      'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/aac': 'aac',
+      'application/pdf': 'pdf',
+    };
+    const ext = extMap[mimeType] || 'bin';
+    const fileName = `${userId}/${crypto.randomUUID()}.${ext}`;
+
+    // 4. Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('chat-media')
+      .upload(fileName, fileBlob, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError.message);
+      return null;
+    }
+
+    // 5. Return the public URL
+    const { data: urlData } = supabase.storage
+      .from('chat-media')
+      .getPublicUrl(fileName);
+
+    return urlData?.publicUrl || null;
+  } catch (e) {
+    console.error('Media download error:', (e as Error).message);
+    return null;
+  }
+}
+
+// Upsert conversation for an inbound message
+async function upsertConversation(
+  userId: string,
+  accountId: string,
+  contactPhone: string,
+  contactName: string | null,
+  messagePreview: string,
+): Promise<string | null> {
+  try {
+    // Check if conversation exists
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id, unread_count')
+      .eq('user_id', userId)
+      .eq('contact_phone', contactPhone)
+      .maybeSingle();
+
+    const now = new Date().toISOString();
+    const windowExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('conversations')
+        .update({
+          last_message_at: now,
+          last_message_preview: messagePreview.substring(0, 100),
+          last_message_direction: 'inbound',
+          unread_count: (existing.unread_count || 0) + 1,
+          window_expires_at: windowExpires,
+          contact_name: contactName || undefined,
+          is_open: true,
+        })
+        .eq('id', existing.id);
+      if (error) console.error('Conversation update error:', error.message);
+      return existing.id;
+    } else {
+      const { data: newConv, error } = await supabase
+        .from('conversations')
+        .insert({
+          user_id: userId,
+          whatsapp_account_id: accountId,
+          contact_phone: contactPhone,
+          contact_name: contactName,
+          last_message_at: now,
+          last_message_preview: messagePreview.substring(0, 100),
+          last_message_direction: 'inbound',
+          unread_count: 1,
+          window_expires_at: windowExpires,
+        })
+        .select('id')
+        .single();
+      if (error) {
+        console.error('Conversation insert error:', error.message);
+        return null;
+      }
+      return newConv?.id || null;
+    }
+  } catch (e) {
+    console.error('Conversation upsert error:', (e as Error).message);
+    return null;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -84,11 +203,11 @@ Deno.serve(async (req: Request) => {
           const phoneNumberId = value.metadata?.phone_number_id;
 
           // Which tenant does this number belong to?
-          let account: { id: string; user_id: string } | null = null;
+          let account: { id: string; user_id: string; access_token: string } | null = null;
           if (phoneNumberId) {
             const { data } = await supabase
               .from('whatsapp_accounts')
-              .select('id, user_id')
+              .select('id, user_id, access_token')
               .eq('phone_number_id', phoneNumberId)
               .maybeSingle();
             account = data ?? null;
@@ -122,15 +241,57 @@ Deno.serve(async (req: Request) => {
           // 2) Inbound messages from customers
           if (account) {
             for (const msg of value.messages ?? []) {
+              // Extract message text for preview
+              let messagePreview = '';
+              let mediaUrl: string | null = null;
+              const msgType = msg.type || 'text';
+
+              if (msgType === 'text') {
+                messagePreview = msg.text?.body || '';
+              } else if (['image', 'video', 'audio', 'document', 'sticker'].includes(msgType)) {
+                const mediaObj = msg[msgType];
+                messagePreview = mediaObj?.caption || `📎 ${msgType}`;
+                // Download and store media
+                if (mediaObj?.id && account.access_token) {
+                  mediaUrl = await downloadAndStoreMedia(
+                    mediaObj.id,
+                    account.access_token,
+                    account.user_id,
+                    mediaObj.mime_type || 'application/octet-stream',
+                  );
+                }
+              } else if (msgType === 'location') {
+                messagePreview = `📍 Location: ${msg.location?.latitude}, ${msg.location?.longitude}`;
+              } else if (msgType === 'contacts') {
+                messagePreview = `👤 Contact shared`;
+              } else {
+                messagePreview = `[${msgType}]`;
+              }
+
+              // Get contact name from WhatsApp profile
+              const contactName = value.contacts?.[0]?.profile?.name || null;
+
+              // Upsert conversation
+              const conversationId = await upsertConversation(
+                account.user_id,
+                account.id,
+                msg.from,
+                contactName,
+                messagePreview,
+              );
+
+              // Insert the message
               const { error: insErr } = await supabase.from('messages').insert({
                 user_id: account.user_id,
                 whatsapp_account_id: account.id,
                 wamid: msg.id,
                 direction: 'inbound',
                 wa_from: msg.from,
-                message_type: msg.type,
+                message_type: msgType,
                 content: msg,
                 status: 'received',
+                media_url: mediaUrl,
+                conversation_id: conversationId,
               });
               // 23505 = duplicate wamid (Meta retried) — safe to ignore
               if (insErr && insErr.code !== '23505') {
@@ -139,7 +300,7 @@ Deno.serve(async (req: Request) => {
             }
           }
 
-          // 3) Template approval status updates (field: message_template_status_update)
+          // 3) Template approval status updates
           if (change.field === 'message_template_status_update') {
             const evt = value as Record<string, any>;
             const metaTemplateId = evt.message_template_id != null ? String(evt.message_template_id) : null;
@@ -159,11 +320,9 @@ Deno.serve(async (req: Request) => {
         }
       }
     } catch (e) {
-      // Log but still 200 so Meta doesn't retry a poison event forever
       console.error('Webhook processing error:', (e as Error).message);
     }
 
-    // Always ack fast so Meta marks delivery successful
     return new Response('EVENT_RECEIVED', { status: 200 });
   }
 

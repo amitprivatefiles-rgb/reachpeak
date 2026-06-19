@@ -22,13 +22,14 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Verify the caller's JWT using anon client
-    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+    // Use service role to verify user's JWT (works without ANON_KEY)
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: { user }, error: authError } = await anonClient.auth.getUser();
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
@@ -46,14 +47,36 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role client for the write (bypasses RLS)
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Upsert: one account per tenant for Phase 1
-    const { data, error } = await serviceClient
+    // Check if user already has an account — update it, otherwise insert
+    const { data: existing } = await serviceClient
       .from('whatsapp_accounts')
-      .upsert(
-        {
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    let data, error;
+
+    if (existing) {
+      // Update existing account
+      ({ data, error } = await serviceClient
+        .from('whatsapp_accounts')
+        .update({
+          waba_id,
+          phone_number_id,
+          access_token,
+          display_phone_number,
+          verified_name: verified_name || null,
+          status: 'connected',
+          is_active: true,
+        })
+        .eq('id', existing.id)
+        .select('id, display_phone_number, verified_name, quality_rating, status, is_active')
+        .single());
+    } else {
+      // Insert new account
+      ({ data, error } = await serviceClient
+        .from('whatsapp_accounts')
+        .insert({
           user_id: user.id,
           waba_id,
           phone_number_id,
@@ -62,12 +85,10 @@ Deno.serve(async (req) => {
           verified_name: verified_name || null,
           status: 'connected',
           is_active: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      )
-      .select('id, display_phone_number, verified_name, quality_rating, status, is_active')
-      .single();
+        })
+        .select('id, display_phone_number, verified_name, quality_rating, status, is_active')
+        .single());
+    }
 
     if (error) {
       // If unique conflict on phone_number_id (another tenant owns it)
@@ -87,7 +108,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

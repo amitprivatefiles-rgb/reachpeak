@@ -29,6 +29,7 @@ import { Agents } from './components/Agents';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
+import { Inbox } from './components/Inbox';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -80,6 +81,7 @@ function AppDashboard() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
+      case 'inbox': return <Inbox />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
       case 'templates': return <Templates />;
       case 'approvals': return <CampaignApprovals />;

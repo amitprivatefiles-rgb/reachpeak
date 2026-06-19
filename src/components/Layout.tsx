@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare, FileText } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, Activity, Menu, X, CheckSquare, FileText, MessageSquare } from 'lucide-react';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
@@ -17,6 +17,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { subscription } = useSubscription();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [inboxUnread, setInboxUnread] = useState(0);
 
   // Use customer's business logo if available, fallback to ReachPeak brand
   const logoUrl = subscription?.logo_url || LOGO_URL;
@@ -39,8 +40,26 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     return () => { supabase.removeChannel(channel); };
   }, [isAdmin]);
 
+  // Fetch inbox unread count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      const { data } = await supabase
+        .from('conversations')
+        .select('unread_count');
+      const total = (data || []).reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
+      setInboxUnread(total);
+    };
+    fetchUnread();
+    const channel = supabase
+      .channel('inbox-unread-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => fetchUnread())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   const adminNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: 'approvals', label: 'Campaign Approvals', icon: CheckSquare, badge: pendingCount > 0 ? pendingCount : undefined },
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
     { id: 'templates', label: 'Templates', icon: FileText },
@@ -55,6 +74,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
 
   const userNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'My Contacts', icon: Users },
