@@ -214,9 +214,7 @@ export function WhatsAppSettings() {
       )}
 
       {/* Embedded Signup — Primary Connection Method */}
-      {!account && (
-        <ConnectWhatsApp onConnected={fetchAccount} />
-      )}
+      <ConnectWhatsApp onConnected={fetchAccount} />
 
       {/* Manual Entry Form — Fallback */}
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
