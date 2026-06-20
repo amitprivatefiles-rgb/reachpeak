@@ -118,60 +118,10 @@ export function ConnectWhatsApp({ onConnected }: { onConnected?: () => void }) {
     setStatus('idle');
 
     window.FB.login(
-      async (response: any) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setStatus('error');
-          setMsg('No authorization code returned. The popup may have been closed.');
-          return;
-        }
-
-        // session_info should have arrived via postMessage by now
-        const { waba_id, phone_number_id, business_id } = sessionInfo.current;
-        if (!waba_id || !phone_number_id) {
-          setStatus('error');
-          setMsg(
-            'Did not receive WABA/phone IDs from Meta. Check that your domain is in "Allowed Domains" in the Meta dashboard.',
-          );
-          return;
-        }
-
-        setStatus('working');
-        setMsg('Connecting your WhatsApp number…');
-
-        try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          const res = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/embedded-signup-exchange`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session?.access_token}`,
-              },
-              body: JSON.stringify({ code, waba_id, phone_number_id, business_id }),
-            },
-          );
-
-          const out = await res.json();
-          if (!res.ok || !out.ok) {
-            setStatus('error');
-            setMsg(out.error || out.detail || 'Connection failed. Please try again.');
-            return;
-          }
-
-          setStatus('done');
-          setMsg(
-            `✅ Connected ${out.account?.display_phone_number ?? phone_number_id}${out.account?.verified_name ? ` (${out.account.verified_name})` : ''}`,
-          );
-          onConnected?.();
-        } catch (err: any) {
-          setStatus('error');
-          setMsg(err.message || 'An unexpected error occurred.');
-        }
+      (response: any) => {
+        // Handle the response in a separate async function
+        // (FB.login doesn't accept async callbacks)
+        handleLoginResponse(response);
       },
       {
         config_id: CONFIG_ID,
@@ -184,6 +134,62 @@ export function ConnectWhatsApp({ onConnected }: { onConnected?: () => void }) {
         },
       },
     );
+  };
+
+  const handleLoginResponse = async (response: any) => {
+    const code = response?.authResponse?.code;
+    if (!code) {
+      setStatus('error');
+      setMsg('No authorization code returned. The popup may have been closed.');
+      return;
+    }
+
+    // session_info should have arrived via postMessage by now
+    const { waba_id, phone_number_id, business_id } = sessionInfo.current;
+    if (!waba_id || !phone_number_id) {
+      setStatus('error');
+      setMsg(
+        'Did not receive WABA/phone IDs from Meta. Check that your domain is in "Allowed Domains" in the Meta dashboard.',
+      );
+      return;
+    }
+
+    setStatus('working');
+    setMsg('Connecting your WhatsApp number…');
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/embedded-signup-exchange`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ code, waba_id, phone_number_id, business_id }),
+        },
+      );
+
+      const out = await res.json();
+      if (!res.ok || !out.ok) {
+        setStatus('error');
+        setMsg(out.error || out.detail || 'Connection failed. Please try again.');
+        return;
+      }
+
+      setStatus('done');
+      setMsg(
+        `✅ Connected ${out.account?.display_phone_number ?? phone_number_id}${out.account?.verified_name ? ` (${out.account.verified_name})` : ''}`,
+      );
+      onConnected?.();
+    } catch (err: any) {
+      setStatus('error');
+      setMsg(err.message || 'An unexpected error occurred.');
+    }
   };
 
   return (
