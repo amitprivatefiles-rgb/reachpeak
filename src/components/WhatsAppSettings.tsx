@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ConnectWhatsApp } from './ConnectWhatsApp';
-import { Phone, Shield, CheckCircle, AlertTriangle, Send, Loader2, Eye, EyeOff, Wifi, WifiOff } from 'lucide-react';
+import { Phone, Shield, CheckCircle, AlertTriangle, Send, Loader2, Eye, EyeOff, Wifi, WifiOff, Trash2 } from 'lucide-react';
 
 interface WhatsAppAccount {
   id: string;
@@ -19,6 +19,8 @@ export function WhatsAppSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -113,6 +115,26 @@ export function WhatsAppSettings() {
     }
   };
 
+  const handleDisconnect = async () => {
+    if (!account) return;
+    setDisconnecting(true);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .delete()
+        .eq('id', account.id);
+
+      if (error) throw error;
+      setAccount(null);
+      setShowDisconnectConfirm(false);
+      setTestResult({ type: 'success', message: 'WhatsApp account disconnected successfully.' });
+    } catch (err: any) {
+      setTestResult({ type: 'error', message: err.message || 'Failed to disconnect account' });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
   const qualityColor = (rating: string | null) => {
     switch (rating?.toUpperCase()) {
       case 'GREEN': return 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -197,6 +219,40 @@ export function WhatsAppSettings() {
                 <span>{testing ? 'Sending...' : 'Test'}</span>
               </button>
             </div>
+          </div>
+
+          {/* Disconnect */}
+          <div className="mt-4 pt-4 border-t border-gray-700">
+            {!showDisconnectConfirm ? (
+              <button
+                onClick={() => setShowDisconnectConfirm(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/30"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Disconnect WhatsApp Account</span>
+              </button>
+            ) : (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <p className="text-red-400 text-sm font-medium mb-2">⚠️ Are you sure you want to disconnect?</p>
+                <p className="text-gray-400 text-xs mb-3">This will remove the WhatsApp account from ReachPeak. You can reconnect it later via Embedded Signup.</p>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                    className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    <span>{disconnecting ? 'Disconnecting...' : 'Yes, Disconnect'}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowDisconnectConfirm(false)}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
