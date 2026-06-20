@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { ConnectWhatsApp } from './ConnectWhatsApp';
 import { Phone, Shield, CheckCircle, AlertTriangle, Send, Loader2, Eye, EyeOff, Wifi, WifiOff } from 'lucide-react';
 
 interface WhatsAppAccount {
@@ -212,15 +213,20 @@ export function WhatsAppSettings() {
         </div>
       )}
 
-      {/* Manual Entry Form */}
+      {/* Embedded Signup — Primary Connection Method */}
+      {!account && (
+        <ConnectWhatsApp onConnected={fetchAccount} />
+      )}
+
+      {/* Manual Entry Form — Fallback */}
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
         <div className="flex items-center space-x-3 mb-6">
           <div className="p-2 bg-blue-500/20 rounded-lg">
             <Shield className="h-5 w-5 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-white font-semibold">{account ? 'Update' : 'Connect'} WhatsApp Account</h3>
-            <p className="text-gray-400 text-sm">Enter your WhatsApp Business API credentials. The access token is stored server-side only.</p>
+            <h3 className="text-white font-semibold">{account ? 'Update' : 'Manual Connect'} WhatsApp Account</h3>
+            <p className="text-gray-400 text-sm">{account ? 'Update your WhatsApp Business API credentials.' : 'Or enter credentials manually if you already have a token.'} The access token is stored server-side only.</p>
           </div>
         </div>
 
