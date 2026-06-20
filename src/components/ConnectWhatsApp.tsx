@@ -14,19 +14,39 @@ declare global {
 }
 
 function loadFbSdk(): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (window.FB) return resolve();
+
+    // Set the callback for when SDK loads
     window.fbAsyncInit = () => {
       window.FB.init({ appId: APP_ID, cookie: true, xfbml: false, version: GRAPH_VERSION });
+      console.log('[ConnectWhatsApp] FB SDK initialized, appId:', APP_ID);
       resolve();
     };
-    if (document.getElementById('facebook-jssdk')) return;
+
+    // If script tag already exists, just wait for fbAsyncInit (don't add another)
+    if (document.getElementById('facebook-jssdk')) {
+      // SDK script is loading — fbAsyncInit will fire when ready
+      // Add a timeout in case it's stuck
+      setTimeout(() => {
+        if (window.FB) resolve();
+        else reject(new Error('Facebook SDK failed to load (timeout). Check if an ad blocker is active.'));
+      }, 10000);
+      return;
+    }
+
     const js = document.createElement('script');
     js.id = 'facebook-jssdk';
     js.src = 'https://connect.facebook.net/en_US/sdk.js';
     js.async = true;
     js.defer = true;
+    js.onerror = () => reject(new Error('Failed to load Facebook SDK. Check if an ad blocker is blocking connect.facebook.net'));
     document.body.appendChild(js);
+
+    // Timeout fallback
+    setTimeout(() => {
+      if (!window.FB) reject(new Error('Facebook SDK timed out. Disable ad blockers and try again.'));
+    }, 15000);
   });
 }
 
@@ -78,16 +98,23 @@ export function ConnectWhatsApp({ onConnected }: { onConnected?: () => void }) {
   }, []);
 
   const launch = async () => {
+    console.log('[ConnectWhatsApp] ENV check — APP_ID:', APP_ID, 'CONFIG_ID:', CONFIG_ID);
     if (!APP_ID || !CONFIG_ID) {
       setStatus('error');
-      setMsg('Missing Meta configuration. Please set VITE_META_APP_ID and VITE_META_CONFIG_ID.');
+      setMsg('Missing Meta configuration. Please set VITE_META_APP_ID and VITE_META_CONFIG_ID in Vercel env vars.');
       return;
     }
 
     setStatus('loading');
-    setMsg('');
+    setMsg('Loading Facebook SDK…');
 
-    await loadFbSdk();
+    try {
+      await loadFbSdk();
+    } catch (err: any) {
+      setStatus('error');
+      setMsg(err.message || 'Failed to load Facebook SDK.');
+      return;
+    }
     setStatus('idle');
 
     window.FB.login(
