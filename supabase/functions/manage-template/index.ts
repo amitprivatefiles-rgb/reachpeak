@@ -180,6 +180,36 @@ async function handleDelete(
   return jsonResp({ success: true });
 }
 
+// ─── Re-host approved sample media to durable storage ───
+async function rehostSample(
+  db: any,
+  accountId: string,
+  metaId: string,
+  fmt: string,
+  handleUrl: string,
+): Promise<string> {
+  try {
+    const res = await fetch(handleUrl);
+    if (!res.ok) return handleUrl; // fallback: raw Meta CDN URL
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const ext = fmt === 'IMAGE' ? 'jpg' : fmt === 'VIDEO' ? 'mp4' : 'pdf';
+    const path = `${accountId}/${metaId}.${ext}`;
+    const contentType =
+      fmt === 'IMAGE' ? 'image/jpeg' : fmt === 'VIDEO' ? 'video/mp4' : 'application/pdf';
+    const up = await db.storage
+      .from('template-samples')
+      .upload(path, bytes, { contentType, upsert: true });
+    if (up.error) {
+      console.warn('[manage-template] rehost upload failed:', up.error.message);
+      return handleUrl;
+    }
+    return db.storage.from('template-samples').getPublicUrl(path).data.publicUrl;
+  } catch (e: any) {
+    console.warn('[manage-template] rehost error:', e.message);
+    return handleUrl;
+  }
+}
+
 // ─── SYNC ───
 async function handleSync(
   db: any,
@@ -210,6 +240,22 @@ async function handleSync(
     metaIds.add(metaId);
     const parsed = parseComponents(mt.components || []);
 
+    // Re-host approved sample media header for a durable URL
+    let headerSampleUrl: string | null = null;
+    const hc = (mt.components || []).find(
+      (c: any) => String(c.type).toUpperCase() === 'HEADER',
+    );
+    const hfmt = String(hc?.format ?? '').toUpperCase();
+    if (
+      hc &&
+      ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(hfmt) &&
+      hc.example?.header_handle?.[0]
+    ) {
+      headerSampleUrl = await rehostSample(
+        db, wa.id, metaId, hfmt, hc.example.header_handle[0],
+      );
+    }
+
     const { error } = await db
       .from('templates')
       .upsert(
@@ -227,13 +273,18 @@ async function handleSync(
           footer: parsed.footer,
           buttons: parsed.buttons,
           variables: parsed.variables,
+          header_sample_url: headerSampleUrl,
           rejected_reason: mt.rejected_reason || mt.quality_score?.reasons?.join(', ') || null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'meta_template_id' }
       );
 
-    if (!error) upserted++;
+    if (error) {
+      console.error('[manage-template] template upsert failed:', mt.name, error.message);
+    } else {
+      upserted++;
+    }
   }
 
   // Mark DB templates not in Meta as 'deleted' — ONLY if they have a meta_template_id

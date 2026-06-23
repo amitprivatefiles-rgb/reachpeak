@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban } from 'lucide-react';
+import { buildTemplateSendComponents, missingRequiredHeaderMedia, getHeaderFormat } from '../lib/templatePayloadBuilder';
+import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban, Eye } from 'lucide-react';
 
 // Contact fields available for variable mapping (matches contacts table schema)
 const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
@@ -13,6 +14,7 @@ interface ApprovedTemplate {
   body_text: string | null;
   components: any[] | null;
   variables: any;
+  header_sample_url: string | null;
 }
 
 interface Campaign {
@@ -151,7 +153,7 @@ export function Campaigns() {
     if (!user) return;
     const { data } = await supabase
       .from('templates')
-      .select('id, name, language, body_text, components, variables')
+      .select('id, name, language, body_text, components, variables, header_sample_url')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .order('name');
@@ -230,32 +232,58 @@ export function Campaigns() {
         return;
       }
 
-      // 4. Batch-insert queued messages with per-contact variable mapping
+      // 4. Batch-insert queued messages using the shared template builder
       const templateName = campaign.message_template || 'hello_world';
       const lang = campaign.template_language || 'en_US';
       const waFrom = waAccount.display_phone_number.replace(/[^0-9]/g, '');
       const varMap: Record<string, string> = campaign.variable_mapping || {};
       const paramKeys = Object.keys(varMap).sort((a, b) => parseInt(a) - parseInt(b));
 
-      // Validate + build per-contact components.
-      // Returns { components, missingField } — missingField is set if any mapped value is null/empty.
-      const validateContact = (contact: any): { components: any[]; missingField: string | null } => {
-        if (paramKeys.length === 0) return { components: [], missingField: null };
+      // Load full template for the builder
+      const { data: tplRow } = await supabase
+        .from('templates')
+        .select('name, language, components, body_text, header_sample_url')
+        .eq('whatsapp_account_id', campaign.whatsapp_account_id)
+        .eq('name', templateName)
+        .limit(1)
+        .maybeSingle();
 
+      // Build per-contact payload using the shared builder.
+      // Returns { content, missingField } — missingField is set if any mapped value is null/empty.
+      const buildContactPayload = (contact: any): { content: any; missingField: string | null } => {
+        // Check all mapped variables exist on contact
         for (const key of paramKeys) {
           const field = varMap[key];
           const value = contact[field];
           if (value === null || value === undefined || String(value).trim() === '') {
-            return { components: [], missingField: field };
+            return { content: null, missingField: field };
           }
         }
 
-        const parameters = paramKeys.map((key) => ({
-          type: 'text' as const,
-          text: String(contact[varMap[key]]),
-        }));
+        const bodyParams = paramKeys.map((key) => String(contact[varMap[key]]));
+        const phone = contact.phone_number.replace(/[^0-9]/g, '');
 
-        return { components: [{ type: 'body', parameters }], missingField: null };
+        // Use shared builder if template found in DB; otherwise basic fallback
+        let components: any[] = [];
+        if (tplRow) {
+          components = buildTemplateSendComponents(tplRow, { bodyParams });
+        } else if (bodyParams.length > 0) {
+          components = [{ type: 'body', parameters: bodyParams.map(v => ({ type: 'text', text: v })) }];
+        }
+
+        // Full Graph API payload shape — worker sends content verbatim
+        const content = {
+          messaging_product: 'whatsapp',
+          to: phone,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: lang },
+            ...(components.length > 0 ? { components } : {}),
+          },
+        };
+
+        return { content, missingField: null };
       };
 
       // Split contacts into valid (queued) and skipped (failed due to missing variable)
@@ -263,7 +291,8 @@ export function Campaigns() {
       const failedRows: any[] = [];
 
       for (const c of contacts) {
-        const { components, missingField } = validateContact(c);
+        const { content, missingField } = buildContactPayload(c);
+        const phone = c.phone_number.replace(/[^0-9]/g, '');
         const baseRow = {
           user_id: user!.id,
           whatsapp_account_id: campaign.whatsapp_account_id,
@@ -271,7 +300,7 @@ export function Campaigns() {
           campaign_id: campaignId,
           direction: 'outbound' as const,
           wa_from: waFrom,
-          wa_to: c.phone_number.replace(/[^0-9]/g, ''),
+          wa_to: phone,
           message_type: 'template',
           template_name: templateName,
         };
@@ -279,7 +308,10 @@ export function Campaigns() {
         if (missingField) {
           failedRows.push({
             ...baseRow,
-            content: { template: { name: templateName, language: { code: lang }, components: [] } },
+            content: {
+              messaging_product: 'whatsapp', to: phone, type: 'template',
+              template: { name: templateName, language: { code: lang } },
+            },
             status: 'failed' as const,
             error_code: 'MISSING_VARIABLE',
             error_message: `missing_variable:${missingField}`,
@@ -288,7 +320,7 @@ export function Campaigns() {
         } else {
           queuedRows.push({
             ...baseRow,
-            content: { template: { name: templateName, language: { code: lang }, components } },
+            content,
             status: 'queued' as const,
           });
         }
@@ -802,10 +834,74 @@ export function Campaigns() {
                 {approvedTemplates.length === 0 && (
                   <p className="text-yellow-400 text-xs mt-1">No approved templates. Go to Templates to create and submit one for Meta approval.</p>
                 )}
-                {selectedTemplate?.body_text && (
-                  <p className="text-gray-500 text-xs mt-1 truncate">Body: {selectedTemplate.body_text}</p>
-                )}
               </div>
+
+              {/* Template Preview */}
+              {selectedTemplate && (
+                <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Eye className="h-4 w-4 text-gray-400" />
+                    <p className="text-gray-300 text-sm font-medium">Template Preview</p>
+                  </div>
+
+                  {/* Header preview */}
+                  {(() => {
+                    const hdrFmt = getHeaderFormat(selectedTemplate.components ?? undefined);
+                    if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
+                      const sampleUrl = selectedTemplate.header_sample_url;
+                      return (
+                        <div className="mb-3">
+                          {sampleUrl && hdrFmt === 'IMAGE' ? (
+                            <img src={sampleUrl} alt="Header sample" className="rounded-lg max-h-32 w-auto border border-gray-600" />
+                          ) : (
+                            <div className="flex items-center space-x-2 text-gray-400 text-xs">
+                              {hdrFmt === 'IMAGE' && <ImageIcon className="h-4 w-4" />}
+                              {hdrFmt === 'VIDEO' && <Video className="h-4 w-4" />}
+                              <span>{hdrFmt} header — {sampleUrl ? 'sample available' : 'no sample (will use approved media)'}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Body text preview */}
+                  {selectedTemplate.body_text && (
+                    <p className="text-gray-300 text-sm whitespace-pre-wrap mb-2">{selectedTemplate.body_text}</p>
+                  )}
+
+                  {/* Footer preview */}
+                  {(() => {
+                    const fc = (selectedTemplate.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'FOOTER');
+                    return fc?.text ? <p className="text-gray-500 text-xs italic">{fc.text}</p> : null;
+                  })()}
+
+                  {/* Buttons preview */}
+                  {(() => {
+                    const bc = (selectedTemplate.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'BUTTONS');
+                    if (!bc?.buttons?.length) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {bc.buttons.map((b: any, i: number) => (
+                          <span key={i} className="px-3 py-1 bg-gray-600 text-gray-300 rounded-full text-xs border border-gray-500">
+                            {b.text || b.type}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Variable count */}
+                  <div className="mt-2 pt-2 border-t border-gray-600">
+                    <p className="text-gray-500 text-xs">
+                      {templateVariables.length === 0
+                        ? '✅ No variables — ready to send'
+                        : `${templateVariables.length} variable${templateVariables.length > 1 ? 's' : ''} to map`}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Variable Mapping */}
               {templateVariables.length > 0 && (

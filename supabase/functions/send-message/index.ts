@@ -109,18 +109,53 @@ Deno.serve(async (req: Request) => {
         break;
 
       case 'template':
-      default:
+      default: {
         if (!template?.name) return json({ error: 'Missing template.name' }, 400);
         messageType = 'template';
+
+        // Load the stored template to build correct send components
+        const { data: storedTpl } = await supabase
+          .from('templates')
+          .select('name, language, components, body_text, header_sample_url')
+          .eq('whatsapp_account_id', account.id)
+          .eq('name', template.name)
+          .limit(1)
+          .maybeSingle();
+
+        // Import shared builder (Deno file import)
+        const { buildTemplateSendComponents, missingRequiredHeaderMedia } =
+          await import('../_shared/templatePayload.ts');
+
+        const inputs = {
+          headerMedia: template.headerMedia,
+          headerTextParams: template.headerTextParams,
+          bodyParams: template.bodyParams ?? [],
+          buttonParams: template.buttonParams ?? [],
+        };
+
+        // If we found the template in DB, use the builder; otherwise fall back
+        // to caller-provided components (for backward compat with raw payloads)
+        let sendComponents: any[] | undefined;
+        if (storedTpl) {
+          if (missingRequiredHeaderMedia(storedTpl, inputs)) {
+            return json({ error: 'This template requires a header image/video/document but none is available.' }, 400);
+          }
+          sendComponents = buildTemplateSendComponents(storedTpl, inputs);
+        } else if (template.components) {
+          // Fallback: caller passed raw components (e.g. pre-built by campaign enqueue)
+          sendComponents = template.components;
+        }
+
         payload = {
           messaging_product: 'whatsapp', to, type: 'template',
           template: {
             name: template.name,
-            language: { code: template.language || 'en_US' },
-            ...(template.components ? { components: template.components } : {}),
+            language: { code: template.language || storedTpl?.language || 'en_US' },
+            ...(sendComponents && sendComponents.length > 0 ? { components: sendComponents } : {}),
           },
         };
         break;
+      }
     }
 
     // 5. Call the Graph API
