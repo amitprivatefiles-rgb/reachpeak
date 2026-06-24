@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { buildTemplateSendComponents, missingRequiredHeaderMedia, getHeaderFormat } from '../lib/templatePayloadBuilder';
 import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone, Edit3, Users, Copy } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
@@ -20,7 +21,13 @@ interface FormData {
   name: string;
   type: 'Promotion' | 'Follow-up' | 'Offer' | 'Reminder';
   message_version: 'A' | 'B';
+  message_mode: 'template' | 'freetext';
   message_template: string;
+  template_id: string;
+  template_name: string;
+  template_language: string;
+  variable_mapping: Record<string, string>;
+  header_override_url: string;
   contact_selection: ContactSelectionMode;
   contact_source_filter: string;
   contact_campaign_filter: string;
@@ -28,6 +35,18 @@ interface FormData {
   scheduled_start: string;
   message_buttons: MessageButton[];
 }
+
+interface ApprovedTemplate {
+  id: string;
+  name: string;
+  language: string;
+  body_text: string | null;
+  components: any[] | null;
+  variables: any;
+  header_sample_url: string | null;
+}
+
+const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string; pulse?: boolean }> = {
   draft: { bg: 'bg-slate-500/20', text: 'text-slate-400', label: 'Draft' },
@@ -59,12 +78,19 @@ export function UserCampaigns() {
   const [detailContacts, setDetailContacts] = useState<{phone_number: string; name: string | null}[]>([]);
   const [loadingDetailContacts, setLoadingDetailContacts] = useState(false);
   const [copiedFeedback, setCopiedFeedback] = useState('');
+  const [approvedTemplates, setApprovedTemplates] = useState<ApprovedTemplate[]>([]);
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
     type: 'Promotion',
     message_version: 'A',
+    message_mode: 'template',
     message_template: '',
+    template_id: '',
+    template_name: '',
+    template_language: 'en_US',
+    variable_mapping: {},
+    header_override_url: '',
     contact_selection: 'all',
     contact_source_filter: '',
     contact_campaign_filter: '',
@@ -72,6 +98,16 @@ export function UserCampaigns() {
     scheduled_start: '',
     message_buttons: [],
   });
+
+  const selectedTemplate = useMemo(() => {
+    return approvedTemplates.find(t => t.id === formData.template_id) || null;
+  }, [formData.template_id, approvedTemplates]);
+
+  const templateVariables = useMemo(() => {
+    if (!selectedTemplate?.body_text) return [];
+    const matches = selectedTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].sort();
+  }, [selectedTemplate]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = crypto.randomUUID();
@@ -99,6 +135,25 @@ export function UserCampaigns() {
 
     const { data: tagsData } = await supabase.from('tags').select('*').eq('user_id', user!.id).order('name');
     setAvailableTags(tagsData || []);
+  };
+
+  const fetchApprovedTemplates = async () => {
+    if (!user) return;
+    const { data: waAccount } = await supabase
+      .from('whatsapp_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (!waAccount) return;
+    const { data } = await supabase
+      .from('templates')
+      .select('id, name, language, body_text, components, variables, header_sample_url')
+      .eq('whatsapp_account_id', waAccount.id)
+      .eq('status', 'approved')
+      .order('name');
+    setApprovedTemplates((data || []) as ApprovedTemplate[]);
   };
 
   useEffect(() => {
@@ -246,7 +301,12 @@ export function UserCampaigns() {
         name: formData.name,
         type: formData.type,
         message_version: formData.message_version,
-        message_template: formData.message_template || null,
+        message_mode: formData.message_mode,
+        message_template: formData.message_mode === 'template' ? formData.template_name : (formData.message_template || null),
+        template_id: formData.message_mode === 'template' ? formData.template_id : null,
+        template_language: formData.message_mode === 'template' ? formData.template_language : null,
+        variable_mapping: formData.message_mode === 'template' && Object.keys(formData.variable_mapping).length > 0 ? formData.variable_mapping : null,
+        header_override_url: formData.message_mode === 'template' ? (formData.header_override_url || null) : null,
         message_buttons: formData.message_buttons.length > 0 ? formData.message_buttons : null,
         status: asDraft ? 'draft' : 'pending_approval',
         submitted_at: asDraft ? null : new Date().toISOString(),
@@ -308,9 +368,11 @@ export function UserCampaigns() {
       setEditingDraftId(null);
       clearFile();
       setFormData({
-        name: '', type: 'Promotion', message_version: 'A', message_template: '',
-        contact_selection: 'all', contact_source_filter: '', contact_campaign_filter: '', contact_tag_filter: '', scheduled_start: '',
-        message_buttons: [],
+        name: '', type: 'Promotion', message_version: 'A', message_mode: 'template',
+        message_template: '', template_id: '', template_name: '', template_language: 'en_US',
+        variable_mapping: {}, header_override_url: '',
+        contact_selection: 'all', contact_source_filter: '', contact_campaign_filter: '',
+        contact_tag_filter: '', scheduled_start: '', message_buttons: [],
       });
       fetchCampaigns();
       addToast(asDraft ? 'Campaign saved as draft! 📝' : (editingDraftId ? 'Draft submitted for approval! ✅' : 'Campaign submitted for approval! ✅'), 'success');
@@ -327,7 +389,13 @@ export function UserCampaigns() {
       name: campaign.name,
       type: campaign.type,
       message_version: campaign.message_version,
+      message_mode: (campaign as any).message_mode || 'freetext',
       message_template: campaign.message_template || '',
+      template_id: (campaign as any).template_id || '',
+      template_name: campaign.message_template || '',
+      template_language: (campaign as any).template_language || 'en_US',
+      variable_mapping: (campaign as any).variable_mapping || {},
+      header_override_url: (campaign as any).header_override_url || '',
       contact_selection: (campaign.selected_audience as any)?.mode || 'all',
       contact_source_filter: (campaign.selected_audience as any)?.source_filter || '',
       contact_campaign_filter: (campaign.selected_audience as any)?.campaign_filter || '',
@@ -337,6 +405,7 @@ export function UserCampaigns() {
     });
     clearFile();
     setShowModal(true);
+    fetchApprovedTemplates();
   };
 
   const getStatusBadge = (status: string) => {
@@ -392,7 +461,7 @@ export function UserCampaigns() {
           <p className="text-gray-400">Create and track your WhatsApp campaigns</p>
         </div>
         <button
-          onClick={() => { setShowModal(true); fetchContactMeta(); }}
+          onClick={() => { setShowModal(true); fetchContactMeta(); fetchApprovedTemplates(); }}
           className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium"
         >
           <Plus className="w-4 h-4" />
@@ -765,136 +834,273 @@ export function UserCampaigns() {
                 </div>
               </div>
 
-              {/* Message Template */}
+              {/* Message Mode Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Message Template</label>
-                <textarea
-                  value={formData.message_template}
-                  onChange={(e) => setFormData({ ...formData, message_template: e.target.value })}
-                  rows={4}
-                  placeholder="Enter the message template for this campaign..."
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                />
-              </div>
-
-              {/* Media Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Template Media (Optional)</label>
-                {previewUrl ? (
-                  <div className="relative bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                    {selectedFile?.type.startsWith('image/') ? (
-                      <img src={previewUrl} alt="Preview" className="w-full h-40 object-cover" />
-                    ) : (
-                      <video src={previewUrl} controls className="w-full h-40 object-cover bg-black" />
-                    )}
-                    <button type="button" onClick={clearFile} className="absolute top-2 right-2 px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs">
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center h-32 px-4 bg-gray-800 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition">
-                    <Upload className="w-6 h-6 text-gray-500 mb-2" />
-                    <span className="text-gray-400 text-sm">Click to upload image or video</span>
-                    <span className="text-gray-600 text-xs mt-1">PNG, JPG, GIF, MP4, WEBM</span>
-                    <input type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
-                  </label>
-                )}
-              </div>
-
-              {/* Message Buttons */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Message Buttons (Optional)</label>
-                <p className="text-xs text-gray-500 mb-3">Add interactive buttons like WhatsApp Business. Up to 3 quick reply + 2 action buttons.</p>
-                
-                {/* Existing buttons */}
-                <div className="space-y-2 mb-3">
-                  {formData.message_buttons.map((btn, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-800 rounded-lg border border-gray-700">
-                      {btn.type === 'quick_reply' && <MessageSquare className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
-                      {btn.type === 'url' && <ExternalLink className="w-4 h-4 text-blue-400 flex-shrink-0" />}
-                      {btn.type === 'phone' && <Phone className="w-4 h-4 text-green-400 flex-shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm truncate">{btn.text}</p>
-                        {btn.type === 'url' && <p className="text-xs text-gray-500 truncate">{btn.url}</p>}
-                        {btn.type === 'phone' && <p className="text-xs text-gray-500">{btn.phone_number}</p>}
-                      </div>
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 flex-shrink-0">
-                        {btn.type === 'quick_reply' ? 'Quick Reply' : btn.type === 'url' ? 'URL' : 'Call'}
-                      </span>
-                      <button type="button" onClick={() => {
-                        const next = [...formData.message_buttons];
-                        next.splice(idx, 1);
-                        setFormData({ ...formData, message_buttons: next });
-                      }} className="text-red-400 hover:text-red-300 flex-shrink-0"><X className="w-4 h-4" /></button>
-                    </div>
-                  ))}
+                <label className="block text-sm font-medium text-gray-300 mb-2">Message Mode</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setFormData({ ...formData, message_mode: 'template' })}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'template' ? 'bg-emerald-500 text-white' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'}`}>
+                    📋 Approved Template
+                  </button>
+                  <button type="button" onClick={() => setFormData({ ...formData, message_mode: 'freetext' })}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'freetext' ? 'bg-emerald-500 text-white' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'}`}>
+                    ✍️ Free Text
+                  </button>
                 </div>
+              </div>
 
-                {/* Add button controls */}
-                {formData.message_buttons.length < 5 && (
-                  <div className="flex flex-wrap gap-2">
-                    {formData.message_buttons.filter(b => b.type === 'quick_reply').length < 3 && (
-                      <button type="button" onClick={() => {
-                        const text = prompt('Quick Reply button text (e.g. "Interested", "Not Now")');
-                        if (text?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'quick_reply', text: text.trim() }] });
-                      }} className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition text-xs font-medium flex items-center gap-1">
-                        <Plus className="w-3 h-3" /> Quick Reply
-                      </button>
-                    )}
-                    {formData.message_buttons.filter(b => b.type === 'url').length < 1 && (
-                      <button type="button" onClick={() => {
-                        const text = prompt('Button label (e.g. "Visit Website")');
-                        if (text?.trim()) {
-                          const url = prompt('Button URL (e.g. https://example.com)');
-                          if (url?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'url', text: text.trim(), url: url.trim() }] });
-                        }
-                      }} className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-xs font-medium flex items-center gap-1">
-                        <Plus className="w-3 h-3" /> URL Button
-                      </button>
-                    )}
-                    {formData.message_buttons.filter(b => b.type === 'phone').length < 1 && (
-                      <button type="button" onClick={() => {
-                        const text = prompt('Button label (e.g. "Call Us")');
-                        if (text?.trim()) {
-                          const phone = prompt('Phone number (e.g. +919876543210)');
-                          if (phone?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'phone', text: text.trim(), phone_number: phone.trim() }] });
-                        }
-                      }} className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition text-xs font-medium flex items-center gap-1">
-                        <Plus className="w-3 h-3" /> Call Button
-                      </button>
+              {/* Template Mode */}
+              {formData.message_mode === 'template' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Select Template *</label>
+                    <select
+                      value={formData.template_id}
+                      onChange={(e) => {
+                        const tpl = approvedTemplates.find(t => t.id === e.target.value);
+                        setFormData({
+                          ...formData,
+                          template_id: e.target.value,
+                          template_name: tpl?.name || '',
+                          template_language: tpl?.language || 'en_US',
+                          message_template: tpl?.name || '',
+                          variable_mapping: {},
+                        });
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    >
+                      <option value="">Select an approved template...</option>
+                      {approvedTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                      ))}
+                    </select>
+                    {approvedTemplates.length === 0 && (
+                      <p className="text-yellow-400 text-xs mt-1">No approved templates found. Ask your admin to sync templates.</p>
                     )}
                   </div>
-                )}
 
-                {/* Message Preview */}
-                {(formData.message_template || formData.message_buttons.length > 0) && (
-                  <div className="mt-4 p-4 bg-[#0b141a] rounded-xl border border-gray-700">
-                    <p className="text-xs text-gray-500 mb-2 font-medium">📱 WhatsApp Preview</p>
-                    <div className="bg-[#005c4b] rounded-lg p-3 max-w-[280px]">
-                      {previewUrl && selectedFile?.type.startsWith('image/') && (
-                        <img src={previewUrl} alt="" className="w-full h-32 object-cover rounded-md mb-2" />
+                  {selectedTemplate && (
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="w-4 h-4 text-gray-400" />
+                        <p className="text-gray-300 text-sm font-medium">Template Preview</p>
+                      </div>
+                      {(() => {
+                        const hdrFmt = getHeaderFormat(selectedTemplate.components ?? undefined);
+                        if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
+                          const sampleUrl = formData.header_override_url || selectedTemplate.header_sample_url;
+                          return (
+                            <div className="mb-3">
+                              {sampleUrl && hdrFmt === 'IMAGE' ? (
+                                <img src={sampleUrl} alt="Header" className="rounded-lg max-h-32 w-auto border border-gray-600" />
+                              ) : (
+                                <div className="flex items-center gap-2 text-gray-400 text-xs">
+                                  <ImageIcon className="w-4 h-4" />
+                                  <span>{hdrFmt} header — {sampleUrl ? 'sample available' : 'no sample'}</span>
+                                </div>
+                              )}
+                              <p className="text-gray-500 text-xs mt-1">{formData.header_override_url ? 'Using custom image' : 'Using approved sample'}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {selectedTemplate.body_text && (
+                        <p className="text-gray-300 text-sm whitespace-pre-wrap mb-2">{selectedTemplate.body_text}</p>
                       )}
-                      <p className="text-white text-sm whitespace-pre-wrap">{formData.message_template || 'Your message here...'}</p>
-                      <p className="text-right text-[10px] text-gray-300 mt-1">12:00 PM ✓✓</p>
+                      {(() => {
+                        const fc = (selectedTemplate.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'FOOTER');
+                        return fc?.text ? <p className="text-gray-500 text-xs italic">{fc.text}</p> : null;
+                      })()}
+                      {(() => {
+                        const bc = (selectedTemplate.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'BUTTONS');
+                        if (!bc?.buttons?.length) return null;
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {bc.buttons.map((b: any, i: number) => (
+                              <span key={i} className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-xs border border-gray-600">{b.text || b.type}</span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      <div className="mt-2 pt-2 border-t border-gray-700">
+                        <p className="text-gray-500 text-xs">
+                          {templateVariables.length === 0 ? '✅ No variables — ready to send' : `${templateVariables.length} variable${templateVariables.length > 1 ? 's' : ''} to map`}
+                        </p>
+                      </div>
                     </div>
-                    {formData.message_buttons.length > 0 && (
-                      <div className="mt-1 max-w-[280px] space-y-1">
-                        {formData.message_buttons.filter(b => b.type === 'quick_reply').map((btn, i) => (
-                          <div key={i} className="bg-[#1f2c34] rounded-lg py-2 text-center text-[#53bdeb] text-sm font-medium">
-                            {btn.text}
+                  )}
+
+                  {templateVariables.length > 0 && (
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                      <p className="text-gray-300 text-sm font-medium mb-2">Variable Mapping</p>
+                      <p className="text-gray-500 text-xs mb-3">Map each template variable to a contact field</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {templateVariables.map((v) => {
+                          const num = v.replace(/[{}]/g, '');
+                          return (
+                            <div key={v} className="flex items-center gap-2">
+                              <span className="text-gray-400 text-sm font-mono w-12">{v}</span>
+                              <span className="text-gray-500">→</span>
+                              <select
+                                value={formData.variable_mapping[num] || ''}
+                                onChange={(e) => setFormData({ ...formData, variable_mapping: { ...formData.variable_mapping, [num]: e.target.value } })}
+                                className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-1.5 border border-gray-600 text-sm"
+                              >
+                                <option value="">Select field...</option>
+                                {CONTACT_FIELDS.map((f) => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedTemplate && (() => {
+                    const hdrFmt = getHeaderFormat(selectedTemplate.components ?? undefined);
+                    if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
+                      return (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Header Media Override (Optional)</label>
+                          <input
+                            type="url"
+                            value={formData.header_override_url}
+                            onChange={(e) => setFormData({ ...formData, header_override_url: e.target.value })}
+                            placeholder="https://... (leave empty to use approved sample)"
+                            className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </>
+              )}
+
+              {/* Free Text Mode */}
+              {formData.message_mode === 'freetext' && (
+                <>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                    <p className="text-amber-400 text-xs">⚠️ Free-text messages only deliver to contacts who messaged you in the last 24h. Use an approved template for broadcasts.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Message Template</label>
+                    <textarea
+                      value={formData.message_template}
+                      onChange={(e) => setFormData({ ...formData, message_template: e.target.value })}
+                      rows={4}
+                      placeholder="Enter the message template for this campaign..."
+                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Template Media (Optional)</label>
+                    {previewUrl ? (
+                      <div className="relative bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                        {selectedFile?.type.startsWith('image/') ? (
+                          <img src={previewUrl} alt="Preview" className="w-full h-40 object-cover" />
+                        ) : (
+                          <video src={previewUrl} controls className="w-full h-40 object-cover bg-black" />
+                        )}
+                        <button type="button" onClick={clearFile} className="absolute top-2 right-2 px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs">Remove</button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-32 px-4 bg-gray-800 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition">
+                        <Upload className="w-6 h-6 text-gray-500 mb-2" />
+                        <span className="text-gray-400 text-sm">Click to upload image or video</span>
+                        <span className="text-gray-600 text-xs mt-1">PNG, JPG, GIF, MP4, WEBM</span>
+                        <input type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+                      </label>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Message Buttons (Optional)</label>
+                    <p className="text-xs text-gray-500 mb-3">Add interactive buttons like WhatsApp Business. Up to 3 quick reply + 2 action buttons.</p>
+                    <div className="space-y-2 mb-3">
+                      {formData.message_buttons.map((btn, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-800 rounded-lg border border-gray-700">
+                          {btn.type === 'quick_reply' && <MessageSquare className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+                          {btn.type === 'url' && <ExternalLink className="w-4 h-4 text-blue-400 flex-shrink-0" />}
+                          {btn.type === 'phone' && <Phone className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm truncate">{btn.text}</p>
+                            {btn.type === 'url' && <p className="text-xs text-gray-500 truncate">{btn.url}</p>}
+                            {btn.type === 'phone' && <p className="text-xs text-gray-500">{btn.phone_number}</p>}
                           </div>
-                        ))}
-                        {formData.message_buttons.filter(b => b.type !== 'quick_reply').map((btn, i) => (
-                          <div key={i} className="bg-[#1f2c34] rounded-lg py-2 text-center text-[#53bdeb] text-sm font-medium flex items-center justify-center gap-1">
-                            {btn.type === 'url' ? <ExternalLink className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
-                            {btn.text}
-                          </div>
-                        ))}
+                          <button type="button" onClick={() => {
+                            const next = [...formData.message_buttons];
+                            next.splice(idx, 1);
+                            setFormData({ ...formData, message_buttons: next });
+                          }} className="text-red-400 hover:text-red-300 flex-shrink-0"><X className="w-4 h-4" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    {formData.message_buttons.length < 5 && (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.message_buttons.filter(b => b.type === 'quick_reply').length < 3 && (
+                          <button type="button" onClick={() => {
+                            const text = prompt('Quick Reply button text (e.g. "Interested", "Not Now")');
+                            if (text?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'quick_reply', text: text.trim() }] });
+                          }} className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition text-xs font-medium flex items-center gap-1">
+                            <Plus className="w-3 h-3" /> Quick Reply
+                          </button>
+                        )}
+                        {formData.message_buttons.filter(b => b.type === 'url').length < 1 && (
+                          <button type="button" onClick={() => {
+                            const text = prompt('Button label (e.g. "Visit Website")');
+                            if (text?.trim()) {
+                              const url = prompt('Button URL (e.g. https://example.com)');
+                              if (url?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'url', text: text.trim(), url: url.trim() }] });
+                            }
+                          }} className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-xs font-medium flex items-center gap-1">
+                            <Plus className="w-3 h-3" /> URL Button
+                          </button>
+                        )}
+                        {formData.message_buttons.filter(b => b.type === 'phone').length < 1 && (
+                          <button type="button" onClick={() => {
+                            const text = prompt('Button label (e.g. "Call Us")');
+                            if (text?.trim()) {
+                              const phone = prompt('Phone number (e.g. +919876543210)');
+                              if (phone?.trim()) setFormData({ ...formData, message_buttons: [...formData.message_buttons, { type: 'phone', text: text.trim(), phone_number: phone.trim() }] });
+                            }
+                          }} className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition text-xs font-medium flex items-center gap-1">
+                            <Plus className="w-3 h-3" /> Call Button
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                  {(formData.message_template || formData.message_buttons.length > 0) && (
+                    <div className="p-4 bg-[#0b141a] rounded-xl border border-gray-700">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">📱 WhatsApp Preview</p>
+                      <div className="bg-[#005c4b] rounded-lg p-3 max-w-[280px]">
+                        {previewUrl && selectedFile?.type.startsWith('image/') && (
+                          <img src={previewUrl} alt="" className="w-full h-32 object-cover rounded-md mb-2" />
+                        )}
+                        <p className="text-white text-sm whitespace-pre-wrap">{formData.message_template || 'Your message here...'}</p>
+                        <p className="text-right text-[10px] text-gray-300 mt-1">12:00 PM ✓✓</p>
+                      </div>
+                      {formData.message_buttons.length > 0 && (
+                        <div className="mt-1 max-w-[280px] space-y-1">
+                          {formData.message_buttons.filter(b => b.type === 'quick_reply').map((btn, i) => (
+                            <div key={i} className="bg-[#1f2c34] rounded-lg py-2 text-center text-[#53bdeb] text-sm font-medium">{btn.text}</div>
+                          ))}
+                          {formData.message_buttons.filter(b => b.type !== 'quick_reply').map((btn, i) => (
+                            <div key={i} className="bg-[#1f2c34] rounded-lg py-2 text-center text-[#53bdeb] text-sm font-medium flex items-center justify-center gap-1">
+                              {btn.type === 'url' ? <ExternalLink className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+                              {btn.text}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Contact Selection */}
               <div>

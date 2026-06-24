@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import { sendNotification, NotificationTemplates } from '../lib/notifications';
+import { buildTemplateSendComponents } from '../lib/templatePayloadBuilder';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
   profiles?: { full_name: string; email: string } | null;
@@ -187,7 +188,7 @@ export function CampaignApprovals() {
       const { error } = await supabase
         .from('campaigns')
         .update({
-          status: 'Running',
+          status: 'Sending',
           approved_at: new Date().toISOString(),
           approved_by: user.id,
           start_time: new Date().toISOString(),
@@ -201,7 +202,6 @@ export function CampaignApprovals() {
             : null,
           daily_limit: config.daily_limit,
           priority: config.priority,
-          // Reset counters to ensure clean start
           messages_sent: 0,
           messages_failed: 0,
           last_auto_increment: null,
@@ -209,6 +209,137 @@ export function CampaignApprovals() {
         .eq('id', reviewCampaign.id);
 
       if (error) throw error;
+
+      // ─── Enqueue messages for all selected contacts ───
+      const audience = reviewCampaign.selected_audience as any;
+      const templateName = reviewCampaign.message_template;
+      const msgMode = (reviewCampaign as any).message_mode || 'freetext';
+      const varMap: Record<string, string> = (reviewCampaign as any).variable_mapping || {};
+      const paramKeys = Object.keys(varMap).sort((a, b) => parseInt(a) - parseInt(b));
+      const headerOverride = (reviewCampaign as any).header_override_url || null;
+      const lang = (reviewCampaign as any).template_language || 'en_US';
+
+      // Get WhatsApp account
+      const { data: waAccount } = await supabase
+        .from('whatsapp_accounts')
+        .select('id, display_phone_number')
+        .eq('user_id', reviewCampaign.user_id)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (waAccount && templateName) {
+        // Load template for builder
+        let tplRow: any = null;
+        if (msgMode === 'template') {
+          const { data } = await supabase
+            .from('templates')
+            .select('name, language, components, body_text, header_sample_url')
+            .eq('whatsapp_account_id', waAccount.id)
+            .eq('name', templateName)
+            .limit(1)
+            .maybeSingle();
+          tplRow = data;
+        }
+
+        // Load contacts based on selected_audience
+        let contacts: any[] = [];
+        const contactFields = 'id, phone_number, name, city, state, lead_type, source, notes';
+        if (audience?.mode === 'tag' && audience?.tag_filter) {
+          const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', audience.tag_filter).eq('user_id', reviewCampaign.user_id);
+          const ids = (ctData || []).map((ct: any) => ct.contact_id);
+          if (ids.length > 0) {
+            const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', reviewCampaign.user_id).in('id', ids).eq('is_blacklisted', false);
+            contacts = data || [];
+          }
+        } else if (audience?.mode === 'source' && audience?.source_filter) {
+          const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', reviewCampaign.user_id).eq('source', audience.source_filter).eq('is_blacklisted', false);
+          contacts = data || [];
+        } else if (audience?.mode === 'campaign' && audience?.campaign_filter) {
+          const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', reviewCampaign.user_id).eq('campaign_id', audience.campaign_filter).eq('is_blacklisted', false);
+          contacts = data || [];
+        } else {
+          const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', reviewCampaign.user_id).eq('is_blacklisted', false);
+          contacts = data || [];
+        }
+
+        const waFrom = waAccount.display_phone_number?.replace(/[^0-9]/g, '') || '';
+        const queuedRows: any[] = [];
+        const failedRows: any[] = [];
+
+        for (const c of contacts) {
+          const phone = c.phone_number.replace(/[^0-9]/g, '');
+          const baseRow = {
+            user_id: reviewCampaign.user_id,
+            whatsapp_account_id: waAccount.id,
+            contact_id: c.id,
+            campaign_id: reviewCampaign.id,
+            direction: 'outbound' as const,
+            wa_from: waFrom,
+            wa_to: phone,
+            message_type: msgMode === 'template' ? 'template' : 'text',
+            template_name: msgMode === 'template' ? templateName : null,
+          };
+
+          if (msgMode === 'template' && tplRow) {
+            let missingField: string | null = null;
+            for (const key of paramKeys) {
+              const field = varMap[key];
+              const value = c[field];
+              if (value === null || value === undefined || String(value).trim() === '') {
+                missingField = field;
+                break;
+              }
+            }
+            if (missingField) {
+              failedRows.push({
+                ...baseRow,
+                content: { messaging_product: 'whatsapp', to: phone, type: 'template', template: { name: templateName, language: { code: lang } } },
+                status: 'failed',
+                error_code: 'MISSING_VARIABLE',
+                error_message: `missing_variable:${missingField}`,
+                failed_at: new Date().toISOString(),
+              });
+            } else {
+              const bodyParams = paramKeys.map((key) => String(c[varMap[key]]));
+              const components = buildTemplateSendComponents(tplRow, {
+                headerMedia: headerOverride || undefined,
+                bodyParams,
+              });
+              queuedRows.push({
+                ...baseRow,
+                content: {
+                  messaging_product: 'whatsapp', to: phone, type: 'template',
+                  template: { name: templateName, language: { code: lang }, ...(components.length > 0 ? { components } : {}) },
+                },
+                status: 'queued',
+              });
+            }
+          } else {
+            // Free-text mode
+            queuedRows.push({
+              ...baseRow,
+              content: { messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: templateName || '' } },
+              status: 'queued',
+            });
+          }
+        }
+
+        // Batch insert
+        if (failedRows.length > 0) {
+          for (let i = 0; i < failedRows.length; i += 500) {
+            await supabase.from('messages').insert(failedRows.slice(i, i + 500));
+          }
+        }
+        for (let i = 0; i < queuedRows.length; i += 500) {
+          await supabase.from('messages').insert(queuedRows.slice(i, i + 500));
+        }
+
+        // Update campaign with accurate total
+        await supabase.from('campaigns').update({
+          total_numbers: contacts.length,
+        }).eq('id', reviewCampaign.id);
+      }
 
       // Send in-app + email notification (user sees "Campaign is Live")
       const template = NotificationTemplates.campaignLaunched(reviewCampaign.name, reviewCampaign.total_numbers || 0);
