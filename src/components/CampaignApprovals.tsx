@@ -13,29 +13,17 @@ type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
   profiles?: { full_name: string; email: string } | null;
 };
 
-type FilterTab = 'all' | 'pending_approval' | 'approved' | 'Running' | 'Completed' | 'rejected' | 'Cancelled';
+type FilterTab = 'all' | 'pending_approval' | 'approved' | 'Sending' | 'Completed' | 'rejected' | 'Cancelled';
 
 interface ApprovalConfig {
-  auto_increment_total: number;
-  auto_increment_sent_ratio: number;
-  auto_increment_failed_ratio: number;
-  auto_increment_interval: number;
-  auto_increment_complete_at: string;
   daily_limit: number;
   priority: number;
 }
 
-const PRESETS: Record<string, { label: string; icon: string; sent: number; failed: number; desc: string }> = {
-  standard: { label: 'Standard', icon: '⚡', sent: 92, failed: 8, desc: '92/8 ratio — balanced' },
-  conservative: { label: 'Conservative', icon: '🛡️', sent: 90, failed: 10, desc: '90/10 ratio — safer' },
-  aggressive: { label: 'Aggressive', icon: '🚀', sent: 95, failed: 5, desc: '95/5 ratio — maximum delivery' },
-};
-
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
   pending_approval: { bg: 'bg-amber-500/20', text: 'text-amber-400', label: 'Pending' },
   approved: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Approved' },
-  Running: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Running' },
-  Paused: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Paused' },
+  Sending: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Sending' },
   Completed: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Completed' },
   Processing: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Processing' },
   rejected: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Rejected' },
@@ -57,13 +45,9 @@ export function CampaignApprovals() {
   const [campaignContacts, setCampaignContacts] = useState<{phone_number: string; name: string | null}[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [copiedFeedback, setCopiedFeedback] = useState('');
+  const [realMetrics, setRealMetrics] = useState<Record<string, any>>({});
 
   const [config, setConfig] = useState<ApprovalConfig>({
-    auto_increment_total: 0,
-    auto_increment_sent_ratio: 92,
-    auto_increment_failed_ratio: 8,
-    auto_increment_interval: 5,
-    auto_increment_complete_at: '',
     daily_limit: 1000,
     priority: 1,
   });
@@ -71,7 +55,6 @@ export function CampaignApprovals() {
   const fetchCampaigns = async () => {
     setLoading(true);
     // Admin fetches ALL campaigns (RLS admin override policy)
-    // Join profiles via user_id FK (NOT NULL, reliable) instead of nullable created_by
     const { data, error } = await supabase
       .from('campaigns')
       .select('*, profiles!campaigns_user_id_profiles_fkey(full_name, email)')
@@ -82,6 +65,13 @@ export function CampaignApprovals() {
     }
 
     setCampaigns((data || []) as Campaign[]);
+
+    // Fetch real metrics from campaign_real_metrics view
+    const { data: metricsData } = await supabase.from('campaign_real_metrics').select('*');
+    const metricsMap: Record<string, any> = {};
+    (metricsData || []).forEach((m: any) => { metricsMap[m.campaign_id] = m; });
+    setRealMetrics(metricsMap);
+
     setLoading(false);
   };
 
@@ -90,11 +80,8 @@ export function CampaignApprovals() {
 
     const channel = supabase
       .channel('admin-campaign-approvals')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'campaigns' },
-        () => fetchCampaigns()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, () => fetchCampaigns())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchCampaigns())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -114,11 +101,6 @@ export function CampaignApprovals() {
   const openReview = async (campaign: Campaign) => {
     setReviewCampaign(campaign);
     setConfig({
-      auto_increment_total: campaign.total_numbers || 0,
-      auto_increment_sent_ratio: 92,
-      auto_increment_failed_ratio: 8,
-      auto_increment_interval: 5,
-      auto_increment_complete_at: '',
       daily_limit: campaign.daily_limit || 1000,
       priority: campaign.priority || 1,
     });
@@ -129,8 +111,10 @@ export function CampaignApprovals() {
       const audience = campaign.selected_audience as any;
       let contacts: {phone_number: string; name: string | null}[] = [];
 
-      if (audience?.mode === 'tag' && audience?.tag_filter) {
-        // Tag-based: get contact IDs from contact_tags, then fetch contacts
+      if (audience?.mode === 'manual' && Array.isArray(audience?.numbers)) {
+        // Manual mode: show the pasted numbers directly
+        contacts = audience.numbers.map((n: string) => ({ phone_number: n, name: null }));
+      } else if (audience?.mode === 'tag' && audience?.tag_filter) {
         const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', audience.tag_filter).eq('user_id', campaign.user_id);
         const ids = (ctData || []).map((ct: any) => ct.contact_id);
         if (ids.length > 0) {
@@ -144,14 +128,8 @@ export function CampaignApprovals() {
         const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).eq('campaign_id', audience.campaign_filter).order('created_at', { ascending: false }).limit(5000);
         contacts = data || [];
       } else {
-        // 'all' or fallback: try campaign_id first, then all user contacts
-        const { data: byCampaign } = await supabase.from('contacts').select('phone_number, name').eq('campaign_id', campaign.id).order('created_at', { ascending: false }).limit(5000);
-        if (byCampaign && byCampaign.length > 0) {
-          contacts = byCampaign;
-        } else {
-          const { data: allContacts } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).order('created_at', { ascending: false }).limit(5000);
-          contacts = allContacts || [];
-        }
+        const { data } = await supabase.from('contacts').select('phone_number, name').eq('user_id', campaign.user_id).order('created_at', { ascending: false }).limit(5000);
+        contacts = data || [];
       }
       setCampaignContacts(contacts);
     } catch (err) {
@@ -170,15 +148,6 @@ export function CampaignApprovals() {
   const copyAllNumbers = () => {
     const numbers = campaignContacts.map(c => c.phone_number).join('\n');
     copyToClipboard(numbers, 'all');
-  };
-
-  const applyPreset = (key: string) => {
-    const preset = PRESETS[key];
-    setConfig({
-      ...config,
-      auto_increment_sent_ratio: preset.sent,
-      auto_increment_failed_ratio: preset.failed,
-    });
   };
 
   // ─── Shared enqueue: builds per-contact payloads and inserts messages rows ───
@@ -524,7 +493,6 @@ export function CampaignApprovals() {
         .from('campaigns')
         .update({
           status: 'Cancelled',
-          auto_increment_enabled: false,
           end_time: new Date().toISOString(),
         })
         .eq('id', reviewCampaign.id);
@@ -562,7 +530,7 @@ export function CampaignApprovals() {
     { id: 'all', label: 'All', count: campaigns.length },
     { id: 'pending_approval', label: 'Pending', count: pendingCount },
     { id: 'approved', label: 'Approved' },
-    { id: 'Running', label: 'Running' },
+    { id: 'Sending', label: 'Sending' },
     { id: 'Completed', label: 'Completed' },
     { id: 'Cancelled', label: 'Cancelled' },
     { id: 'rejected', label: 'Rejected' },
@@ -686,7 +654,7 @@ export function CampaignApprovals() {
                       </button>
                     </>
                   )}
-                  {(campaign.status === 'Running' || campaign.status === 'approved' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (
+                  {(campaign.status === 'Sending' || campaign.status === 'approved' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (
                     <button
                       onClick={() => openReview(campaign)}
                       className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition text-sm font-medium"
@@ -707,36 +675,34 @@ export function CampaignApprovals() {
                 </div>
               </div>
 
-              {/* Stats row for running/completed campaigns */}
-              {(campaign.status === 'Running' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (
-                <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-800">
-                  <div>
-                    <p className="text-gray-500 text-xs">Sent</p>
-                    <p className="text-emerald-400 font-semibold">{campaign.messages_sent.toLocaleString()}</p>
+              {/* Stats row — read from real metrics view */}
+              {(campaign.status === 'Sending' || campaign.status === 'Completed' || campaign.status === 'Cancelled') && (() => {
+                const m = realMetrics[campaign.id] || { messages_sent: 0, messages_failed: 0, total_messages: 0, delivery_rate: 0, messages_pending: 0 };
+                return (
+                  <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-800">
+                    <div>
+                      <p className="text-gray-500 text-xs">Sent</p>
+                      <p className="text-emerald-400 font-semibold">{(m.messages_sent || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Failed</p>
+                      <p className="text-red-400 font-semibold">{(m.messages_failed || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Delivery Rate</p>
+                      <p className="text-green-400 font-semibold">{(m.delivery_rate || 0).toFixed(1)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Progress</p>
+                      <p className="text-white font-semibold">
+                        {campaign.total_numbers > 0
+                          ? Math.min(100, (m.total_messages / campaign.total_numbers * 100)).toFixed(1)
+                          : '0.0'}%
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Failed</p>
-                    <p className="text-red-400 font-semibold">{campaign.messages_failed.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Delivery Rate</p>
-                    <p className="text-green-400 font-semibold">
-                      {(() => {
-                        const total = campaign.messages_sent + campaign.messages_failed;
-                        return total > 0 ? ((campaign.messages_sent / total) * 100).toFixed(1) : '0.0';
-                      })()}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Progress</p>
-                    <p className="text-white font-semibold">
-                      {campaign.total_numbers > 0
-                        ? Math.min(100, ((campaign.messages_sent + campaign.messages_failed) / campaign.total_numbers * 100)).toFixed(1)
-                        : '0.0'}%
-                    </p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}
@@ -914,61 +880,20 @@ export function CampaignApprovals() {
                 )}
               </div>
 
-              {/* Auto-Increment Configuration */}
+              {/* Approval Configuration */}
               {reviewCampaign.status === 'pending_approval' && (
                 <div className="bg-gray-800/50 rounded-xl p-5 space-y-4">
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                     <Zap className="w-5 h-5 text-amber-400" />
-                    Auto-Increment Configuration
+                    Sending Configuration
                   </h3>
-
-                  {/* Presets */}
-                  <div>
-                    <p className="text-sm text-gray-400 mb-2">Quick Presets</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(PRESETS).map(([key, preset]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => applyPreset(key)}
-                          className={`p-3 rounded-lg border text-left transition ${
-                            config.auto_increment_sent_ratio === preset.sent
-                              ? 'border-emerald-500/50 bg-emerald-500/10'
-                              : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
-                          }`}
-                        >
-                          <span className="text-lg">{preset.icon}</span>
-                          <p className="text-white text-sm font-medium mt-1">{preset.label}</p>
-                          <p className="text-gray-500 text-xs">{preset.desc}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Target Completion Time — REQUIRED */}
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-amber-400 mb-2">
-                      🎯 Target Completion Time *
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={config.auto_increment_complete_at}
-                      onChange={(e) => setConfig({ ...config, auto_increment_complete_at: e.target.value })}
-                      min={new Date().toISOString().slice(0, 16)}
-                      className="w-full px-3 py-2.5 bg-gray-800 border border-amber-500/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      Campaign will finish exactly at this time. Messages will be paced automatically to complete on schedule.
-                    </p>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Target Total Messages</label>
+                      <label className="block text-sm text-gray-400 mb-1">Daily Limit</label>
                       <input
                         type="number"
-                        value={config.auto_increment_total}
-                        onChange={(e) => setConfig({ ...config, auto_increment_total: parseInt(e.target.value) || 0 })}
+                        value={config.daily_limit}
+                        onChange={(e) => setConfig({ ...config, daily_limit: parseInt(e.target.value) || 1000 })}
                         className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
@@ -982,120 +907,40 @@ export function CampaignApprovals() {
                         className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Sent Ratio (%)</label>
-                      <input
-                        type="number"
-                        value={config.auto_increment_sent_ratio}
-                        onChange={(e) => {
-                          const sent = parseInt(e.target.value) || 0;
-                          setConfig({ ...config, auto_increment_sent_ratio: sent, auto_increment_failed_ratio: 100 - sent });
-                        }}
-                        min="0" max="100"
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Failed Ratio (%)</label>
-                      <input
-                        type="number"
-                        value={config.auto_increment_failed_ratio}
-                        readOnly
-                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-400 text-sm"
-                      />
-                    </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Live Calculation Preview */}
-                  {config.auto_increment_complete_at && config.auto_increment_total > 0 && (() => {
-                    const now = new Date();
-                    const completeAt = new Date(config.auto_increment_complete_at);
-                    const durationMs = completeAt.getTime() - now.getTime();
-                    const durationMinutes = Math.max(1, durationMs / 60000);
-                    const durationHours = durationMinutes / 60;
-                    const total = config.auto_increment_total;
-                    const sentRatio = config.auto_increment_sent_ratio / 100;
-                    const estimatedSent = Math.round(total * sentRatio);
-                    const estimatedFailed = total - estimatedSent;
-                    const messagesPerMinute = total / durationMinutes;
-                    const messagesPerSecond = total / (durationMinutes * 60);
-                    const isValid = durationMs > 0;
-
-                    return (
-                      <div className={`rounded-lg p-4 border ${isValid ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                        <p className={`text-sm font-medium mb-3 ${isValid ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {isValid ? '📊 Calculated Delivery Plan' : '⚠️ Invalid — Completion time must be in the future'}
-                        </p>
-                        {isValid && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="bg-gray-900/50 rounded-lg p-2.5">
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Duration</p>
-                              <p className="text-white text-sm font-bold">
-                                {durationHours >= 1
-                                  ? `${Math.floor(durationHours)}h ${Math.round(durationMinutes % 60)}m`
-                                  : `${Math.round(durationMinutes)}m`}
-                              </p>
-                            </div>
-                            <div className="bg-gray-900/50 rounded-lg p-2.5">
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Speed</p>
-                              <p className="text-white text-sm font-bold">
-                                {messagesPerMinute >= 1
-                                  ? `${messagesPerMinute.toFixed(1)}/min`
-                                  : `${(messagesPerSecond * 60).toFixed(2)}/min`}
-                              </p>
-                            </div>
-                            <div className="bg-gray-900/50 rounded-lg p-2.5">
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Est. Sent</p>
-                              <p className="text-emerald-400 text-sm font-bold">{estimatedSent.toLocaleString()}</p>
-                            </div>
-                            <div className="bg-gray-900/50 rounded-lg p-2.5">
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Est. Failed</p>
-                              <p className="text-red-400 text-sm font-bold">{estimatedFailed.toLocaleString()}</p>
-                            </div>
-                          </div>
-                        )}
+              {/* Real stats for sending/completed/cancelled campaigns */}
+              {(reviewCampaign.status === 'Sending' || reviewCampaign.status === 'Completed' || reviewCampaign.status === 'Cancelled') && (() => {
+                const m = realMetrics[reviewCampaign.id] || { messages_sent: 0, messages_failed: 0, total_messages: 0, delivery_rate: 0, messages_pending: 0 };
+                return (
+                  <div className="bg-gray-800/50 rounded-xl p-5">
+                    <h3 className="text-lg font-semibold text-white mb-4">Campaign Statistics</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-gray-900/50 rounded-lg p-3">
+                        <p className="text-gray-500 text-xs">Sent</p>
+                        <p className="text-emerald-400 text-xl font-bold">{(m.messages_sent || 0).toLocaleString()}</p>
                       </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Existing stats for running/completed/cancelled campaigns */}
-              {(reviewCampaign.status === 'Running' || reviewCampaign.status === 'Completed' || reviewCampaign.status === 'Cancelled') && (
-                <div className="bg-gray-800/50 rounded-xl p-5">
-                  <h3 className="text-lg font-semibold text-white mb-4">Campaign Statistics</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-gray-900/50 rounded-lg p-3">
-                      <p className="text-gray-500 text-xs">Sent</p>
-                      <p className="text-emerald-400 text-xl font-bold">{reviewCampaign.messages_sent.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-gray-900/50 rounded-lg p-3">
-                      <p className="text-gray-500 text-xs">Failed</p>
-                      <p className="text-red-400 text-xl font-bold">{reviewCampaign.messages_failed.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-gray-900/50 rounded-lg p-3">
-                      <p className="text-gray-500 text-xs">Delivery Rate</p>
-                      <p className="text-green-400 text-xl font-bold">
-                        {(() => {
-                          const total = reviewCampaign.messages_sent + reviewCampaign.messages_failed;
-                          return total > 0 ? ((reviewCampaign.messages_sent / total) * 100).toFixed(1) : '0.0';
-                        })()}%
-                      </p>
-                    </div>
-                    <div className="bg-gray-900/50 rounded-lg p-3">
-                      <p className="text-gray-500 text-xs">Progress</p>
-                      <p className="text-white text-xl font-bold">
-                        {reviewCampaign.total_numbers > 0
-                          ? Math.min(100, ((reviewCampaign.messages_sent + reviewCampaign.messages_failed) / reviewCampaign.total_numbers * 100)).toFixed(1)
-                          : '0.0'}%
-                      </p>
+                      <div className="bg-gray-900/50 rounded-lg p-3">
+                        <p className="text-gray-500 text-xs">Failed</p>
+                        <p className="text-red-400 text-xl font-bold">{(m.messages_failed || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gray-900/50 rounded-lg p-3">
+                        <p className="text-gray-500 text-xs">Delivery Rate</p>
+                        <p className="text-green-400 text-xl font-bold">{(m.delivery_rate || 0).toFixed(1)}%</p>
+                      </div>
+                      <div className="bg-gray-900/50 rounded-lg p-3">
+                        <p className="text-gray-500 text-xs">Pending</p>
+                        <p className="text-white text-xl font-bold">{(m.messages_pending || 0).toLocaleString()}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
-              {/* Cancel button for running/approved campaigns */}
-              {(reviewCampaign.status === 'Running' || reviewCampaign.status === 'approved') && (
+              {/* Cancel button for sending/approved campaigns */}
+              {(reviewCampaign.status === 'Sending' || reviewCampaign.status === 'approved') && (
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setShowCancelModal(true)}
@@ -1113,9 +958,8 @@ export function CampaignApprovals() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={handleApproveAndStart}
-                    disabled={processing || !config.auto_increment_complete_at || config.auto_increment_total <= 0}
+                    disabled={processing}
                     className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={!config.auto_increment_complete_at ? 'Set Target Completion Time first' : ''}
                   >
                     <Play className="w-4 h-4" />
                     Approve & Start Now

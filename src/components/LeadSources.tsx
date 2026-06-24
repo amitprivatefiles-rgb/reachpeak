@@ -1,24 +1,75 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
-import type { Database } from '../lib/database.types';
 import { useAuth } from '../contexts/AuthContext';
 
-type LeadSource = Database['public']['Tables']['lead_sources']['Row'];
+interface SourceStats {
+  source_name: string;
+  total_numbers: number;
+  messages_sent: number;
+  messages_failed: number;
+  converted_leads: number;
+}
 
 export function LeadSources() {
   const { user } = useAuth();
-  const [sources, setSources] = useState<LeadSource[]>([]);
+  const [sources, setSources] = useState<SourceStats[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSources = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('lead_sources')
-      .select('*')
+
+    // Fetch contacts grouped by source
+    const { data: contacts } = await supabase
+      .from('contacts')
+      .select('id, source')
+      .eq('user_id', user!.id);
+
+    // Fetch outbound messages with contact_id and status
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('contact_id, status')
       .eq('user_id', user!.id)
-      .order('total_numbers', { ascending: false });
-    setSources(data || []);
+      .eq('direction', 'outbound');
+
+    // Build contact → source map
+    const contactSourceMap: Record<string, string> = {};
+    const sourceCountMap: Record<string, { total: number; sent: number; failed: number; converted: number }> = {};
+
+    (contacts || []).forEach((c: any) => {
+      const src = c.source || 'Unknown';
+      contactSourceMap[c.id] = src;
+      if (!sourceCountMap[src]) {
+        sourceCountMap[src] = { total: 0, sent: 0, failed: 0, converted: 0 };
+      }
+      sourceCountMap[src].total += 1;
+    });
+
+    // Aggregate messages by source
+    (messages || []).forEach((m: any) => {
+      const src = contactSourceMap[m.contact_id] || 'Unknown';
+      if (!sourceCountMap[src]) {
+        sourceCountMap[src] = { total: 0, sent: 0, failed: 0, converted: 0 };
+      }
+      if (m.status === 'sent' || m.status === 'delivered' || m.status === 'read') {
+        sourceCountMap[src].sent += 1;
+      } else if (m.status === 'failed') {
+        sourceCountMap[src].failed += 1;
+      }
+    });
+
+    // Convert map to sorted array
+    const result: SourceStats[] = Object.entries(sourceCountMap)
+      .map(([name, stats]) => ({
+        source_name: name,
+        total_numbers: stats.total,
+        messages_sent: stats.sent,
+        messages_failed: stats.failed,
+        converted_leads: stats.converted,
+      }))
+      .sort((a, b) => b.total_numbers - a.total_numbers);
+
+    setSources(result);
     setLoading(false);
   };
 
@@ -74,7 +125,7 @@ export function LeadSources() {
 
           return (
             <div
-              key={source.id}
+              key={source.source_name}
               className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition"
             >
               <div className="flex items-center justify-between mb-4">

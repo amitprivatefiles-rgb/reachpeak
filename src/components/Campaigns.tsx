@@ -88,7 +88,7 @@ export function Campaigns() {
     message_version: 'A' as 'A' | 'B',
     daily_limit: 1000,
     message_template: '',
-    status: 'Running' as string,
+    status: 'pending_approval' as string,
     start_time: '',
     end_time: '',
     whatsapp_account_id: '',
@@ -104,7 +104,7 @@ export function Campaigns() {
       message_version: 'A',
       daily_limit: 1000,
       message_template: '',
-      status: 'Running',
+      status: 'pending_approval',
       start_time: '',
       end_time: '',
       whatsapp_account_id: '',
@@ -545,7 +545,6 @@ export function Campaigns() {
   // ─── Status helpers ───
   const statusColor = (status: string) => {
     switch (status) {
-      case 'Running': return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'Sending': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'Paused': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'Completed': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
@@ -609,7 +608,7 @@ export function Campaigns() {
 
                 {/* Action buttons */}
                 <div className="flex items-center space-x-2 ml-4">
-                  {isAdmin && (campaign.status === 'Running' || campaign.status === 'approved') && (
+                  {isAdmin && (campaign.status === 'Running' || campaign.status === 'approved' || campaign.status === 'Sending') && (
                     <button
                       onClick={() => startCampaign(campaign.id)}
                       disabled={startingCampaign === campaign.id}
@@ -635,7 +634,7 @@ export function Campaigns() {
                   )}
 
                   {/* Status action buttons */}
-                  {isAdmin && campaign.status === 'Running' && (
+                  {isAdmin && campaign.status === 'Sending' && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Paused')}
                       className="flex items-center space-x-1 px-2.5 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-400 rounded-lg text-xs font-medium transition-colors border border-yellow-600/30"
@@ -647,7 +646,7 @@ export function Campaigns() {
                   )}
                   {isAdmin && campaign.status === 'Paused' && (
                     <button
-                      onClick={() => updateCampaignStatus(campaign.id, 'Running')}
+                      onClick={() => updateCampaignStatus(campaign.id, 'Sending')}
                       className="flex items-center space-x-1 px-2.5 py-1.5 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded-lg text-xs font-medium transition-colors border border-green-600/30"
                       title="Resume campaign"
                     >
@@ -657,7 +656,7 @@ export function Campaigns() {
                   )}
                   {isAdmin && campaign.status === 'Completed' && (
                     <button
-                      onClick={() => updateCampaignStatus(campaign.id, 'Running')}
+                      onClick={() => updateCampaignStatus(campaign.id, 'Sending')}
                       className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium transition-colors border border-blue-600/30"
                       title="Restart campaign"
                     >
@@ -675,7 +674,7 @@ export function Campaigns() {
                       <span>Complete</span>
                     </button>
                   )}
-                  {isAdmin && ['Running', 'Paused', 'Sending'].includes(campaign.status) && (
+                  {isAdmin && ['Sending', 'Paused'].includes(campaign.status) && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Cancelled')}
                       className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-600/30"
@@ -1007,7 +1006,7 @@ export function Campaigns() {
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-green-500 outline-none"
                   >
-                    <option value="Running">Running</option>
+                    <option value="Sending">Sending</option>
                     <option value="Paused">Paused</option>
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>

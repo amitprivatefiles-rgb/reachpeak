@@ -27,6 +27,10 @@ export function Reports() {
           if (dateFrom) query = query.gte('created_at', dateFrom);
           if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
           const { data: campaigns } = await query;
+          // Fetch real metrics from campaign_real_metrics view
+          const { data: metricsData } = await supabase.from('campaign_real_metrics').select('*');
+          const metricsMap: Record<string, any> = {};
+          (metricsData || []).forEach((m: any) => { metricsMap[m.campaign_id] = m; });
           data = campaigns || [];
           headers = [
             'Name',
@@ -75,21 +79,18 @@ export function Reports() {
         }
 
         case 'failed': {
-          let query = supabase
-            .from('failed_messages')
-            .select('*')
+          const { data: failedData } = await supabase
+            .from('messages')
+            .select('id, wa_to, content, error_message, status, created_at, failed_at')
             .eq('user_id', user!.id)
-            .order('last_attempt_date', { ascending: false });
-          if (dateFrom) query = query.gte('created_at', dateFrom);
-          if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59');
-          const { data: failed } = await query;
-          data = failed || [];
+            .eq('status', 'failed')
+            .order('created_at', { ascending: false });
+          data = failedData || [];
           headers = [
             'Phone Number',
-            'Failure Reason',
-            'Attempt Count',
-            'Last Attempt',
+            'Error Message',
             'Status',
+            'Failed At',
             'Created',
           ];
           filename = 'failed-messages-report';
@@ -128,10 +129,10 @@ export function Reports() {
               item.type,
               item.status,
               item.total_numbers,
-              item.messages_sent,
-              item.messages_failed,
-              item.delivery_percentage,
-              item.failure_percentage,
+              (metricsMap[item.id]?.messages_sent || 0),
+              (metricsMap[item.id]?.messages_failed || 0),
+              (metricsMap[item.id]?.delivery_rate || 0),
+              (metricsMap[item.id]?.failure_rate || 0),
               item.campaign_cost,
               item.estimated_revenue,
               item.roi,
@@ -155,11 +156,10 @@ export function Reports() {
             break;
           case 'failed':
             row.push(
-              item.phone_number,
-              item.failure_reason || '',
-              item.attempt_count,
-              new Date(item.last_attempt_date).toLocaleString(),
+              item.wa_to,
+              item.error_message || '',
               item.status,
+              item.failed_at ? new Date(item.failed_at).toLocaleString() : 'N/A',
               new Date(item.created_at).toLocaleDateString()
             );
             break;

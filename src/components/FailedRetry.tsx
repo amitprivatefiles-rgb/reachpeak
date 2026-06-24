@@ -2,9 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertCircle, RefreshCw, Ban, CheckCircle } from 'lucide-react';
-import type { Database } from '../lib/database.types';
 
-type FailedMessage = Database['public']['Tables']['failed_messages']['Row'];
+interface FailedMessage {
+  id: string;
+  wa_to: string;
+  error_message: string | null;
+  status: string;
+  failed_at: string | null;
+  created_at: string;
+  contact_id: string | null;
+  campaign_id: string | null;
+}
 
 export function FailedRetry() {
   const { isAdmin, user } = useAuth();
@@ -12,31 +20,45 @@ export function FailedRetry() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     retryPending: 0,
-    completed: 0,
+    retried: 0,
     blacklisted: 0,
     successRate: 0,
   });
 
   const fetchData = async () => {
     setLoading(true);
+
+    // Fetch failed outbound messages
     const { data } = await supabase
-      .from('failed_messages')
-      .select('*')
+      .from('messages')
+      .select('id, wa_to, error_message, status, failed_at, created_at, contact_id, campaign_id')
       .eq('user_id', user!.id)
-      .order('last_attempt_date', { ascending: false });
+      .eq('direction', 'outbound')
+      .in('status', ['failed', 'queued'])
+      .order('created_at', { ascending: false });
 
-    setFailedMessages(data || []);
+    // Also check which contacts are blacklisted
+    const { data: blacklistedContacts } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user!.id)
+      .eq('is_blacklisted', true);
 
-    const pending = data?.filter((m) => m.status === 'Retry Pending').length || 0;
-    const completed = data?.filter((m) => m.status === 'Completed').length || 0;
-    const blacklisted = data?.filter((m) => m.status === 'Blacklisted').length || 0;
-    const total = data?.length || 1;
+    const blacklistedIds = new Set((blacklistedContacts || []).map((c: any) => c.id));
+
+    const allMessages = (data || []) as FailedMessage[];
+    setFailedMessages(allMessages);
+
+    const failed = allMessages.filter((m) => m.status === 'failed' && !blacklistedIds.has(m.contact_id || '')).length;
+    const retried = allMessages.filter((m) => m.status === 'queued').length;
+    const blacklisted = allMessages.filter((m) => blacklistedIds.has(m.contact_id || '')).length;
+    const total = allMessages.length || 1;
 
     setStats({
-      retryPending: pending,
-      completed,
+      retryPending: failed,
+      retried,
       blacklisted,
-      successRate: (completed / total) * 100,
+      successRate: (retried / total) * 100,
     });
 
     setLoading(false);
@@ -49,42 +71,29 @@ export function FailedRetry() {
   const retryMessage = async (messageId: string) => {
     if (!isAdmin) return;
 
-    const message = failedMessages.find((m) => m.id === messageId);
-    if (!message) return;
+    // Set the message status back to 'queued' so the worker retries it
+    await supabase
+      .from('messages')
+      .update({ status: 'queued', error_message: null, error_code: null, failed_at: null })
+      .eq('id', messageId);
 
-    if (message.attempt_count >= 3) {
-      await supabase
-        .from('failed_messages')
-        .update({ status: 'Blacklisted' })
-        .eq('id', messageId);
-
-      if (message.contact_id) {
-        await supabase
-          .from('contacts')
-          .update({ is_blacklisted: true })
-          .eq('id', message.contact_id);
-      }
-
-      alert('Maximum retry attempts reached. Number has been blacklisted.');
-    } else {
-      await supabase
-        .from('failed_messages')
-        .update({
-          attempt_count: message.attempt_count + 1,
-          last_attempt_date: new Date().toISOString(),
-        })
-        .eq('id', messageId);
-
-      alert('Retry scheduled');
-    }
-
+    alert('Message re-queued for retry');
     fetchData();
   };
 
-  const markCompleted = async (messageId: string) => {
+  const blacklistContact = async (message: FailedMessage) => {
     if (!isAdmin) return;
 
-    await supabase.from('failed_messages').update({ status: 'Completed' }).eq('id', messageId);
+    if (message.contact_id) {
+      await supabase
+        .from('contacts')
+        .update({ is_blacklisted: true })
+        .eq('id', message.contact_id);
+
+      alert('Contact has been blacklisted.');
+    } else {
+      alert('No contact linked to this message.');
+    }
 
     fetchData();
   };
@@ -110,7 +119,7 @@ export function FailedRetry() {
             <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-gray-400 text-sm font-medium">Retry Pending</h3>
+            <h3 className="text-gray-400 text-sm font-medium">Failed</h3>
           </div>
           <p className="text-white text-3xl font-bold">{stats.retryPending}</p>
         </div>
@@ -120,9 +129,9 @@ export function FailedRetry() {
             <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-gray-400 text-sm font-medium">Completed</h3>
+            <h3 className="text-gray-400 text-sm font-medium">Retried (Re-queued)</h3>
           </div>
-          <p className="text-white text-3xl font-bold">{stats.completed}</p>
+          <p className="text-white text-3xl font-bold">{stats.retried}</p>
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
@@ -140,7 +149,7 @@ export function FailedRetry() {
             <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
               <RefreshCw className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-gray-400 text-sm font-medium">Success Rate</h3>
+            <h3 className="text-gray-400 text-sm font-medium">Retry Rate</h3>
           </div>
           <p className="text-white text-3xl font-bold">{stats.successRate.toFixed(1)}%</p>
         </div>
@@ -151,9 +160,8 @@ export function FailedRetry() {
           <thead className="bg-gray-800 border-b border-gray-700">
             <tr>
               <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Phone Number</th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Failure Reason</th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Attempts</th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Last Attempt</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Error Message</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Failed At</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Status</th>
               {isAdmin && (
                 <th className="text-right px-6 py-4 text-sm font-medium text-gray-300">Actions</th>
@@ -163,39 +171,28 @@ export function FailedRetry() {
           <tbody className="divide-y divide-gray-800">
             {failedMessages.map((message) => (
               <tr key={message.id} className="hover:bg-gray-800/50 transition">
-                <td className="px-6 py-4 text-white font-mono">{message.phone_number}</td>
-                <td className="px-6 py-4 text-gray-300">{message.failure_reason || 'Unknown'}</td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      message.attempt_count >= 3
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-amber-500/20 text-amber-400'
-                    }`}
-                  >
-                    {message.attempt_count} / 3
-                  </span>
-                </td>
+                <td className="px-6 py-4 text-white font-mono">{message.wa_to}</td>
+                <td className="px-6 py-4 text-gray-300">{message.error_message || 'Unknown'}</td>
                 <td className="px-6 py-4 text-gray-400 text-sm">
-                  {message.last_attempt_date ? new Date(message.last_attempt_date).toLocaleString() : 'N/A'}
+                  {message.failed_at ? new Date(message.failed_at).toLocaleString() : 'N/A'}
                 </td>
                 <td className="px-6 py-4">
                   <span
                     className={`px-2 py-1 rounded text-xs font-medium ${
-                      message.status === 'Retry Pending'
+                      message.status === 'failed'
+                        ? 'bg-red-500/20 text-red-400'
+                        : message.status === 'queued'
                         ? 'bg-amber-500/20 text-amber-400'
-                        : message.status === 'Completed'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-red-500/20 text-red-400'
+                        : 'bg-gray-500/20 text-gray-400'
                     }`}
                   >
-                    {message.status}
+                    {message.status === 'queued' ? 'Retrying' : message.status}
                   </span>
                 </td>
                 {isAdmin && (
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
-                      {message.status === 'Retry Pending' && (
+                      {message.status === 'failed' && (
                         <>
                           <button
                             onClick={() => retryMessage(message.id)}
@@ -204,10 +201,10 @@ export function FailedRetry() {
                             Retry
                           </button>
                           <button
-                            onClick={() => markCompleted(message.id)}
-                            className="px-3 py-1.5 bg-green-500/10 text-green-400 rounded hover:bg-green-500/20 transition text-sm"
+                            onClick={() => blacklistContact(message)}
+                            className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 transition text-sm"
                           >
-                            Mark Complete
+                            Blacklist
                           </button>
                         </>
                       )}
