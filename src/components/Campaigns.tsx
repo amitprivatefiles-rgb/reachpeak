@@ -191,6 +191,26 @@ export function Campaigns() {
   const startCampaign = async (campaignId: string) => {
     setStartingCampaign(campaignId);
     try {
+      // Check if messages are already enqueued (from approval flow)
+      const { count: existingQueued } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId)
+        .in('status', ['queued', 'sending', 'sent']);
+
+      if (existingQueued && existingQueued > 0) {
+        // Messages already enqueued at approval — just ensure campaign is in Sending status
+        await supabase
+          .from('campaigns')
+          .update({ status: 'Sending' })
+          .eq('id', campaignId);
+        alert(`Campaign already has ${existingQueued} messages enqueued. Status set to Sending.`);
+        fetchCampaigns();
+        fetchMetrics();
+        return;
+      }
+
+      // Fallback: legacy campaigns without approval enqueue — run the old path
       // 1. Get campaign details
       const { data: campaign, error: campErr } = await supabase
         .from('campaigns')

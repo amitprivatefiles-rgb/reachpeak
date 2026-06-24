@@ -8,7 +8,7 @@ import type { Database } from '../lib/database.types';
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type TagType = Database['public']['Tables']['tags']['Row'];
 
-type ContactSelectionMode = 'all' | 'source' | 'campaign' | 'tag';
+type ContactSelectionMode = 'all' | 'source' | 'campaign' | 'tag' | 'manual';
 
 interface MessageButton {
   type: 'quick_reply' | 'url' | 'phone';
@@ -32,6 +32,7 @@ interface FormData {
   contact_source_filter: string;
   contact_campaign_filter: string;
   contact_tag_filter: string;
+  manual_numbers_raw: string;
   scheduled_start: string;
   message_buttons: MessageButton[];
 }
@@ -95,6 +96,7 @@ export function UserCampaigns() {
     contact_source_filter: '',
     contact_campaign_filter: '',
     contact_tag_filter: '',
+    manual_numbers_raw: '',
     scheduled_start: '',
     message_buttons: [],
   });
@@ -249,8 +251,29 @@ export function UserCampaigns() {
     setTimeout(() => setCopiedFeedback(''), 2000);
   };
 
+  // Normalize manual phone numbers: strip non-digits, prepend 91 for 10-digit Indian numbers, deduplicate
+  const normalizeNumbers = (raw: string): { valid: string[]; skipped: number } => {
+    const tokens = raw.split(/[\n,;\s]+/).filter(Boolean);
+    const seen = new Set<string>();
+    let skipped = 0;
+    for (const tok of tokens) {
+      const digits = tok.replace(/[^0-9]/g, '');
+      if (!digits || digits.length < 10) { skipped++; continue; }
+      const normalized = digits.length === 10 ? '91' + digits : digits;
+      if (normalized.length < 10 || normalized.length > 15) { skipped++; continue; }
+      seen.add(normalized);
+    }
+    return { valid: [...seen], skipped };
+  };
+
+  const manualParsed = useMemo(() => normalizeNumbers(formData.manual_numbers_raw), [formData.manual_numbers_raw]);
+
   useEffect(() => {
     const updateCount = async () => {
+      if (formData.contact_selection === 'manual') {
+        setContactCount(manualParsed.valid.length);
+        return;
+      }
       if (formData.contact_selection === 'tag' && formData.contact_tag_filter) {
         const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', formData.contact_tag_filter).eq('user_id', user!.id);
         setContactCount((ctData || []).length);
@@ -266,7 +289,7 @@ export function UserCampaigns() {
       setContactCount(count || 0);
     };
     if (showModal) updateCount();
-  }, [formData.contact_selection, formData.contact_source_filter, formData.contact_campaign_filter, formData.contact_tag_filter, showModal]);
+  }, [formData.contact_selection, formData.contact_source_filter, formData.contact_campaign_filter, formData.contact_tag_filter, formData.manual_numbers_raw, showModal]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -290,33 +313,32 @@ export function UserCampaigns() {
     setSubmitting(true);
 
     try {
-      const selectedAudience = {
+      const selectedAudience: any = {
         mode: formData.contact_selection,
         source_filter: formData.contact_source_filter || null,
         campaign_filter: formData.contact_campaign_filter || null,
         tag_filter: formData.contact_tag_filter || null,
+        message_mode: formData.message_mode,
+        header_override_url: formData.header_override_url || null,
+        ...(formData.contact_selection === 'manual' ? { numbers: manualParsed.valid } : {}),
       };
 
       const campaignData: any = {
         name: formData.name,
         type: formData.type,
         message_version: formData.message_version,
-        message_mode: formData.message_mode,
         message_template: formData.message_mode === 'template' ? formData.template_name : (formData.message_template || null),
         template_id: formData.message_mode === 'template' ? formData.template_id : null,
         template_language: formData.message_mode === 'template' ? formData.template_language : null,
         variable_mapping: formData.message_mode === 'template' && Object.keys(formData.variable_mapping).length > 0 ? formData.variable_mapping : null,
-        header_override_url: formData.message_mode === 'template' ? (formData.header_override_url || null) : null,
         message_buttons: formData.message_buttons.length > 0 ? formData.message_buttons : null,
         status: asDraft ? 'draft' : 'pending_approval',
         submitted_at: asDraft ? null : new Date().toISOString(),
-        total_numbers: contactCount,
+        total_numbers: formData.contact_selection === 'manual' ? manualParsed.valid.length : contactCount,
         selected_audience: selectedAudience,
         scheduled_start: formData.scheduled_start ? new Date(formData.scheduled_start).toISOString() : null,
         user_id: user.id,
         created_by: user.id,
-        auto_increment_enabled: false,
-        auto_increment_total: 0,
         messages_sent: 0,
         messages_failed: 0,
         priority: 1,
@@ -372,7 +394,7 @@ export function UserCampaigns() {
         message_template: '', template_id: '', template_name: '', template_language: 'en_US',
         variable_mapping: {}, header_override_url: '',
         contact_selection: 'all', contact_source_filter: '', contact_campaign_filter: '',
-        contact_tag_filter: '', scheduled_start: '', message_buttons: [],
+        contact_tag_filter: '', manual_numbers_raw: '', scheduled_start: '', message_buttons: [],
       });
       fetchCampaigns();
       addToast(asDraft ? 'Campaign saved as draft! 📝' : (editingDraftId ? 'Draft submitted for approval! ✅' : 'Campaign submitted for approval! ✅'), 'success');
@@ -389,17 +411,18 @@ export function UserCampaigns() {
       name: campaign.name,
       type: campaign.type,
       message_version: campaign.message_version,
-      message_mode: (campaign as any).message_mode || 'freetext',
+      message_mode: (campaign.selected_audience as any)?.message_mode || 'freetext',
       message_template: campaign.message_template || '',
       template_id: (campaign as any).template_id || '',
       template_name: campaign.message_template || '',
       template_language: (campaign as any).template_language || 'en_US',
       variable_mapping: (campaign as any).variable_mapping || {},
-      header_override_url: (campaign as any).header_override_url || '',
+      header_override_url: (campaign.selected_audience as any)?.header_override_url || '',
       contact_selection: (campaign.selected_audience as any)?.mode || 'all',
       contact_source_filter: (campaign.selected_audience as any)?.source_filter || '',
       contact_campaign_filter: (campaign.selected_audience as any)?.campaign_filter || '',
       contact_tag_filter: (campaign.selected_audience as any)?.tag_filter || '',
+      manual_numbers_raw: ((campaign.selected_audience as any)?.numbers || []).join('\n'),
       scheduled_start: campaign.scheduled_start ? new Date(campaign.scheduled_start).toISOString().slice(0, 16) : '',
       message_buttons: Array.isArray(campaign.message_buttons) ? campaign.message_buttons as MessageButton[] : [],
     });
@@ -1111,6 +1134,7 @@ export function UserCampaigns() {
                     { value: 'source', label: 'By Source' },
                     { value: 'campaign', label: 'By Campaign' },
                     { value: 'tag', label: 'By Tag' },
+                    { value: 'manual', label: '📋 Paste Numbers' },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -1164,6 +1188,24 @@ export function UserCampaigns() {
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
+                )}
+
+                {formData.contact_selection === 'manual' && (
+                  <div>
+                    <textarea
+                      value={formData.manual_numbers_raw}
+                      onChange={(e) => setFormData({ ...formData, manual_numbers_raw: e.target.value })}
+                      rows={5}
+                      placeholder="Paste phone numbers here — one per line, or comma/space separated.\n\nExamples:\n9876543210\n+91 98765 43210\n919876543210"
+                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none font-mono text-sm"
+                    />
+                    <div className="flex gap-4 mt-1">
+                      <p className="text-emerald-400 text-xs">{manualParsed.valid.length} valid number{manualParsed.valid.length !== 1 ? 's' : ''}</p>
+                      {manualParsed.skipped > 0 && (
+                        <p className="text-amber-400 text-xs">{manualParsed.skipped} skipped (invalid)</p>
+                      )}
+                    </div>
+                  </div>
                 )}
 
                 <div className="mt-2 px-3 py-2 bg-gray-800/50 rounded-lg">
