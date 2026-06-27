@@ -19,3 +19,7 @@ worker/.env
 # OS
 .DS_Store
 Thumbs.db
+
+.env
+
+supabase/.temp/
