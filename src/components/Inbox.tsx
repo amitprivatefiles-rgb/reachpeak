@@ -456,6 +456,51 @@ export function Inbox() {
       return url ? <img src={url} alt="Sticker" className="w-24 h-24" /> : <span>Sticker</span>;
     }
 
+    // Button reply (quick-reply tap on a template button)
+    if (type === 'button') {
+      const buttonText = content?.button?.text || content?.text || '';
+      return (
+        <div className="space-y-0.5">
+          <p className="text-sm whitespace-pre-wrap break-words">{buttonText}</p>
+          <p className="text-[10px] text-gray-500 italic">Button reply</p>
+        </div>
+      );
+    }
+
+    // Interactive reply (button_reply or list_reply from interactive messages)
+    if (type === 'interactive') {
+      const inter = content?.interactive;
+      let replyText = '';
+      let replyType = 'Interactive reply';
+      if (inter?.type === 'button_reply') {
+        replyText = inter.button_reply?.title || '';
+        replyType = 'Button reply';
+      } else if (inter?.type === 'list_reply') {
+        replyText = inter.list_reply?.title || '';
+        replyType = 'List selection';
+      } else {
+        replyText = inter?.button_reply?.title || inter?.list_reply?.title || '';
+      }
+      return (
+        <div className="space-y-0.5">
+          <p className="text-sm whitespace-pre-wrap break-words">{replyText}</p>
+          <p className="text-[10px] text-gray-500 italic">{replyType}</p>
+        </div>
+      );
+    }
+
+    // Reaction
+    if (type === 'reaction') {
+      const emoji = content?.reaction?.emoji || '👍';
+      return <p className="text-2xl">{emoji}</p>;
+    }
+
+    // Contacts shared
+    if (type === 'contacts') {
+      const name = content?.contacts?.[0]?.name?.formatted_name || 'Contact';
+      return <p className="text-sm">👤 {name}</p>;
+    }
+
     // Fallback
     return <p className="text-sm text-gray-400">[{type || 'unknown'} message]</p>;
   };
