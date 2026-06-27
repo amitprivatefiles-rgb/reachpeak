@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { buildTemplateSendComponents, missingRequiredHeaderMedia, getHeaderFormat } from '../lib/templatePayloadBuilder';
+import { getHeaderFormat } from '../lib/templatePayloadBuilder';
 import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban, Eye } from 'lucide-react';
 
 // Contact fields available for variable mapping (matches contacts table schema)
@@ -210,170 +210,25 @@ export function Campaigns() {
         return;
       }
 
-      // Fallback: legacy campaigns without approval enqueue — run the old path
-      // 1. Get campaign details
-      const { data: campaign, error: campErr } = await supabase
-        .from('campaigns')
-        .select('whatsapp_account_id, message_template, template_language, template_id, variable_mapping')
-        .eq('id', campaignId)
-        .single();
+      // Fallback: legacy campaigns without approval enqueue — route through edge function
+      const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
+        'enqueue-campaign',
+        { body: { campaign_id: campaignId } },
+      );
 
-      if (campErr || !campaign) {
-        alert('Campaign not found');
+      if (enqueueError) {
+        alert('Error enqueuing campaign: ' + enqueueError.message);
         return;
       }
 
-      if (!campaign.whatsapp_account_id) {
-        alert('No WhatsApp account linked to this campaign. Edit the campaign and select one.');
-        return;
-      }
+      const enqueued = enqueueResult?.enqueued ?? 0;
+      const failed = enqueueResult?.failed ?? 0;
+      const errors = enqueueResult?.errors ?? [];
 
-      // 2. Get whatsapp account display number (for wa_from)
-      const { data: waAccount } = await supabase
-        .from('whatsapp_accounts')
-        .select('id, display_phone_number')
-        .eq('id', campaign.whatsapp_account_id)
-        .single();
-
-      if (!waAccount) {
-        alert('WhatsApp account not found or inactive');
-        return;
-      }
-
-      // 3. Fetch contacts assigned to this campaign (all variable-mappable fields)
-      const { data: contacts, error: contactsErr } = await supabase
-        .from('contacts')
-        .select('id, phone_number, name, city, state, lead_type, source, notes')
-        .eq('campaign_id', campaignId)
-        .eq('is_blacklisted', false);
-
-      if (contactsErr || !contacts?.length) {
-        alert(contactsErr ? contactsErr.message : 'No eligible contacts assigned to this campaign');
-        return;
-      }
-
-      // 4. Batch-insert queued messages using the shared template builder
-      const templateName = campaign.message_template || 'hello_world';
-      const lang = campaign.template_language || 'en_US';
-      const waFrom = waAccount.display_phone_number.replace(/[^0-9]/g, '');
-      const varMap: Record<string, string> = campaign.variable_mapping || {};
-      const paramKeys = Object.keys(varMap).sort((a, b) => parseInt(a) - parseInt(b));
-
-      // Load full template for the builder
-      const { data: tplRow } = await supabase
-        .from('templates')
-        .select('name, language, components, body_text, header_sample_url')
-        .eq('whatsapp_account_id', campaign.whatsapp_account_id)
-        .eq('name', templateName)
-        .limit(1)
-        .maybeSingle();
-
-      // Build per-contact payload using the shared builder.
-      // Returns { content, missingField } — missingField is set if any mapped value is null/empty.
-      const buildContactPayload = (contact: any): { content: any; missingField: string | null } => {
-        // Check all mapped variables exist on contact
-        for (const key of paramKeys) {
-          const field = varMap[key];
-          const value = contact[field];
-          if (value === null || value === undefined || String(value).trim() === '') {
-            return { content: null, missingField: field };
-          }
-        }
-
-        const bodyParams = paramKeys.map((key) => String(contact[varMap[key]]));
-        const phone = contact.phone_number.replace(/[^0-9]/g, '');
-
-        // Use shared builder if template found in DB; otherwise basic fallback
-        let components: any[] = [];
-        if (tplRow) {
-          components = buildTemplateSendComponents(tplRow, { bodyParams });
-        } else if (bodyParams.length > 0) {
-          components = [{ type: 'body', parameters: bodyParams.map(v => ({ type: 'text', text: v })) }];
-        }
-
-        // Full Graph API payload shape — worker sends content verbatim
-        const content = {
-          messaging_product: 'whatsapp',
-          to: phone,
-          type: 'template',
-          template: {
-            name: templateName,
-            language: { code: lang },
-            ...(components.length > 0 ? { components } : {}),
-          },
-        };
-
-        return { content, missingField: null };
-      };
-
-      // Split contacts into valid (queued) and skipped (failed due to missing variable)
-      const queuedRows: any[] = [];
-      const failedRows: any[] = [];
-
-      for (const c of contacts) {
-        const { content, missingField } = buildContactPayload(c);
-        const phone = c.phone_number.replace(/[^0-9]/g, '');
-        const baseRow = {
-          user_id: user!.id,
-          whatsapp_account_id: campaign.whatsapp_account_id,
-          contact_id: c.id,
-          campaign_id: campaignId,
-          direction: 'outbound' as const,
-          wa_from: waFrom,
-          wa_to: phone,
-          message_type: 'template',
-          template_name: templateName,
-        };
-
-        if (missingField) {
-          failedRows.push({
-            ...baseRow,
-            content: {
-              messaging_product: 'whatsapp', to: phone, type: 'template',
-              template: { name: templateName, language: { code: lang } },
-            },
-            status: 'failed' as const,
-            error_code: 'MISSING_VARIABLE',
-            error_message: `missing_variable:${missingField}`,
-            failed_at: new Date().toISOString(),
-          });
-        } else {
-          queuedRows.push({
-            ...baseRow,
-            content,
-            status: 'queued' as const,
-          });
-        }
-      }
-
-      // Insert failed rows first (so they're visible immediately)
-      if (failedRows.length > 0) {
-        for (let i = 0; i < failedRows.length; i += 500) {
-          const batch = failedRows.slice(i, i + 500);
-          await supabase.from('messages').insert(batch);
-        }
-        console.warn(`[Campaign ${campaignId}] ${failedRows.length} contacts skipped — missing variable`);
-      }
-
-      // Insert queued rows in batches
-      for (let i = 0; i < queuedRows.length; i += 500) {
-        const batch = queuedRows.slice(i, i + 500);
-        const { error: insertErr } = await supabase.from('messages').insert(batch);
-        if (insertErr) {
-          alert(`Error inserting messages batch ${i / 500 + 1}: ${insertErr.message}`);
-          return;
-        }
-      }
-
-      // 5. Update campaign status to 'Sending'
-      await supabase
-        .from('campaigns')
-        .update({ status: 'Sending', total_numbers: contacts.length })
-        .eq('id', campaignId);
-
-      // Surface skipped contacts count
-      if (failedRows.length > 0) {
-        alert(`Campaign started: ${queuedRows.length} messages queued, ${failedRows.length} contacts skipped (missing variable data).`);
+      if (enqueued === 0 && errors.length > 0) {
+        alert(`Campaign enqueue failed: ${errors.join('; ')}`);
+      } else if (failed > 0) {
+        alert(`Campaign started: ${enqueued} messages queued, ${failed} contacts skipped (validation errors).`);
       }
 
       fetchCampaigns();

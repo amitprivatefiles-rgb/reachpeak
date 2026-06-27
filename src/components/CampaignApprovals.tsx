@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import { sendNotification, NotificationTemplates } from '../lib/notifications';
-import { buildTemplateSendComponents } from '../lib/templatePayloadBuilder';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
   profiles?: { full_name: string; email: string } | null;
@@ -150,205 +149,17 @@ export function CampaignApprovals() {
     copyToClipboard(numbers, 'all');
   };
 
-  // ─── Shared enqueue: builds per-contact payloads and inserts messages rows ───
-  const enqueueCampaignMessages = async (campaign: Campaign) => {
-    const audience = campaign.selected_audience as any;
-    const templateName = campaign.message_template;
-    const msgMode = audience?.message_mode || 'freetext';
-    const varMap: Record<string, string> = (campaign as any).variable_mapping || {};
-    const paramKeys = Object.keys(varMap).sort((a, b) => parseInt(a) - parseInt(b));
-    const headerOverride = audience?.header_override_url || null;
-    // Use stored template_language from the campaign row — never hardcode
-    const lang = (campaign as any).template_language || 'en';
 
-    // Get WhatsApp account
-    const { data: waAccount } = await supabase
-      .from('whatsapp_accounts')
-      .select('id, display_phone_number')
-      .eq('user_id', campaign.user_id)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-
-    if (!waAccount) return;
-
-    // Load template by template_id (not by name) for accuracy
-    let tplRow: any = null;
-    if (msgMode === 'template' && (campaign as any).template_id) {
-      const { data } = await supabase
-        .from('templates')
-        .select('name, language, components, body_text, header_sample_url')
-        .eq('id', (campaign as any).template_id)
-        .limit(1)
-        .maybeSingle();
-      tplRow = data;
-      // If template_id lookup fails, fallback to name lookup
-      if (!tplRow && templateName) {
-        const { data: fallback } = await supabase
-          .from('templates')
-          .select('name, language, components, body_text, header_sample_url')
-          .eq('whatsapp_account_id', waAccount.id)
-          .eq('name', templateName)
-          .limit(1)
-          .maybeSingle();
-        tplRow = fallback;
-      }
-    }
-
-    const waFrom = waAccount.display_phone_number?.replace(/[^0-9]/g, '') || '';
-    const queuedRows: any[] = [];
-    const failedRows: any[] = [];
-
-    // Helper: build one message row for a given phone + optional contact record
-    const buildRow = (phone: string, contact: any | null) => {
-      const baseRow = {
-        user_id: campaign.user_id,
-        whatsapp_account_id: waAccount.id,
-        contact_id: contact?.id || null,
-        campaign_id: campaign.id,
-        direction: 'outbound' as const,
-        wa_from: waFrom,
-        wa_to: phone,
-        message_type: msgMode === 'template' ? 'template' : 'text',
-        template_name: msgMode === 'template' ? templateName : null,
-      };
-
-      if (msgMode === 'template' && tplRow) {
-        // Check required header media
-        const { missingRequiredHeaderMedia } = await_sync_check(tplRow, headerOverride);
-        if (missingRequiredHeaderMedia) {
-          failedRows.push({
-            ...baseRow,
-            content: { messaging_product: 'whatsapp', to: phone, type: 'template', template: { name: tplRow.name, language: { code: lang } } },
-            status: 'failed',
-            error_code: 'MISSING_HEADER_MEDIA',
-            error_message: 'Template requires header media but none provided',
-            failed_at: new Date().toISOString(),
-          });
-          return;
-        }
-
-        // Check variable mapping — for manual mode without contact, use empty strings for missing fields
-        let bodyParams: string[] = [];
-        if (paramKeys.length > 0) {
-          if (contact) {
-            for (const key of paramKeys) {
-              const field = varMap[key];
-              const value = contact[field];
-              if (value === null || value === undefined || String(value).trim() === '') {
-                failedRows.push({
-                  ...baseRow,
-                  content: { messaging_product: 'whatsapp', to: phone, type: 'template', template: { name: tplRow.name, language: { code: lang } } },
-                  status: 'failed',
-                  error_code: 'MISSING_VARIABLE',
-                  error_message: `missing_variable:${field}`,
-                  failed_at: new Date().toISOString(),
-                });
-                return;
-              }
-            }
-            bodyParams = paramKeys.map((key) => String(contact[varMap[key]]));
-          } else {
-            // Manual mode: no contact record — leave variables blank
-            bodyParams = paramKeys.map(() => '');
-          }
-        }
-
-        const headerMedia = headerOverride || tplRow.header_sample_url || undefined;
-        const components = buildTemplateSendComponents(tplRow, {
-          headerMedia,
-          bodyParams: bodyParams.length > 0 ? bodyParams : undefined,
-        });
-        queuedRows.push({
-          ...baseRow,
-          content: {
-            messaging_product: 'whatsapp', to: phone, type: 'template',
-            template: { name: tplRow.name, language: { code: lang }, components },
-          },
-          status: 'queued',
-        });
-      } else {
-        // Free-text mode
-        queuedRows.push({
-          ...baseRow,
-          content: { messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: templateName || '' } },
-          status: 'queued',
-        });
-      }
-    };
-
-    // Synchronous header-media check helper
-    const await_sync_check = (tpl: any, override: string | null) => {
-      const comps = tpl?.components || [];
-      const hdr = comps.find((c: any) => String(c.type).toUpperCase() === 'HEADER');
-      if (!hdr) return { missingRequiredHeaderMedia: false };
-      const fmt = String(hdr.format || '').toUpperCase();
-      if (fmt === 'IMAGE' || fmt === 'VIDEO' || fmt === 'DOCUMENT') {
-        const hasMedia = !!(override || tpl.header_sample_url);
-        return { missingRequiredHeaderMedia: !hasMedia };
-      }
-      return { missingRequiredHeaderMedia: false };
-    };
-
-    // ─── Load recipients based on audience mode ───
-    if (audience?.mode === 'manual' && Array.isArray(audience?.numbers)) {
-      // Manual mode: numbers are stored directly, no contact records
-      for (const phone of audience.numbers) {
-        buildRow(phone, null);
-      }
-    } else {
-      // DB-backed modes: load contacts
-      let contacts: any[] = [];
-      const contactFields = 'id, phone_number, name, city, state, lead_type, source, notes';
-      if (audience?.mode === 'tag' && audience?.tag_filter) {
-        const { data: ctData } = await supabase.from('contact_tags').select('contact_id').eq('tag_id', audience.tag_filter).eq('user_id', campaign.user_id);
-        const ids = (ctData || []).map((ct: any) => ct.contact_id);
-        if (ids.length > 0) {
-          const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', campaign.user_id).in('id', ids).eq('is_blacklisted', false);
-          contacts = data || [];
-        }
-      } else if (audience?.mode === 'source' && audience?.source_filter) {
-        const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', campaign.user_id).eq('source', audience.source_filter).eq('is_blacklisted', false);
-        contacts = data || [];
-      } else if (audience?.mode === 'campaign' && audience?.campaign_filter) {
-        const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', campaign.user_id).eq('campaign_id', audience.campaign_filter).eq('is_blacklisted', false);
-        contacts = data || [];
-      } else {
-        const { data } = await supabase.from('contacts').select(contactFields).eq('user_id', campaign.user_id).eq('is_blacklisted', false);
-        contacts = data || [];
-      }
-
-      for (const c of contacts) {
-        const phone = c.phone_number.replace(/[^0-9]/g, '');
-        buildRow(phone, c);
-      }
-    }
-
-    // Batch insert
-    if (failedRows.length > 0) {
-      for (let i = 0; i < failedRows.length; i += 500) {
-        await supabase.from('messages').insert(failedRows.slice(i, i + 500));
-      }
-    }
-    for (let i = 0; i < queuedRows.length; i += 500) {
-      await supabase.from('messages').insert(queuedRows.slice(i, i + 500));
-    }
-
-    // Update campaign with accurate total
-    const totalRecipients = audience?.mode === 'manual' ? (audience.numbers?.length || 0) : queuedRows.length + failedRows.length;
-    await supabase.from('campaigns').update({
-      total_numbers: totalRecipients,
-    }).eq('id', campaign.id);
-  };
 
   const handleApproveAndStart = async () => {
     if (!reviewCampaign || !user) return;
     setProcessing(true);
     try {
+      // Set approval fields — do NOT set status='Sending' here.
+      // The edge function sets it only when messages are actually inserted.
       const { error } = await supabase
         .from('campaigns')
         .update({
-          status: 'Sending',
           approved_at: new Date().toISOString(),
           approved_by: user.id,
           start_time: new Date().toISOString(),
@@ -362,10 +173,26 @@ export function CampaignApprovals() {
 
       if (error) throw error;
 
-      await enqueueCampaignMessages(reviewCampaign);
+      // Enqueue messages server-side (service-role bypasses RLS)
+      const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
+        'enqueue-campaign',
+        { body: { campaign_id: reviewCampaign.id } },
+      );
+
+      if (enqueueError) throw enqueueError;
+
+      const enqueued = enqueueResult?.enqueued ?? 0;
+      const failed = enqueueResult?.failed ?? 0;
+      const errors = enqueueResult?.errors ?? [];
+
+      if (enqueued === 0 && errors.length > 0) {
+        alert(`Campaign enqueue failed: ${errors.join('; ')}`);
+      } else if (failed > 0) {
+        alert(`Campaign approved: ${enqueued} messages queued, ${failed} recipients failed validation.`);
+      }
 
       // Send in-app + email notification (user sees "Campaign is Live")
-      const template = NotificationTemplates.campaignLaunched(reviewCampaign.name, reviewCampaign.total_numbers || 0);
+      const template = NotificationTemplates.campaignLaunched(reviewCampaign.name, enqueued);
       await sendNotification({
         userId: reviewCampaign.user_id,
         userEmail: reviewCampaign.profiles?.email || '',
@@ -391,10 +218,13 @@ export function CampaignApprovals() {
     if (!reviewCampaign || !user || !reviewCampaign.scheduled_start) return;
     setProcessing(true);
     try {
+      // Set approval fields — do NOT set status='Sending' here.
+      // The edge function sets it only when messages are actually inserted.
+      // NOTE: Messages are enqueued immediately. True scheduled-delay
+      // (holding messages until scheduled_start) is not yet enforced.
       const { error } = await supabase
         .from('campaigns')
         .update({
-          status: 'Sending',
           approved_at: new Date().toISOString(),
           approved_by: user.id,
           start_time: new Date(reviewCampaign.scheduled_start).toISOString(),
@@ -408,8 +238,24 @@ export function CampaignApprovals() {
 
       if (error) throw error;
 
-      // Enqueue messages now — worker will claim them when campaign status is Sending/Running
-      await enqueueCampaignMessages(reviewCampaign);
+      // Enqueue messages server-side now — worker claims when campaign status is Sending/Running.
+      // NOTE: True scheduled-delay is not yet enforced; messages enqueue immediately.
+      const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
+        'enqueue-campaign',
+        { body: { campaign_id: reviewCampaign.id } },
+      );
+
+      if (enqueueError) throw enqueueError;
+
+      const enqueued = enqueueResult?.enqueued ?? 0;
+      const failed = enqueueResult?.failed ?? 0;
+      const errors = enqueueResult?.errors ?? [];
+
+      if (enqueued === 0 && errors.length > 0) {
+        alert(`Campaign enqueue failed: ${errors.join('; ')}`);
+      } else if (failed > 0) {
+        alert(`Campaign scheduled: ${enqueued} messages queued, ${failed} recipients failed validation.`);
+      }
 
       const template = NotificationTemplates.campaignScheduled(
         reviewCampaign.name,
