@@ -238,6 +238,57 @@ Deno.serve(async (req: Request) => {
     const failedRows: any[] = [];
     const errors: string[] = [];
 
+    // Helper: resolve or create a conversation for this recipient so outbound
+    // campaign messages appear in the inbox thread alongside inbound replies.
+    const resolveConversation = async (
+      recipientPhone: string,
+    ): Promise<string | null> => {
+      try {
+        const { data: existing } = await supabaseAdmin
+          .from('conversations')
+          .select('id')
+          .eq('user_id', campaign.user_id)
+          .eq('contact_phone', recipientPhone)
+          .maybeSingle();
+
+        if (existing) return existing.id;
+
+        // Create a new conversation for this campaign recipient
+        const { data: newConv, error: convErr } = await supabaseAdmin
+          .from('conversations')
+          .insert({
+            user_id: campaign.user_id,
+            whatsapp_account_id: waAccount.id,
+            contact_phone: recipientPhone,
+            last_message_at: new Date().toISOString(),
+            last_message_preview: `📋 Campaign: ${campaign.name}`,
+            last_message_direction: 'outbound',
+            unread_count: 0,
+          })
+          .select('id')
+          .single();
+
+        if (convErr) {
+          // 23505 = unique violation (race condition, conversation created between check and insert)
+          if (convErr.code === '23505') {
+            const { data: retry } = await supabaseAdmin
+              .from('conversations')
+              .select('id')
+              .eq('user_id', campaign.user_id)
+              .eq('contact_phone', recipientPhone)
+              .maybeSingle();
+            return retry?.id || null;
+          }
+          console.error('[enqueue-campaign] Conversation create error:', convErr.message);
+          return null;
+        }
+        return newConv?.id || null;
+      } catch (e: any) {
+        console.error('[enqueue-campaign] resolveConversation error:', e.message);
+        return null;
+      }
+    };
+
     // Helper: check if header media is required but missing
     const checkHeaderMedia = (
       tpl: any,
@@ -256,11 +307,15 @@ Deno.serve(async (req: Request) => {
     };
 
     for (const { phone, contact } of recipients) {
+      // Resolve/create conversation so this message appears in the inbox thread
+      const conversationId = await resolveConversation(phone);
+
       const baseRow = {
         user_id: campaign.user_id,
         whatsapp_account_id: waAccount.id,
         contact_id: contact?.id || null,
         campaign_id: campaign.id,
+        conversation_id: conversationId,
         direction: 'outbound',
         wa_from: waFrom,
         wa_to: phone,

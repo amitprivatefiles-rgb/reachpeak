@@ -240,6 +240,9 @@ Deno.serve(async (req: Request) => {
 
           // 2) Inbound messages from customers
           if (account) {
+            // Business phone number that received this webhook event
+            const businessPhone = value.metadata?.display_phone_number?.replace(/[^0-9]/g, '') || '';
+
             for (const msg of value.messages ?? []) {
               // Extract message text for preview
               let messagePreview = '';
@@ -260,6 +263,22 @@ Deno.serve(async (req: Request) => {
                     mediaObj.mime_type || 'application/octet-stream',
                   );
                 }
+              } else if (msgType === 'button') {
+                // Quick-reply button tap (e.g. from a template button)
+                messagePreview = msg.button?.text || 'Button reply';
+              } else if (msgType === 'interactive') {
+                // Interactive message reply (button_reply or list_reply)
+                if (msg.interactive?.type === 'button_reply') {
+                  messagePreview = msg.interactive.button_reply?.title || 'Button reply';
+                } else if (msg.interactive?.type === 'list_reply') {
+                  messagePreview = msg.interactive.list_reply?.title || 'List selection';
+                } else {
+                  messagePreview = msg.interactive?.button_reply?.title
+                    || msg.interactive?.list_reply?.title
+                    || 'Interactive reply';
+                }
+              } else if (msgType === 'reaction') {
+                messagePreview = msg.reaction?.emoji || '👍';
               } else if (msgType === 'location') {
                 messagePreview = `📍 Location: ${msg.location?.latitude}, ${msg.location?.longitude}`;
               } else if (msgType === 'contacts') {
@@ -271,7 +290,7 @@ Deno.serve(async (req: Request) => {
               // Get contact name from WhatsApp profile
               const contactName = value.contacts?.[0]?.profile?.name || null;
 
-              // Upsert conversation
+              // Upsert conversation — get its id BEFORE inserting the message
               const conversationId = await upsertConversation(
                 account.user_id,
                 account.id,
@@ -280,22 +299,38 @@ Deno.serve(async (req: Request) => {
                 messagePreview,
               );
 
-              // Insert the message
+              // Insert the message with conversation_id and wa_to
               const { error: insErr } = await supabase.from('messages').insert({
                 user_id: account.user_id,
                 whatsapp_account_id: account.id,
                 wamid: msg.id,
                 direction: 'inbound',
                 wa_from: msg.from,
+                wa_to: businessPhone,
                 message_type: msgType,
                 content: msg,
                 status: 'received',
                 media_url: mediaUrl,
                 conversation_id: conversationId,
+                created_at: tsToIso(msg.timestamp),
               });
               // 23505 = duplicate wamid (Meta retried) — safe to ignore
               if (insErr && insErr.code !== '23505') {
-                console.error('Inbound insert error:', insErr.message);
+                console.error(
+                  `[whatsapp-webhook] INBOUND INSERT FAILED for wamid=${msg.id} from=${msg.from}:`,
+                  insErr.code, insErr.message, insErr.details,
+                );
+                // Rollback the conversation preview to avoid phantom preview with no message.
+                // Decrement unread_count and clear the preview if this was the only message.
+                if (conversationId) {
+                  await supabase
+                    .from('conversations')
+                    .update({
+                      unread_count: 0,
+                      last_message_preview: '[message failed to save]',
+                    })
+                    .eq('id', conversationId);
+                }
               }
             }
           }
