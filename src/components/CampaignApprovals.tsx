@@ -176,7 +176,7 @@ export function CampaignApprovals() {
       // Enqueue messages server-side (service-role bypasses RLS)
       const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
         'enqueue-campaign',
-        { body: { campaign_id: reviewCampaign.id } },
+        { body: { campaign_id: reviewCampaign.id, mode: 'start' } },
       );
 
       if (enqueueError) throw enqueueError;
@@ -218,16 +218,20 @@ export function CampaignApprovals() {
     if (!reviewCampaign || !user || !reviewCampaign.scheduled_start) return;
     setProcessing(true);
     try {
-      // Set approval fields — do NOT set status='Sending' here.
-      // The edge function sets it only when messages are actually inserted.
-      // NOTE: Messages are enqueued immediately. True scheduled-delay
-      // (holding messages until scheduled_start) is not yet enforced.
+      // Guard: scheduled_start must be in the future
+      const scheduledTime = new Date(reviewCampaign.scheduled_start);
+      if (scheduledTime <= new Date()) {
+        alert('Scheduled time is in the past. Use "Approve & Start" instead, or update the schedule.');
+        setProcessing(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('campaigns')
         .update({
           approved_at: new Date().toISOString(),
           approved_by: user.id,
-          start_time: new Date(reviewCampaign.scheduled_start).toISOString(),
+          start_time: scheduledTime.toISOString(),
           daily_limit: config.daily_limit,
           priority: config.priority,
           messages_sent: 0,
@@ -238,11 +242,12 @@ export function CampaignApprovals() {
 
       if (error) throw error;
 
-      // Enqueue messages server-side now — worker claims when campaign status is Sending/Running.
-      // NOTE: True scheduled-delay is not yet enforced; messages enqueue immediately.
+      // Enqueue messages server-side with schedule mode.
+      // Rows are inserted as 'queued' but campaign stays 'approved' —
+      // the pg_cron job flips it to 'Sending' when scheduled_start arrives.
       const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
         'enqueue-campaign',
-        { body: { campaign_id: reviewCampaign.id } },
+        { body: { campaign_id: reviewCampaign.id, mode: 'schedule' } },
       );
 
       if (enqueueError) throw enqueueError;

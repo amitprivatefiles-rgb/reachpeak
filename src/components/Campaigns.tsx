@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getHeaderFormat } from '../lib/templatePayloadBuilder';
-import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban, Eye } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban, Eye, Clock } from 'lucide-react';
 
 // Contact fields available for variable mapping (matches contacts table schema)
 const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
@@ -46,7 +46,17 @@ interface Campaign {
   updated_at: string;
   whatsapp_account_id: string | null;
   template_language: string | null;
+  scheduled_start: string | null;
+  ab_enabled: boolean;
   profiles?: { full_name: string; email: string } | null;
+}
+
+interface VariantMetric {
+  campaign_id: string;
+  variant: string;
+  sent: number;
+  delivered: number;
+  read: number;
 }
 
 interface CampaignMetrics {
@@ -76,10 +86,14 @@ export function Campaigns() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [startingCampaign, setStartingCampaign] = useState<string | null>(null);
+  const [cancellingCampaign, setCancellingCampaign] = useState<string | null>(null);
+  const [retryingCampaign, setRetryingCampaign] = useState<string | null>(null);
   const [metricsMap, setMetricsMap] = useState<Record<string, CampaignMetrics>>({});
   const [waAccounts, setWaAccounts] = useState<WhatsAppAccount[]>([]);
   const [approvedTemplates, setApprovedTemplates] = useState<ApprovedTemplate[]>([]);
   const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
+  const [variantMetrics, setVariantMetrics] = useState<Record<string, VariantMetric[]>>({});
+  const [expandedAbCampaign, setExpandedAbCampaign] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -213,7 +227,7 @@ export function Campaigns() {
       // Fallback: legacy campaigns without approval enqueue — route through edge function
       const { data: enqueueResult, error: enqueueError } = await supabase.functions.invoke(
         'enqueue-campaign',
-        { body: { campaign_id: campaignId } },
+        { body: { campaign_id: campaignId, mode: 'start' } },
       );
 
       if (enqueueError) {
@@ -243,23 +257,21 @@ export function Campaigns() {
   // ─── Update campaign status (rewired to real queue) ───
   const updateCampaignStatus = async (campaignId: string, newStatus: string) => {
     try {
-      // Cancel: mark remaining queued messages as cancelled so worker never sends them
+      // Cancel: route through campaign-action edge function (handles both campaign + messages server-side)
       if (newStatus === 'Cancelled') {
         if (!confirm('Cancel this campaign? All unsent messages will be permanently cancelled.')) return;
-        const { error: cancelErr } = await supabase
-          .from('messages')
-          .update({
-            status: 'cancelled',
-            error_code: 'CAMPAIGN_CANCELLED',
-            error_message: 'Campaign was cancelled by admin',
-            failed_at: new Date().toISOString(),
-          })
-          .eq('campaign_id', campaignId)
-          .eq('status', 'queued');
+        setCancellingCampaign(campaignId);
+        const { data, error: cancelErr } = await supabase.functions.invoke('campaign-action', {
+          body: { campaign_id: campaignId, action: 'cancel' },
+        });
+        setCancellingCampaign(null);
         if (cancelErr) {
-          alert('Error cancelling queued messages: ' + cancelErr.message);
+          alert('Error cancelling campaign: ' + cancelErr.message);
           return;
         }
+        fetchCampaigns();
+        fetchMetrics();
+        return;
       }
 
       const { error } = await supabase
@@ -271,7 +283,57 @@ export function Campaigns() {
       fetchCampaigns();
       fetchMetrics();
     } catch (err: any) {
+      setCancellingCampaign(null);
       alert('Error updating campaign: ' + err.message);
+    }
+  };
+
+  // ─── Campaign actions via edge function ───
+  const campaignAction = async (campaignId: string, action: string) => {
+    try {
+      if (action === 'cancel') {
+        if (!confirm('Cancel this scheduled campaign? All unsent messages will be permanently cancelled.')) return;
+        setCancellingCampaign(campaignId);
+      }
+      if (action === 'start_now') {
+        setStartingCampaign(campaignId);
+      }
+      if (action === 'retry') {
+        setRetryingCampaign(campaignId);
+      }
+
+      const { data, error } = await supabase.functions.invoke('campaign-action', {
+        body: { campaign_id: campaignId, action },
+      });
+
+      if (error) {
+        alert(`Error (${action}): ${error.message}`);
+        return;
+      }
+
+      if (action === 'retry' && data) {
+        alert(`Retry: ${data.requeued} messages requeued, ${data.skipped} skipped`);
+      }
+
+      fetchCampaigns();
+      fetchMetrics();
+    } catch (err: any) {
+      alert(`Error (${action}): ${err.message}`);
+    } finally {
+      setCancellingCampaign(null);
+      setStartingCampaign(null);
+      setRetryingCampaign(null);
+    }
+  };
+
+  // ─── Fetch A/B variant metrics ───
+  const fetchVariantMetrics = async (campaignId: string) => {
+    const { data: variantData } = await supabase
+      .from('campaign_variant_metrics')
+      .select('*')
+      .eq('campaign_id', campaignId);
+    if (variantData) {
+      setVariantMetrics(prev => ({ ...prev, [campaignId]: variantData as VariantMetric[] }));
     }
   };
 
@@ -398,7 +460,10 @@ export function Campaigns() {
   };
 
   // ─── Status helpers ───
-  const statusColor = (status: string) => {
+  const statusColor = (status: string, campaign?: Campaign) => {
+    if (status === 'approved' && campaign?.scheduled_start) {
+      return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
+    }
     switch (status) {
       case 'Sending': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'Paused': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
@@ -409,6 +474,12 @@ export function Campaigns() {
       case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30';
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
     }
+  };
+
+  const formatScheduledTime = (iso: string) => {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
   };
 
   const getMetrics = (campaignId: string) => metricsMap[campaignId] || null;
@@ -450,9 +521,12 @@ export function Campaigns() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-1">
                     <h3 className="text-white font-semibold text-lg">{campaign.name}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor(campaign.status)}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor(campaign.status, campaign)}`}>
                       {campaign.status === 'Sending' && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
-                      {campaign.status}
+                      {campaign.status === 'approved' && campaign.scheduled_start && <Clock className="inline h-3 w-3 mr-1" />}
+                      {campaign.status === 'approved' && campaign.scheduled_start
+                        ? `Scheduled — starts ${formatScheduledTime(campaign.scheduled_start)}`
+                        : campaign.status}
                     </span>
                   </div>
                   <p className="text-gray-400 text-sm">
@@ -511,13 +585,37 @@ export function Campaigns() {
                   )}
                   {isAdmin && campaign.status === 'Completed' && (
                     <button
-                      onClick={() => updateCampaignStatus(campaign.id, 'Sending')}
-                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium transition-colors border border-blue-600/30"
-                      title="Restart campaign"
+                      onClick={() => campaignAction(campaign.id, 'retry')}
+                      disabled={retryingCampaign === campaign.id}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 disabled:opacity-50 text-blue-400 rounded-lg text-xs font-medium transition-colors border border-blue-600/30"
+                      title="Retry failed messages"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      <span>Restart</span>
+                      {retryingCampaign === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                      <span>Retry Failed</span>
                     </button>
+                  )}
+                  {/* Scheduled campaign actions */}
+                  {isAdmin && campaign.status === 'approved' && campaign.scheduled_start && (
+                    <>
+                      <button
+                        onClick={() => campaignAction(campaign.id, 'start_now')}
+                        disabled={startingCampaign === campaign.id}
+                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-green-600/20 hover:bg-green-600/40 disabled:opacity-50 text-green-400 rounded-lg text-xs font-medium transition-colors border border-green-600/30"
+                        title="Start campaign now"
+                      >
+                        {startingCampaign === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+                        <span>Start Now</span>
+                      </button>
+                      <button
+                        onClick={() => campaignAction(campaign.id, 'cancel')}
+                        disabled={cancellingCampaign === campaign.id}
+                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/40 disabled:opacity-50 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-600/30"
+                        title="Cancel scheduled campaign"
+                      >
+                        {cancellingCampaign === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+                        <span>Cancel</span>
+                      </button>
+                    </>
                   )}
                   {isAdmin && !['Completed', 'Cancelled'].includes(campaign.status) && (
                     <button
@@ -532,10 +630,11 @@ export function Campaigns() {
                   {isAdmin && ['Sending', 'Paused'].includes(campaign.status) && (
                     <button
                       onClick={() => updateCampaignStatus(campaign.id, 'Cancelled')}
-                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-600/30"
+                      disabled={cancellingCampaign === campaign.id}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/40 disabled:opacity-50 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-600/30"
                       title="Cancel campaign"
                     >
-                      <Ban className="h-3.5 w-3.5" />
+                      {cancellingCampaign === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
                       <span>Cancel</span>
                     </button>
                   )}
@@ -589,6 +688,61 @@ export function Campaigns() {
                       style={{ width: `${Math.min(m.delivery_rate || 0, 100)}%` }}
                     />
                   </div>
+                </div>
+              )}
+
+              {/* A/B Results Card */}
+              {(campaign as any).ab_enabled && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => {
+                      const isExpanding = expandedAbCampaign !== campaign.id;
+                      setExpandedAbCampaign(isExpanding ? campaign.id : null);
+                      if (isExpanding && !variantMetrics[campaign.id]) {
+                        fetchVariantMetrics(campaign.id);
+                      }
+                    }}
+                    className="flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>{expandedAbCampaign === campaign.id ? 'Hide' : 'Show'} A/B Results</span>
+                  </button>
+                  {expandedAbCampaign === campaign.id && (
+                    <div className="mt-2 bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                      <p className="text-gray-300 text-sm font-medium mb-3">A/B Variant Comparison</p>
+                      {(() => {
+                        const variants = variantMetrics[campaign.id];
+                        if (!variants || variants.length === 0) {
+                          return <p className="text-gray-500 text-xs">No variant metrics available yet.</p>;
+                        }
+                        const varA = variants.find(v => v.variant === 'A');
+                        const varB = variants.find(v => v.variant === 'B');
+                        const rateA = varA && varA.sent > 0 ? (varA.read / varA.sent) * 100 : 0;
+                        const rateB = varB && varB.sent > 0 ? (varB.read / varB.sent) * 100 : 0;
+                        const leader = rateA > rateB ? 'A' : rateB > rateA ? 'B' : null;
+                        return (
+                          <div className="grid grid-cols-2 gap-3">
+                            {[{ label: 'A', v: varA, rate: rateA }, { label: 'B', v: varB, rate: rateB }].map(({ label, v, rate }) => (
+                              <div key={label} className="bg-gray-800 rounded-lg p-3 border border-gray-600">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-white text-sm font-semibold">Variant {label}</span>
+                                  {leader === label && (
+                                    <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded text-[10px] font-medium">Leader</span>
+                                  )}
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex justify-between"><span className="text-gray-400">Sent</span><span className="text-white">{v?.sent || 0}</span></div>
+                                  <div className="flex justify-between"><span className="text-gray-400">Delivered</span><span className="text-blue-400">{v?.delivered || 0}</span></div>
+                                  <div className="flex justify-between"><span className="text-gray-400">Read</span><span className="text-green-400">{v?.read || 0}</span></div>
+                                  <div className="flex justify-between pt-1 border-t border-gray-700"><span className="text-gray-400">Read Rate</span><span className="text-indigo-400">{rate.toFixed(1)}%</span></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

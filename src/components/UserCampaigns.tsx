@@ -17,6 +17,14 @@ interface MessageButton {
   phone_number?: string;
 }
 
+interface VariantB {
+  template_id: string;
+  template_language: string;
+  variable_mapping: Record<string, string>;
+  message_template: string;
+  header_override_url: string;
+}
+
 interface FormData {
   name: string;
   type: 'Promotion' | 'Follow-up' | 'Offer' | 'Reminder';
@@ -35,6 +43,10 @@ interface FormData {
   manual_numbers_raw: string;
   scheduled_start: string;
   message_buttons: MessageButton[];
+  ab_enabled: boolean;
+  ab_split: number;
+  variant_b: VariantB | null;
+  auto_retry_hours: number | null;
 }
 
 interface ApprovedTemplate {
@@ -99,6 +111,10 @@ export function UserCampaigns() {
     manual_numbers_raw: '',
     scheduled_start: '',
     message_buttons: [],
+    ab_enabled: false,
+    ab_split: 50,
+    variant_b: null,
+    auto_retry_hours: null,
   });
 
   const selectedTemplate = useMemo(() => {
@@ -110,6 +126,17 @@ export function UserCampaigns() {
     const matches = selectedTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches)].sort();
   }, [selectedTemplate]);
+
+  const selectedTemplateB = useMemo(() => {
+    if (!formData.variant_b) return null;
+    return approvedTemplates.find(t => t.id === formData.variant_b!.template_id) || null;
+  }, [formData.variant_b?.template_id, approvedTemplates]);
+
+  const templateVariablesB = useMemo(() => {
+    if (!selectedTemplateB?.body_text) return [];
+    const matches = selectedTemplateB.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].sort();
+  }, [selectedTemplateB]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = crypto.randomUUID();
@@ -343,6 +370,10 @@ export function UserCampaigns() {
         messages_failed: 0,
         priority: 1,
         daily_limit: 1000,
+        ab_enabled: formData.ab_enabled,
+        ab_split: formData.ab_split,
+        variant_b: formData.variant_b,
+        auto_retry_hours: formData.auto_retry_hours,
       };
 
       let campaignId: string;
@@ -395,6 +426,7 @@ export function UserCampaigns() {
         variable_mapping: {}, header_override_url: '',
         contact_selection: 'all', contact_source_filter: '', contact_campaign_filter: '',
         contact_tag_filter: '', manual_numbers_raw: '', scheduled_start: '', message_buttons: [],
+        ab_enabled: false, ab_split: 50, variant_b: null, auto_retry_hours: null,
       });
       fetchCampaigns();
       addToast(asDraft ? 'Campaign saved as draft! 📝' : (editingDraftId ? 'Draft submitted for approval! ✅' : 'Campaign submitted for approval! ✅'), 'success');
@@ -425,6 +457,10 @@ export function UserCampaigns() {
       manual_numbers_raw: ((campaign.selected_audience as any)?.numbers || []).join('\n'),
       scheduled_start: campaign.scheduled_start ? new Date(campaign.scheduled_start).toISOString().slice(0, 16) : '',
       message_buttons: Array.isArray(campaign.message_buttons) ? campaign.message_buttons as MessageButton[] : [],
+      ab_enabled: (campaign as any).ab_enabled || false,
+      ab_split: (campaign as any).ab_split ?? 50,
+      variant_b: (campaign as any).variant_b || null,
+      auto_retry_hours: (campaign as any).auto_retry_hours ?? null,
     });
     clearFile();
     setShowModal(true);
@@ -837,23 +873,26 @@ export function UserCampaigns() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Message Version</label>
-                  <div className="flex gap-2">
-                    {['A', 'B'].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, message_version: v as 'A' | 'B' })}
-                        className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${
-                          formData.message_version === v
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'
-                        }`}
-                      >
-                        Version {v}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">A/B Testing</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !formData.ab_enabled;
+                      setFormData({
+                        ...formData,
+                        ab_enabled: next,
+                        variant_b: next ? { template_id: '', template_language: 'en_US', variable_mapping: {}, message_template: '', header_override_url: '' } : null,
+                        ab_split: 50,
+                      });
+                    }}
+                    className={`w-full py-2.5 rounded-lg font-medium text-sm transition ${
+                      formData.ab_enabled
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {formData.ab_enabled ? '✅ A/B Test Enabled' : 'Enable A/B Test'}
+                  </button>
                 </div>
               </div>
 
@@ -875,6 +914,14 @@ export function UserCampaigns() {
               {/* Template Mode */}
               {formData.message_mode === 'template' && (
                 <>
+                  {/* Variant A Label */}
+                  {formData.ab_enabled && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="h-px flex-1 bg-emerald-500/30" />
+                      <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Variant A</span>
+                      <div className="h-px flex-1 bg-emerald-500/30" />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Select Template *</label>
                     <select
@@ -1001,6 +1048,165 @@ export function UserCampaigns() {
                     }
                     return null;
                   })()}
+
+                  {/* Variant B Section */}
+                  {formData.ab_enabled && formData.variant_b && (
+                    <>
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="h-px flex-1 bg-purple-500/30" />
+                        <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Variant B</span>
+                        <div className="h-px flex-1 bg-purple-500/30" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Select Template (B) *</label>
+                        <select
+                          value={formData.variant_b.template_id}
+                          onChange={(e) => {
+                            const tpl = approvedTemplates.find(t => t.id === e.target.value);
+                            setFormData({
+                              ...formData,
+                              variant_b: {
+                                ...formData.variant_b!,
+                                template_id: e.target.value,
+                                template_language: tpl?.language || 'en_US',
+                                message_template: tpl?.name || '',
+                                variable_mapping: {},
+                              },
+                            });
+                          }}
+                          className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          required
+                        >
+                          <option value="">Select an approved template...</option>
+                          {approvedTemplates.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {selectedTemplateB && (
+                        <div className="bg-gray-800/50 rounded-lg p-4 border border-purple-500/30">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Eye className="w-4 h-4 text-purple-400" />
+                            <p className="text-gray-300 text-sm font-medium">Variant B Preview</p>
+                          </div>
+                          {(() => {
+                            const hdrFmt = getHeaderFormat(selectedTemplateB.components ?? undefined);
+                            if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
+                              const sampleUrl = formData.variant_b!.header_override_url || selectedTemplateB.header_sample_url;
+                              return (
+                                <div className="mb-3">
+                                  {sampleUrl && hdrFmt === 'IMAGE' ? (
+                                    <img src={sampleUrl} alt="Header B" className="rounded-lg max-h-32 w-auto border border-purple-600" />
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-gray-400 text-xs">
+                                      <ImageIcon className="w-4 h-4" />
+                                      <span>{hdrFmt} header — {sampleUrl ? 'sample available' : 'no sample'}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {selectedTemplateB.body_text && (
+                            <p className="text-gray-300 text-sm whitespace-pre-wrap mb-2">{selectedTemplateB.body_text}</p>
+                          )}
+                          {(() => {
+                            const fc = (selectedTemplateB.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'FOOTER');
+                            return fc?.text ? <p className="text-gray-500 text-xs italic">{fc.text}</p> : null;
+                          })()}
+                          <div className="mt-2 pt-2 border-t border-gray-700">
+                            <p className="text-gray-500 text-xs">
+                              {templateVariablesB.length === 0 ? '✅ No variables — ready to send' : `${templateVariablesB.length} variable${templateVariablesB.length > 1 ? 's' : ''} to map`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {templateVariablesB.length > 0 && (
+                        <div className="bg-gray-800/50 rounded-lg p-4 border border-purple-500/30">
+                          <p className="text-gray-300 text-sm font-medium mb-2">Variable Mapping (B)</p>
+                          <p className="text-gray-500 text-xs mb-3">Map each template variable to a contact field</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {templateVariablesB.map((v) => {
+                              const num = v.replace(/[{}]/g, '');
+                              return (
+                                <div key={v} className="flex items-center gap-2">
+                                  <span className="text-gray-400 text-sm font-mono w-12">{v}</span>
+                                  <span className="text-gray-500">→</span>
+                                  <select
+                                    value={formData.variant_b!.variable_mapping[num] || ''}
+                                    onChange={(e) => setFormData({
+                                      ...formData,
+                                      variant_b: {
+                                        ...formData.variant_b!,
+                                        variable_mapping: { ...formData.variant_b!.variable_mapping, [num]: e.target.value },
+                                      },
+                                    })}
+                                    className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-1.5 border border-gray-600 text-sm"
+                                  >
+                                    <option value="">Select field...</option>
+                                    {CONTACT_FIELDS.map((f) => (
+                                      <option key={f} value={f}>{f}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedTemplateB && (() => {
+                        const hdrFmt = getHeaderFormat(selectedTemplateB.components ?? undefined);
+                        if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
+                          return (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Header Media Override B (Optional)</label>
+                              <input
+                                type="url"
+                                value={formData.variant_b!.header_override_url}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  variant_b: { ...formData.variant_b!, header_override_url: e.target.value },
+                                })}
+                                placeholder="https://... (leave empty to use approved sample)"
+                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* A/B Split Slider */}
+                      <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                        <label className="block text-sm font-medium text-gray-300 mb-3">Traffic Split</label>
+                        <div className="flex items-center gap-4">
+                          <span className="text-emerald-400 text-sm font-semibold w-16 text-right">A: {formData.ab_split}%</span>
+                          <div className="flex-1 relative">
+                            <div className="absolute inset-0 flex items-center pointer-events-none">
+                              <div className="w-full h-2 rounded-full overflow-hidden flex">
+                                <div className="bg-emerald-500 transition-all" style={{ width: `${formData.ab_split}%` }} />
+                                <div className="bg-purple-500 transition-all" style={{ width: `${100 - formData.ab_split}%` }} />
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min={10}
+                              max={90}
+                              step={5}
+                              value={formData.ab_split}
+                              onChange={(e) => setFormData({ ...formData, ab_split: parseInt(e.target.value) })}
+                              className="relative w-full h-2 appearance-none bg-transparent cursor-pointer z-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-gray-400 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:shadow-lg [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-gray-400 [&::-moz-range-thumb]:cursor-pointer"
+                            />
+                          </div>
+                          <span className="text-purple-400 text-sm font-semibold w-16">B: {100 - formData.ab_split}%</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
@@ -1225,6 +1431,44 @@ export function UserCampaigns() {
                   className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">Leave empty to start as soon as approved</p>
+              </div>
+
+              {/* Auto-Retry Toggle */}
+              <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-300">Auto-retry failed messages</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Automatically retry messages that failed to deliver</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({
+                      ...formData,
+                      auto_retry_hours: formData.auto_retry_hours !== null ? null : 4,
+                    })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.auto_retry_hours !== null ? 'bg-emerald-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.auto_retry_hours !== null ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                {formData.auto_retry_hours !== null && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <label className="text-sm text-gray-400">Retry after</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={72}
+                      value={formData.auto_retry_hours}
+                      onChange={(e) => setFormData({ ...formData, auto_retry_hours: parseInt(e.target.value) || 4 })}
+                      className="w-20 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm text-gray-400">hours</span>
+                  </div>
+                )}
               </div>
 
               {/* Info box */}

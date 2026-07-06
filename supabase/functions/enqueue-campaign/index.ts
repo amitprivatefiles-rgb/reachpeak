@@ -3,7 +3,7 @@
 // insert that was blocked by RLS (admin has no INSERT policy on messages).
 //
 // Auth:   JWT verification ON (admin action)
-// Input:  { campaign_id: string }
+// Input:  { campaign_id: string, mode?: 'start' | 'schedule' }
 // Output: { enqueued: number, failed: number, errors: string[] }
 //
 // Deploy: supabase functions deploy enqueue-campaign
@@ -77,16 +77,21 @@ Deno.serve(async (req: Request) => {
       );
 
     /* ── 2. Parse input ── */
-    const { campaign_id } = await req.json();
+    const body = await req.json();
+    const campaign_id = body.campaign_id;
+    const mode: 'start' | 'schedule' = body.mode || 'start';
     if (!campaign_id)
       return json({ error: 'campaign_id is required' }, 400);
+    if (!['start', 'schedule'].includes(mode))
+      return json({ error: "mode must be 'start' or 'schedule'" }, 400);
 
     /* ── 3. Load campaign ── */
     const { data: campaign, error: campErr } = await supabaseAdmin
       .from('campaigns')
       .select(
         'id, user_id, name, message_template, template_id, template_language, ' +
-        'variable_mapping, selected_audience, whatsapp_account_id',
+        'variable_mapping, selected_audience, whatsapp_account_id, ' +
+        'ab_enabled, ab_split, variant_b, scheduled_start',
       )
       .eq('id', campaign_id)
       .single();
@@ -233,7 +238,48 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    /* ── 7. Build per-recipient message rows ── */
+    /* ── 7. A/B split (if enabled) ── */
+    const abEnabled = campaign.ab_enabled === true;
+    const abSplit = campaign.ab_split ?? 50; // percentage for variant A
+    const variantBConfig = (campaign.variant_b || {}) as Record<string, any>;
+
+    // Load variant B template if A/B enabled and in template mode
+    let tplRowB: StoredTemplate | null = null;
+    if (abEnabled && msgMode === 'template' && variantBConfig.template_id) {
+      const { data } = await supabaseAdmin
+        .from('templates')
+        .select('name, language, components, body_text, header_sample_url')
+        .eq('id', variantBConfig.template_id)
+        .limit(1)
+        .maybeSingle();
+      tplRowB = data;
+      // Fallback to name lookup
+      if (!tplRowB && variantBConfig.message_template) {
+        const { data: fb } = await supabaseAdmin
+          .from('templates')
+          .select('name, language, components, body_text, header_sample_url')
+          .eq('whatsapp_account_id', waAccount.id)
+          .eq('name', variantBConfig.message_template)
+          .limit(1)
+          .maybeSingle();
+        tplRowB = fb;
+      }
+    }
+
+    // Fisher-Yates shuffle for A/B randomization
+    if (abEnabled && recipients.length > 1) {
+      for (let i = recipients.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [recipients[i], recipients[j]] = [recipients[j], recipients[i]];
+      }
+    }
+
+    // Determine the split point: first N recipients → A, rest → B
+    const splitIndex = abEnabled
+      ? Math.round((abSplit / 100) * recipients.length)
+      : recipients.length; // All go to A when not A/B
+
+    /* ── 8. Build per-recipient message rows ── */
     const queuedRows: any[] = [];
     const failedRows: any[] = [];
     const errors: string[] = [];
@@ -306,7 +352,34 @@ Deno.serve(async (req: Request) => {
       return false;
     };
 
-    for (const { phone, contact } of recipients) {
+    for (let idx = 0; idx < recipients.length; idx++) {
+      const { phone, contact } = recipients[idx];
+
+      // Determine variant for this recipient
+      const variant: 'A' | 'B' = abEnabled && idx >= splitIndex ? 'B' : 'A';
+
+      // Select the correct template config for this variant
+      const isVariantB = variant === 'B';
+      const activeTpl = isVariantB ? tplRowB : tplRow;
+      const activeVarMap: Record<string, string> = isVariantB
+        ? (variantBConfig.variable_mapping || {})
+        : varMap;
+      const activeParamKeys = Object.keys(activeVarMap).sort(
+        (a, b) => parseInt(a) - parseInt(b),
+      );
+      const activeHeaderOverride: string | null = isVariantB
+        ? (variantBConfig.header_override_url || null)
+        : headerOverride;
+      const activeLang = isVariantB
+        ? (variantBConfig.template_language || lang)
+        : lang;
+      const activeTemplateName = isVariantB
+        ? (variantBConfig.message_template || activeTpl?.name || templateName)
+        : templateName;
+      const activeMsgMode = isVariantB
+        ? (variantBConfig.message_mode || msgMode)
+        : msgMode;
+
       // Resolve/create conversation so this message appears in the inbox thread
       const conversationId = await resolveConversation(phone);
 
@@ -319,13 +392,14 @@ Deno.serve(async (req: Request) => {
         direction: 'outbound',
         wa_from: waFrom,
         wa_to: phone,
-        message_type: msgMode === 'template' ? 'template' : 'text',
-        template_name: msgMode === 'template' ? templateName : null,
+        message_type: activeMsgMode === 'template' ? 'template' : 'text',
+        template_name: activeMsgMode === 'template' ? activeTemplateName : null,
+        variant: abEnabled ? variant : null,
       };
 
-      if (msgMode === 'template' && tplRow) {
+      if (activeMsgMode === 'template' && activeTpl) {
         // Check required header media
-        if (checkHeaderMedia(tplRow, headerOverride)) {
+        if (checkHeaderMedia(activeTpl, activeHeaderOverride)) {
           failedRows.push({
             ...baseRow,
             content: {
@@ -333,8 +407,8 @@ Deno.serve(async (req: Request) => {
               to: phone,
               type: 'template',
               template: {
-                name: tplRow.name,
-                language: { code: lang },
+                name: activeTpl.name,
+                language: { code: activeLang },
               },
             },
             status: 'failed',
@@ -347,11 +421,11 @@ Deno.serve(async (req: Request) => {
 
         // Check variable mapping — for manual mode without contact, use empty strings
         let bodyParams: string[] = [];
-        if (paramKeys.length > 0) {
+        if (activeParamKeys.length > 0) {
           if (contact) {
             let missingField: string | null = null;
-            for (const key of paramKeys) {
-              const field = varMap[key];
+            for (const key of activeParamKeys) {
+              const field = activeVarMap[key];
               const value = contact[field];
               if (
                 value === null ||
@@ -370,8 +444,8 @@ Deno.serve(async (req: Request) => {
                   to: phone,
                   type: 'template',
                   template: {
-                    name: tplRow.name,
-                    language: { code: lang },
+                    name: activeTpl.name,
+                    language: { code: activeLang },
                   },
                 },
                 status: 'failed',
@@ -381,19 +455,19 @@ Deno.serve(async (req: Request) => {
               });
               continue;
             }
-            bodyParams = paramKeys.map((key) =>
-              String(contact[varMap[key]]),
+            bodyParams = activeParamKeys.map((key) =>
+              String(contact[activeVarMap[key]]),
             );
           } else {
             // Manual mode: no contact record — leave variables blank
-            bodyParams = paramKeys.map(() => '');
+            bodyParams = activeParamKeys.map(() => '');
           }
         }
 
         // Build send components using the shared builder
         const headerMedia =
-          headerOverride || tplRow.header_sample_url || undefined;
-        const components = buildTemplateSendComponents(tplRow, {
+          activeHeaderOverride || activeTpl.header_sample_url || undefined;
+        const components = buildTemplateSendComponents(activeTpl, {
           headerMedia,
           bodyParams: bodyParams.length > 0 ? bodyParams : undefined,
         });
@@ -405,14 +479,14 @@ Deno.serve(async (req: Request) => {
             to: phone,
             type: 'template',
             template: {
-              name: tplRow.name,
-              language: { code: lang },
+              name: activeTpl.name,
+              language: { code: activeLang },
               components,
             },
           },
           status: 'queued',
         });
-      } else if (msgMode === 'template' && !tplRow) {
+      } else if (activeMsgMode === 'template' && !activeTpl) {
         // Template mode but template not found — fail the row
         failedRows.push({
           ...baseRow,
@@ -421,24 +495,27 @@ Deno.serve(async (req: Request) => {
             to: phone,
             type: 'template',
             template: {
-              name: templateName || 'unknown',
-              language: { code: lang },
+              name: activeTemplateName || 'unknown',
+              language: { code: activeLang },
             },
           },
           status: 'failed',
           error_code: 'TEMPLATE_NOT_FOUND',
-          error_message: `Template '${templateName}' not found in database`,
+          error_message: `Template '${activeTemplateName}' not found in database`,
           failed_at: new Date().toISOString(),
         });
       } else {
-        // Free-text mode
+        // Free-text mode — use variant B's message_template if set, else A's
+        const freeTextBody = isVariantB
+          ? (variantBConfig.message_template || templateName || '')
+          : (templateName || '');
         queuedRows.push({
           ...baseRow,
           content: {
             messaging_product: 'whatsapp',
             to: phone,
             type: 'text',
-            text: { body: templateName || '' },
+            text: { body: freeTextBody },
           },
           status: 'queued',
         });
@@ -476,18 +553,19 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    /* ── 9. Update campaign status & total ── */
+    /* ── 10. Update campaign status & total ── */
     const totalRecipients =
       audience?.mode === 'manual'
         ? audience.numbers?.length || 0
         : queuedRows.length + failedRows.length;
 
     if (queuedRows.length > 0) {
-      // Messages were enqueued — set campaign to Sending
+      // Messages were enqueued — set status based on mode
+      const newStatus = mode === 'schedule' ? 'approved' : 'Sending';
       await supabaseAdmin
         .from('campaigns')
         .update({
-          status: 'Sending',
+          status: newStatus,
           total_numbers: totalRecipients,
         })
         .eq('id', campaign_id);
