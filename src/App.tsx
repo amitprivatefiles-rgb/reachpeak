@@ -31,6 +31,8 @@ import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
+import { Integrations } from './components/Integrations';
+import { Journeys } from './components/Journeys';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
@@ -96,6 +98,8 @@ function AppDashboard() {
       case 'agents': return <Agents />;
       case 'reports': return <Reports />;
       case 'users': return <UserManagement />;
+      case 'integrations': return <Integrations />;
+      case 'journeys': return <Journeys />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }

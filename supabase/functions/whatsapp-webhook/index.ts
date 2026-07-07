@@ -314,6 +314,59 @@ Deno.serve(async (req: Request) => {
                 conversation_id: conversationId,
                 created_at: tsToIso(msg.timestamp),
               });
+              // ── Fire-and-forget hooks: flow-engine + journey-engine ──
+              // Runs AFTER message insert succeeds. Both engines are called
+              // independently — neither swallows the other.
+              if (!insErr) {
+                const HOOK_URL = Deno.env.get('SUPABASE_URL') ?? '';
+                const HOOK_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+                const hookHeaders = {
+                  'Authorization': `Bearer ${HOOK_KEY}`,
+                  'Content-Type': 'application/json',
+                };
+
+                // A) Flow-engine: forward ALL inbound messages for trigger matching
+                //    (keyword, any_message, new_conversation, button/question answers)
+                if (conversationId) {
+                  const buttonId =
+                    msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
+                    msgType === 'interactive' ? (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title) :
+                    undefined;
+
+                  fetch(`${HOOK_URL}/functions/v1/flow-engine`, {
+                    method: 'POST',
+                    headers: hookHeaders,
+                    body: JSON.stringify({
+                      conversation_id: conversationId,
+                      trigger: 'inbound',
+                      text: msgType === 'text' ? (msg.text?.body ?? '') : messagePreview,
+                      button_id: buttonId,
+                      is_new: false, // conversation was just upserted, not truly "new"
+                    }),
+                  }).catch(() => {}); // fire-and-forget
+                }
+
+                // B) Journey-engine: forward button/interactive replies for waiting_reply executions
+                if (msgType === 'button' || msgType === 'interactive') {
+                  const buttonPayload =
+                    msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
+                    (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title);
+
+                  if (buttonPayload) {
+                    fetch(`${HOOK_URL}/functions/v1/journey-engine`, {
+                      method: 'POST',
+                      headers: hookHeaders,
+                      body: JSON.stringify({
+                        action: 'inbound_reply',
+                        phone: msg.from,
+                        button_payload: buttonPayload,
+                        user_id: account.user_id,
+                      }),
+                    }).catch(() => {}); // fire-and-forget
+                  }
+                }
+              }
+
               // 23505 = duplicate wamid (Meta retried) — safe to ignore
               if (insErr && insErr.code !== '23505') {
                 console.error(
