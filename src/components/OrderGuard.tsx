@@ -17,6 +17,7 @@ import {
   Clock,
   Loader2,
   BarChart3,
+  CreditCard,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +36,7 @@ interface OGSettings {
   cod_confirm_journey_id: string | null;
   prepay_journey_id: string | null;
   hold_callback: boolean;
+  prepay_discount_pct: number;
   updated_at: string;
 }
 
@@ -58,6 +60,8 @@ interface OrderRow {
   shipped_at: string | null;
   delivered_at: string | null;
   closed_at: string | null;
+  converted_to_prepaid: boolean;
+  payment_link_id: string | null;
 }
 
 interface Journey {
@@ -82,6 +86,9 @@ interface Stats {
   realizedRtoRate: number;
   closedOrders: number;
   rtoOrders: number;
+  prepaidConversionRate: number;
+  prepayRouted: number;
+  prepaidConverted: number;
 }
 
 const DEFAULT_SETTINGS: OGSettings = {
@@ -96,6 +103,7 @@ const DEFAULT_SETTINGS: OGSettings = {
   cod_confirm_journey_id: null,
   prepay_journey_id: null,
   hold_callback: false,
+  prepay_discount_pct: 0,
   updated_at: '',
 };
 
@@ -177,6 +185,13 @@ export function OrderGuard() {
         rtoPrevented: prevented,
         realizedRtoRate: closed > 0 ? rto / closed : 0,
         closedOrders: closed, rtoOrders: rto,
+        prepayRouted: allOrders.filter(x => x.routed_action === 'prepay_nudge').length,
+        prepaidConverted: allOrders.filter(x => x.converted_to_prepaid).length,
+        prepaidConversionRate: (() => {
+          const routed = allOrders.filter(x => x.routed_action === 'prepay_nudge').length;
+          const converted = allOrders.filter(x => x.converted_to_prepaid).length;
+          return routed > 0 ? converted / routed : 0;
+        })(),
       });
 
       // Load pincode stats
@@ -255,6 +270,7 @@ export function OrderGuard() {
         <StatCard icon={<ShieldAlert size={18} />} label="High Risk" value={stats.highCount} color="#ef4444" />
         <StatCard icon={<XCircle size={18} />} label="RTO Prevented" value={stats.rtoPrevented} color="#3b82f6" />
         <StatCard icon={<TrendingUp size={18} />} label="RTO Rate" value={`${(stats.realizedRtoRate * 100).toFixed(1)}%`} color="#f97316" subtitle={`${stats.rtoOrders}/${stats.closedOrders} closed`} />
+        <StatCard icon={<CreditCard size={18} />} label="Prepaid Conv." value={`${(stats.prepaidConversionRate * 100).toFixed(0)}%`} color="#8b5cf6" subtitle={`${stats.prepaidConverted}/${stats.prepayRouted} nudged`} />
       </div>
 
       {/* Tab Bar */}
@@ -282,7 +298,7 @@ export function OrderGuard() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                  {['Order ID', 'Contact', 'Value', 'COD', 'Score', 'Action', 'Confirm', 'Status', 'Time'].map(h => (
+                  {['Order ID', 'Contact', 'Value', 'COD', 'Score', 'Action', 'Confirm', 'Payment', 'Status', 'Time'].map(h => (
                     <th key={h} style={{ padding: '12px 14px', textAlign: 'left', color: '#64748b', fontWeight: 500, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                   ))}
                 </tr>
@@ -436,6 +452,24 @@ export function OrderGuard() {
                 <ToggleSwitch checked={settings.hold_callback} onChange={v => setSettings(s => ({ ...s, hold_callback: v }))} />
               </SettingRow>
             </div>
+
+            {/* Prepay discount */}
+            {(settings.action_medium === 'prepay_nudge' || settings.action_high === 'prepay_nudge') && (
+              <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Prepay Incentive</h4>
+                <label style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                  Discount for switching to prepaid: {settings.prepay_discount_pct}%
+                </label>
+                <input type="range" min={0} max={50} value={settings.prepay_discount_pct}
+                  onChange={e => setSettings(s => ({ ...s, prepay_discount_pct: parseInt(e.target.value) }))}
+                  style={{ width: '100%', accentColor: '#8b5cf6' }} />
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#64748b' }}>
+                  {settings.prepay_discount_pct > 0
+                    ? `Customer sees ₹X after ${settings.prepay_discount_pct}% off — incentivizes prepay conversion`
+                    : 'No discount — full amount payment link'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -517,6 +551,13 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
           ) : '—'}
         </td>
         <td style={{ padding: '10px 14px' }}>
+          {order.converted_to_prepaid ? (
+            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}>✅ Prepaid</span>
+          ) : order.payment_link_id ? (
+            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 500, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>Link sent</span>
+          ) : '—'}
+        </td>
+        <td style={{ padding: '10px 14px' }}>
           <span style={{
             padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 500,
             background: `${STATUS_COLORS[order.status] ?? '#6b7280'}20`,
@@ -532,7 +573,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
       {/* Expanded: factor breakdown + timeline */}
       {expanded && (
         <tr>
-          <td colSpan={9} style={{ padding: '0 14px 16px 14px', background: '#0f172a' }}>
+          <td colSpan={10} style={{ padding: '0 14px 16px 14px', background: '#0f172a' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px', background: '#1e293b', borderRadius: '8px' }}>
               {/* Risk Factors */}
               <div>

@@ -10,6 +10,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildTemplateSendComponents } from '../_shared/templatePayload.ts';
 import type { StoredTemplate } from '../_shared/templatePayload.ts';
 import { updateOrderConfirmStatus } from '../_shared/orderGuard.ts';
+import { createPaymentLink } from '../_shared/payments.ts';
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -346,6 +347,76 @@ async function runSteps(
         }
       }
       stepIdx++;
+
+    } else if (step.type === 'send_payment_link') {
+      // Create a payment link and optionally send a template with pay_url
+      const amountSource = step.amount_source ?? 'order_total';
+      let linkAmount = 0;
+      if (amountSource === 'fixed' && step.fixed_amount) {
+        linkAmount = Number(step.fixed_amount);
+      } else {
+        linkAmount = Number(exec.context?.payload?.total ?? 0);
+      }
+      const discountPct = step.discount_pct ?? 0;
+      const discountAmt = discountPct > 0 ? Math.round(linkAmount * discountPct / 100) : 0;
+
+      // Find the order for this execution (if any)
+      let orderId: string | undefined;
+      const extOrderId = exec.context?.payload?.order_id;
+      if (extOrderId) {
+        const { data: ord } = await db.from('orders')
+          .select('id').eq('user_id', exec.user_id)
+          .eq('external_order_id', String(extOrderId))
+          .limit(1).maybeSingle();
+        if (ord) orderId = ord.id;
+      }
+
+      try {
+        const linkResult = await createPaymentLink(db, exec.user_id, {
+          orderId,
+          orderExternalId: extOrderId ? String(extOrderId) : undefined,
+          contactPhone: exec.contact_phone,
+          amount: linkAmount,
+          discount: discountAmt,
+          source: 'journey',
+          journeyExecutionId: exec.id,
+        });
+
+        if (linkResult.ok && linkResult.payUrl) {
+          // Inject pay_url into execution context for subsequent steps
+          const ctx = exec.context ?? {};
+          ctx.pay_url = linkResult.payUrl;
+          ctx.payment_link_id = linkResult.paymentLinkId;
+          ctx.discounted_total = linkResult.amount;
+          await db.from('journey_executions').update({
+            context: ctx,
+          }).eq('id', exec.id);
+          exec.context = ctx;
+
+          // If a then_template_id is configured, send that template with pay_url
+          if (step.then_template_id && account) {
+            const bindings = step.variable_bindings ?? {
+              '1': 'contact.name',
+              '2': 'payload.order_id',
+              '3': 'payload.total',
+              '4': 'pay_url',
+            };
+            const result = await enqueueTemplate(
+              exec, account, step.then_template_id,
+              bindings, null, exec.context,
+            );
+            if (!result.ok) {
+              console.warn(`[journey-engine] send_payment_link template failed: ${result.error}`);
+            }
+          }
+        } else {
+          console.log(`[journey-engine] send_payment_link: failed (${linkResult.error}), skipping`);
+        }
+      } catch (err: any) {
+        console.error(`[journey-engine] send_payment_link error: ${err.message}`);
+      }
+      stepIdx++;
+
 
     } else if (step.type === 'end') {
       await finish(exec, 'completed');

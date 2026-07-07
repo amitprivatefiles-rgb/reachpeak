@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   MessageSquare, Send, Paperclip, FileText, Image, Video, Search,
   Clock, Check, CheckCheck, AlertCircle, X, Loader2, Smile, ArrowLeft,
-  Phone, User, File, ChevronDown,
+  Phone, User, File, ChevronDown, CreditCard,
 } from 'lucide-react';
 
 interface Conversation {
@@ -64,6 +64,10 @@ export function Inbox() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showPayLink, setShowPayLink] = useState(false);
+  const [payLinkAmount, setPayLinkAmount] = useState('');
+  const [payLinkSending, setPayLinkSending] = useState(false);
+  const [hasPayProvider, setHasPayProvider] = useState(false);
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
@@ -140,6 +144,12 @@ export function Inbox() {
   useEffect(() => {
     fetchConversations();
     fetchTemplates();
+    // Check if user has a payment provider configured
+    if (user) {
+      supabase.from('payment_providers_public')
+        .select('id').eq('user_id', user.id).eq('is_active', true).limit(1).maybeSingle()
+        .then(({ data }) => setHasPayProvider(!!data));
+    }
   }, [fetchConversations, fetchTemplates]);
 
   // Search filter
@@ -797,6 +807,79 @@ export function Inbox() {
                 >
                   <FileText className="w-5 h-5" />
                 </button>
+
+                {/* Payment Link Button */}
+                {hasPayProvider && (
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      onClick={() => setShowPayLink(!showPayLink)}
+                      className={`p-2 rounded-lg transition text-amber-400 hover:bg-amber-500/10`}
+                      title="Send payment link"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                    </button>
+                    {showPayLink && (
+                      <div style={{
+                        position: 'absolute', bottom: '48px', left: '0',
+                        background: '#1e293b', borderRadius: '12px', border: '1px solid #334155',
+                        padding: '12px', width: '220px', zIndex: 50,
+                      }}>
+                        <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Amount (₹)</label>
+                        <input
+                          type="number"
+                          value={payLinkAmount}
+                          onChange={e => setPayLinkAmount(e.target.value)}
+                          placeholder="Enter amount"
+                          style={{
+                            width: '100%', padding: '8px', borderRadius: '6px',
+                            border: '1px solid #475569', background: '#0f172a',
+                            color: '#e2e8f0', fontSize: '13px', marginBottom: '8px',
+                          }}
+                        />
+                        <button
+                          disabled={!payLinkAmount || payLinkSending}
+                          onClick={async () => {
+                            if (!activeConversation || !payLinkAmount) return;
+                            setPayLinkSending(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('create-payment-link', {
+                                body: {
+                                  contact_phone: activeConversation.contact_phone,
+                                  amount: Number(payLinkAmount),
+                                  description: `Payment — ₹${payLinkAmount}`,
+                                  source: 'inbox',
+                                },
+                              });
+                              if (error || data?.error) throw new Error(data?.error || error?.message);
+                              // Send the pay_url as a text message
+                              await supabase.functions.invoke('send-message', {
+                                body: {
+                                  phone: activeConversation.contact_phone,
+                                  message: `💳 Payment link — ₹${payLinkAmount}\n${data.pay_url}`,
+                                  type: 'text',
+                                },
+                              });
+                              setShowPayLink(false);
+                              setPayLinkAmount('');
+                            } catch (err: any) {
+                              alert('Payment link failed: ' + err.message);
+                            } finally {
+                              setPayLinkSending(false);
+                            }
+                          }}
+                          style={{
+                            width: '100%', padding: '8px', borderRadius: '6px',
+                            background: '#f59e0b', color: '#0f172a', border: 'none',
+                            fontWeight: 600, fontSize: '12px', cursor: 'pointer',
+                            opacity: (!payLinkAmount || payLinkSending) ? 0.5 : 1,
+                          }}
+                        >
+                          {payLinkSending ? 'Creating...' : 'Send Payment Link'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Text Input */}
                 <textarea

@@ -12,6 +12,7 @@ import {
   scoreOrder,
   blendExternalScore,
 } from './orderGuard.ts';
+import { createPaymentLink } from './payments.ts';
 
 // ── Phone normalization ──
 export function normalizePhone(raw: string | undefined | null): string | null {
@@ -250,13 +251,37 @@ async function routeByRisk(
     }).catch(() => {}); // dedupe hit is fine
 
   } else if (effectiveAction === 'prepay_nudge') {
-    // Only route if pay_url is available; otherwise fall back to cod_confirm
-    const hasPayUrl = !!(order.items?.[0]?.pay_url || order.total); // payload.pay_url checked below
-    const payUrl = (order as any).pay_url || null;
+    // Try to create a real payment link via Razorpay
+    const discountPct = settings.prepay_discount_pct ?? 0;
+    const discountAmount = discountPct > 0 ? Math.round(Number(order.total ?? 0) * discountPct / 100) : 0;
+
+    let payUrl: string | null = null;
+    let discountedTotal: number | null = null;
+    let paymentLinkId: string | null = null;
+
+    try {
+      const linkResult = await createPaymentLink(db, userId, {
+        orderId: order.id,
+        orderExternalId: order.external_order_id,
+        contactPhone: order.contact_phone,
+        amount: Number(order.total ?? 0),
+        discount: discountAmount,
+        source: 'prepay_nudge',
+      });
+
+      if (linkResult.ok && linkResult.payUrl) {
+        payUrl = linkResult.payUrl;
+        discountedTotal = linkResult.amount ?? null;
+        paymentLinkId = linkResult.paymentLinkId ?? null;
+      } else {
+        console.log(`[pipeline] prepay_nudge: link creation failed (${linkResult.error}), falling back to cod_confirm`);
+      }
+    } catch (err: any) {
+      console.log(`[pipeline] prepay_nudge: link creation error (${err.message}), falling back to cod_confirm`);
+    }
 
     if (!payUrl) {
       // No payment link — fall back to cod_confirm
-      console.log('[pipeline] prepay_nudge: no pay_url, falling back to cod_confirm');
       await db.from('orders').update({
         routed_action: 'cod_confirm',
         confirm_status: 'pending',
@@ -282,7 +307,7 @@ async function routeByRisk(
       return;
     }
 
-    // Synthesize prepay_nudge event
+    // Synthesize prepay_nudge event with real pay_url
     const dedupeKey = `prepay_nudge:${order.external_order_id}`;
     await db.from('events').insert({
       user_id: userId, source,
@@ -293,6 +318,9 @@ async function routeByRisk(
         order_id: order.external_order_id,
         total: order.total,
         pay_url: payUrl,
+        discounted_total: discountedTotal,
+        discount: discountAmount,
+        payment_link_id: paymentLinkId,
         risk_score: scoreResult.score,
         risk_band: scoreResult.band,
       },

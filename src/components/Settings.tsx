@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WhatsAppSettings } from './WhatsAppSettings';
+import { PaymentSettings } from './PaymentSettings';
 import { 
   Activity, Database, Shield, User, Key, Bell, CreditCard, 
   Trash2, Download, Save, Eye, EyeOff, AlertTriangle, Check, X 
@@ -11,7 +12,7 @@ export function Settings() {
   const { profile, isAdmin, user } = useAuth();
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'profile' | 'whatsapp' | 'notifications' | 'account' | 'activity'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'whatsapp' | 'notifications' | 'payments' | 'account' | 'activity'>('profile');
 
   // Profile editing
   const [editName, setEditName] = useState('');
@@ -141,7 +142,8 @@ export function Settings() {
     { key: 'profile', label: 'Profile', icon: User },
     { key: 'whatsapp', label: 'WhatsApp', icon: Key },
     { key: 'notifications', label: 'Notifications', icon: Bell },
-    { key: 'account', label: 'Account', icon: CreditCard },
+    { key: 'payments', label: 'Payments', icon: CreditCard },
+    { key: 'account', label: 'Account', icon: Shield },
     { key: 'activity', label: 'Activity', icon: Activity },
   ] as const;
 
@@ -416,6 +418,13 @@ export function Settings() {
               <div className="p-12 text-center"><p className="text-gray-400">No activity logs found</p></div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ====== PAYMENTS TAB ====== */}
+      {activeTab === 'payments' && (
+        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-6">
+          <PaymentSettings />
         </div>
       )}
     </div>
