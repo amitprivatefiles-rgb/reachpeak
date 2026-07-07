@@ -1,16 +1,15 @@
 -- ============================================================
 -- Journey cron — wake delayed executions via pg_net → journey-engine
+-- Fully idempotent — safe to re-run
 -- ============================================================
 
 -- 1. Config table for service-role key (pg_cron SQL can't read env vars)
---    Stored once, used by cron to authenticate pg_net calls to edge functions.
 create table if not exists internal_config (
   key   text primary key,
   value text not null
 );
--- Lock down: only service_role can read/write
 alter table internal_config enable row level security;
--- No RLS policies for authenticated users — only service_role
+drop policy if exists "internal_config_service_role" on internal_config;
 create policy "internal_config_service_role" on internal_config
   for all to service_role using (true) with check (true);
 
@@ -18,14 +17,19 @@ create policy "internal_config_service_role" on internal_config
 --   INSERT INTO internal_config (key, value) VALUES ('service_role_key', 'eyJ...<your key>');
 -- This is done ONCE via Supabase SQL Editor (not committed to repo).
 
--- 2. pg_cron: wake delayed journey executions every minute
+-- 2. Unschedule if already exists (idempotent)
+select cron.unschedule('wake-journey-executions')
+  where exists (select 1 from cron.job where jobname = 'wake-journey-executions');
+
+-- 3. pg_cron: wake delayed journey executions every minute
 --    Uses pg_net http_post to invoke journey-engine with {action:'wake'}
 --    Only fires when there are actually due executions (EXISTS guard).
+--    NOTE: uses $body$ / $fn$ delimiters to avoid $$ nesting conflict
 select cron.schedule(
   'wake-journey-executions',
   '* * * * *',
-  $$
-  do $$
+  $body$
+  do $fn$
   declare
     _key text;
     _url text := 'https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/journey-engine';
@@ -52,6 +56,6 @@ select cron.schedule(
       ),
       body := '{"action":"wake"}'::jsonb
     );
-  end $$;
-  $$
+  end $fn$;
+  $body$
 );

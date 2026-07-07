@@ -1,5 +1,6 @@
 -- ============================================================
 -- Journeys — event-triggered automation engine
+-- Fully idempotent — safe to re-run
 -- ============================================================
 
 -- 1. Journey definitions
@@ -17,6 +18,7 @@ create table if not exists journeys (
   updated_at      timestamptz not null default now()
 );
 alter table journeys enable row level security;
+drop policy if exists "own_journeys" on journeys;
 create policy "own_journeys" on journeys for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -36,7 +38,7 @@ create table if not exists journey_executions (
   started_at      timestamptz not null default now(),
   finished_at     timestamptz
 );
--- one active run per journey per contact (prevents double-fires)
+-- one active run per journey per contact
 create unique index if not exists journey_exec_one_active
   on journey_executions (journey_id, contact_phone)
   where status in ('active','waiting_delay','waiting_reply');
@@ -44,9 +46,10 @@ create index if not exists journey_exec_wake_idx
   on journey_executions (wake_at)
   where status = 'waiting_delay';
 alter table journey_executions enable row level security;
+drop policy if exists "own_executions_read" on journey_executions;
 create policy "own_executions_read" on journey_executions for select
   using (auth.uid() = user_id);
--- Service role needs full access (engine runs as service role)
+drop policy if exists "journey_exec_service_role" on journey_executions;
 create policy "journey_exec_service_role" on journey_executions
   for all to service_role using (true) with check (true);
 

@@ -1,5 +1,6 @@
 -- ============================================================
 -- Events Core — integration keys + events stream
+-- Fully idempotent — safe to re-run
 -- ============================================================
 
 -- 1. Per-tenant API keys for event ingestion
@@ -18,6 +19,7 @@ create table if not exists integration_keys (
   created_at      timestamptz not null default now()
 );
 alter table integration_keys enable row level security;
+drop policy if exists "own_keys" on integration_keys;
 create policy "own_keys" on integration_keys for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -45,14 +47,14 @@ create index if not exists events_user_type_idx
 create index if not exists events_phone_idx
   on events (user_id, contact_phone);
 alter table events enable row level security;
+drop policy if exists "own_events_read" on events;
 create policy "own_events_read" on events for select
   using (auth.uid() = user_id);
--- Service role writes only
+drop policy if exists "events_service_role" on events;
 create policy "events_service_role" on events
   for all to service_role using (true) with check (true);
 
 -- 3. Extend contacts.source CHECK to allow integration sources
--- Drop old constraint, add new one including API sources
 alter table contacts drop constraint if exists contacts_source_check;
 alter table contacts add constraint contacts_source_check
   check (source in ('Excel','Facebook','Instagram','Website','WhatsApp','Manual',
