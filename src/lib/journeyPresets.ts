@@ -197,6 +197,26 @@ export const PRESET_WELCOME: JourneyPreset = {
   contact_fields: CONTACT_FIELDS,
 };
 
+// ─── 5. Prepay Nudge (OrderGuard) ───
+export const PRESET_PREPAY_NUDGE: JourneyPreset = {
+  key: 'prepay_nudge',
+  name: 'Prepay Nudge',
+  description: 'Nudge high-risk COD orders to switch to prepaid payment. Requires a payment link in the order payload.',
+  trigger_event: 'prepay_nudge',
+  exit_on_events: ['order_paid'],
+  steps: [
+    {
+      type: 'send_template',
+      template_id: '',  // user fills — must include pay_url variable
+      variable_bindings: { '1': 'contact.name', '2': 'payload.order_id', '3': 'payload.total', '4': 'payload.pay_url' },
+      label: 'Send prepay nudge with payment link',
+    },
+    { type: 'end' },
+  ],
+  payload_fields: ['payload.order_id', 'payload.total', 'payload.pay_url', 'payload.discount', 'payload.risk_score', 'payload.risk_band'],
+  contact_fields: CONTACT_FIELDS,
+};
+
 /** All presets for the UI preset picker */
 export const ALL_PRESETS: JourneyPreset[] = [
   PRESET_ABANDONED_CART,
@@ -205,4 +225,5 @@ export const ALL_PRESETS: JourneyPreset[] = [
   PRESET_ORDER_DELIVERED,
   PRESET_COD_CONFIRM,
   PRESET_WELCOME,
+  PRESET_PREPAY_NUDGE,
 ];

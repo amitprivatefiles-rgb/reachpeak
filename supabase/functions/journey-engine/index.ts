@@ -9,6 +9,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildTemplateSendComponents } from '../_shared/templatePayload.ts';
 import type { StoredTemplate } from '../_shared/templatePayload.ts';
+import { updateOrderConfirmStatus } from '../_shared/orderGuard.ts';
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -99,6 +100,10 @@ function matchFilters(filters: Record<string, any>, payload: Record<string, any>
     if (key === 'min_cart_total') {
       const cartTotal = Number(payload.cart_total ?? 0);
       if (cartTotal < Number(filterVal)) return false;
+    } else if (key === 'risk_band') {
+      // risk_band filter: array of allowed bands, e.g. ["medium", "high"]
+      const bands = Array.isArray(filterVal) ? filterVal : [filterVal];
+      if (!bands.includes(payload.risk_band)) return false;
     }
     // Add more filter matchers as needed
   }
@@ -325,6 +330,21 @@ async function runSteps(
           console.error(`[journey-engine] callback error: ${err.message}`);
         });
       }
+
+      // OrderGuard: update order confirm_status based on callback decision
+      const cbOrderId = exec.context?.payload?.order_id;
+      if (cbOrderId) {
+        try {
+          const cbSource = exec.context?.payload?.source ?? 'api';
+          if (step.decision === 'confirmed') {
+            await updateOrderConfirmStatus(db, exec.user_id, cbSource, String(cbOrderId), 'confirmed');
+          } else if (step.decision === 'cancelled') {
+            await updateOrderConfirmStatus(db, exec.user_id, cbSource, String(cbOrderId), 'declined');
+          }
+        } catch (e: any) {
+          console.error('[journey-engine] order confirm update error:', e.message);
+        }
+      }
       stepIdx++;
 
     } else if (step.type === 'end') {
@@ -441,6 +461,17 @@ Deno.serve(async (req: Request) => {
           const { data: intKey } = await db.from('integration_keys')
             .select('callback_url, callback_secret')
             .eq('user_id', exec.user_id).eq('is_active', true).limit(1).maybeSingle();
+
+          // OrderGuard: on timeout, mark order as no_response
+          const toOrderId = exec.context?.payload?.order_id;
+          if (toOrderId) {
+            try {
+              const toSource = exec.context?.payload?.source ?? 'api';
+              await updateOrderConfirmStatus(db, exec.user_id, toSource, String(toOrderId), 'no_response');
+            } catch (e: any) {
+              console.error('[journey-engine] timeout order update error:', e.message);
+            }
+          }
 
           if (onTimeout.length > 0) {
             await db.from('journey_executions').update({

@@ -1,0 +1,341 @@
+/**
+ * Event Pipeline — shared ingestion logic used by ingest-event and shopify-webhook.
+ *
+ * Flow: normalizePhone → contactUpsert → eventInsert → orderGuardSequence → journeyEngineInvoke
+ *
+ * OrderGuard is wrapped in try-catch so scoring failures never break event ingestion.
+ */
+
+import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import {
+  applyOrderEvent,
+  scoreOrder,
+  blendExternalScore,
+} from './orderGuard.ts';
+
+// ── Phone normalization ──
+export function normalizePhone(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (digits.length === 0) return null;
+  if (digits.length === 10) return '91' + digits;
+  return digits;
+}
+
+// Events that trigger OrderGuard scoring
+const SCORABLE_EVENTS = new Set(['order_created', 'cod_pending']);
+
+// Events that are part of the order lifecycle
+const LIFECYCLE_EVENTS = new Set([
+  'order_created', 'order_confirmed', 'order_paid', 'order_shipped',
+  'order_delivered', 'order_cancelled', 'order_rto', 'order_returned',
+  'order_refunded', 'cod_pending',
+]);
+
+interface PipelineInput {
+  userId: string;
+  source: string;
+  eventType: string;
+  dedupeKey: string;
+  phone: string | null;
+  contactName: string | null;
+  payload: Record<string, any>;
+}
+
+interface PipelineResult {
+  ok: boolean;
+  eventId?: string;
+  deduped?: boolean;
+  error?: string;
+  riskScore?: number;
+  riskBand?: string;
+}
+
+// ── HMAC-SHA256 for callbacks ──
+async function hmacSign(secret: string, data: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function runPipeline(
+  db: SupabaseClient,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  input: PipelineInput,
+): Promise<PipelineResult> {
+  const { userId, source, eventType, dedupeKey, phone, contactName, payload } = input;
+
+  /* ── 1. Upsert contact ── */
+  if (phone) {
+    const { data: existing } = await db.from('contacts')
+      .select('id').eq('user_id', userId).eq('phone_number', phone)
+      .limit(1).maybeSingle();
+
+    if (existing) {
+      if (contactName) {
+        await db.from('contacts')
+          .update({ name: contactName, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+          .is('name', null);
+      }
+    } else {
+      const { error: insertErr } = await db.from('contacts').insert({
+        user_id: userId,
+        phone_number: phone,
+        name: contactName,
+        source,
+        lead_type: 'Warm',
+      });
+      if (insertErr && insertErr.code !== '23505') {
+        console.error('[pipeline] Contact insert error:', insertErr.message);
+      }
+    }
+  }
+
+  /* ── 2. OrderGuard lifecycle tracking (try-catch protected) ── */
+  let order: any = null;
+  let scoreResult: { score: number; band: string; factors: any[] } | null = null;
+
+  if (LIFECYCLE_EVENTS.has(eventType) && payload.order_id) {
+    try {
+      order = await applyOrderEvent(db, userId, source, eventType, payload, phone);
+
+      // Score if order_created or cod_pending
+      if (order && SCORABLE_EVENTS.has(eventType)) {
+        const { data: settings } = await db.from('orderguard_settings')
+          .select('*').eq('user_id', userId).maybeSingle();
+
+        if (settings?.enabled) {
+          let result = await scoreOrder(db, order, settings);
+
+          // Blend external score if provided
+          if (payload.risk_score !== undefined) {
+            result = blendExternalScore(result, payload.risk_score);
+          }
+
+          // Re-determine band after blend
+          const band: 'low' | 'medium' | 'high' =
+            result.score <= settings.low_max ? 'low' :
+            result.score <= settings.medium_max ? 'medium' : 'high';
+          result.band = band;
+
+          // Write score to order
+          await db.from('orders').update({
+            risk_score: result.score,
+            risk_band: result.band,
+            risk_factors: result.factors,
+            updated_at: new Date().toISOString(),
+          }).eq('id', order.id);
+
+          scoreResult = result;
+
+          // Enrich payload for journey filters
+          payload.risk_score = result.score;
+          payload.risk_band = result.band;
+
+          // ── Risk routing ──
+          await routeByRisk(db, supabaseUrl, serviceRoleKey, userId, source, order, result, settings);
+        }
+      }
+    } catch (err: any) {
+      // Scoring failure must not break ingestion
+      console.error('[pipeline] OrderGuard error (non-fatal):', err.message);
+    }
+  }
+
+  /* ── 3. Insert event (idempotent dedupe) ── */
+  const { data: eventRow, error: eventErr } = await db.from('events')
+    .insert({
+      user_id: userId,
+      source,
+      event_type: eventType,
+      contact_phone: phone,
+      contact_name: contactName,
+      dedupe_key: dedupeKey,
+      payload,
+      status: 'received',
+    })
+    .select('id')
+    .single();
+
+  if (eventErr) {
+    if (eventErr.code === '23505') {
+      return { ok: true, deduped: true };
+    }
+    console.error('[pipeline] Event insert error:', eventErr.message);
+    return { ok: false, error: eventErr.message };
+  }
+
+  const eventId = eventRow!.id;
+
+  /* ── 4. Fire-and-forget → journey-engine ── */
+  fetch(`${supabaseUrl}/functions/v1/journey-engine`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ event_id: eventId }),
+  }).catch((err) => {
+    console.error('[pipeline] journey-engine invoke error:', err.message);
+  });
+
+  return {
+    ok: true,
+    eventId,
+    riskScore: scoreResult?.score,
+    riskBand: scoreResult?.band,
+  };
+}
+
+// ── Risk Routing ──
+
+async function routeByRisk(
+  db: SupabaseClient,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userId: string,
+  source: string,
+  order: any,
+  scoreResult: { score: number; band: string; factors: any[] },
+  settings: any,
+): Promise<void> {
+  const actionKey = `action_${scoreResult.band}` as string;
+  const action: string = settings[actionKey] ?? 'none';
+
+  // If score_cod_only and not COD, just observe (no routing action)
+  const effectiveAction = (settings.score_cod_only && !order.is_cod) ? 'none' : action;
+
+  await db.from('orders').update({
+    routed_action: effectiveAction,
+    updated_at: new Date().toISOString(),
+  }).eq('id', order.id);
+
+  if (effectiveAction === 'none') return;
+
+  if (effectiveAction === 'cod_confirm') {
+    await db.from('orders').update({ confirm_status: 'pending' }).eq('id', order.id);
+
+    // Synthesize cod_pending event (journey-engine will start the COD journey)
+    const dedupeKey = `cod_pending:${order.external_order_id}`;
+    await db.from('events').insert({
+      user_id: userId,
+      source,
+      event_type: 'cod_pending',
+      contact_phone: order.contact_phone,
+      dedupe_key: dedupeKey,
+      payload: {
+        ...order,
+        risk_score: scoreResult.score,
+        risk_band: scoreResult.band,
+        order_id: order.external_order_id,
+      },
+      status: 'received',
+    }).select('id').single().then(({ data: evt }) => {
+      if (evt) {
+        // Fire journey-engine for the cod_pending event
+        fetch(`${supabaseUrl}/functions/v1/journey-engine`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ event_id: evt.id }),
+        }).catch(() => {});
+      }
+    }).catch(() => {}); // dedupe hit is fine
+
+  } else if (effectiveAction === 'prepay_nudge') {
+    // Only route if pay_url is available; otherwise fall back to cod_confirm
+    const hasPayUrl = !!(order.items?.[0]?.pay_url || order.total); // payload.pay_url checked below
+    const payUrl = (order as any).pay_url || null;
+
+    if (!payUrl) {
+      // No payment link — fall back to cod_confirm
+      console.log('[pipeline] prepay_nudge: no pay_url, falling back to cod_confirm');
+      await db.from('orders').update({
+        routed_action: 'cod_confirm',
+        confirm_status: 'pending',
+      }).eq('id', order.id);
+
+      const dedupeKey = `cod_pending:${order.external_order_id}`;
+      await db.from('events').insert({
+        user_id: userId, source,
+        event_type: 'cod_pending',
+        contact_phone: order.contact_phone,
+        dedupe_key: dedupeKey,
+        payload: { ...order, risk_score: scoreResult.score, risk_band: scoreResult.band, order_id: order.external_order_id },
+        status: 'received',
+      }).select('id').single().then(({ data: evt }) => {
+        if (evt) {
+          fetch(`${supabaseUrl}/functions/v1/journey-engine`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: evt.id }),
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+      return;
+    }
+
+    // Synthesize prepay_nudge event
+    const dedupeKey = `prepay_nudge:${order.external_order_id}`;
+    await db.from('events').insert({
+      user_id: userId, source,
+      event_type: 'prepay_nudge',
+      contact_phone: order.contact_phone,
+      dedupe_key: dedupeKey,
+      payload: {
+        order_id: order.external_order_id,
+        total: order.total,
+        pay_url: payUrl,
+        risk_score: scoreResult.score,
+        risk_band: scoreResult.band,
+      },
+      status: 'received',
+    }).select('id').single().then(({ data: evt }) => {
+      if (evt) {
+        fetch(`${supabaseUrl}/functions/v1/journey-engine`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: evt.id }),
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
+  } else if (effectiveAction === 'hold') {
+    // Optionally POST hold decision to integration callback
+    if (settings.hold_callback) {
+      const { data: intKey } = await db.from('integration_keys')
+        .select('callback_url, callback_secret')
+        .eq('user_id', userId).eq('is_active', true)
+        .limit(1).maybeSingle();
+
+      if (intKey?.callback_url && intKey?.callback_secret) {
+        const callbackBody = JSON.stringify({
+          action: 'hold',
+          order_id: order.external_order_id,
+          risk_score: scoreResult.score,
+          risk_band: scoreResult.band,
+          phone: order.contact_phone,
+          timestamp: new Date().toISOString(),
+        });
+        const signature = await hmacSign(intKey.callback_secret, callbackBody);
+        fetch(intKey.callback_url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ReachPeak-Signature': signature,
+          },
+          body: callbackBody,
+        }).catch(err => {
+          console.error('[pipeline] hold callback error:', err.message);
+        });
+      }
+    }
+  }
+}

@@ -33,6 +33,7 @@ import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
 import { Journeys } from './components/Journeys';
+import { OrderGuard } from './components/OrderGuard';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
@@ -100,6 +101,7 @@ function AppDashboard() {
       case 'users': return <UserManagement />;
       case 'integrations': return <Integrations />;
       case 'journeys': return <Journeys />;
+      case 'orderguard': return <OrderGuard />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }

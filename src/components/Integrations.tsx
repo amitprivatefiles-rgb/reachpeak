@@ -368,6 +368,8 @@ export function Integrations() {
   const [keysLoading, setKeysLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [showShopifyGuide, setShowShopifyGuide] = useState(false);
+  const [showLifecycleDocs, setShowLifecycleDocs] = useState(false);
 
   // ── Events state ──
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -838,6 +840,98 @@ export function Integrations() {
                 </div>
               )}
             </>
+          )}
+        </section>
+
+        {/* ─── Shopify Setup Guide ───────────────────────────────────── */}
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          <button
+            onClick={() => setShowShopifyGuide(!showShopifyGuide)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10">
+                <ExternalLink className="h-4 w-4 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">Shopify Integration</h3>
+                <p className="text-xs text-gray-500">Connect your Shopify store for automatic order tracking</p>
+              </div>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showShopifyGuide ? 'rotate-180' : ''}`} />
+          </button>
+          {showShopifyGuide && (
+            <div className="mt-4 space-y-3 border-t border-gray-800 pt-4 text-sm text-gray-300">
+              <div className="space-y-2">
+                <p className="font-semibold text-white">Setup Steps:</p>
+                <ol className="list-decimal pl-5 space-y-1.5 text-gray-400">
+                  <li>In your Shopify Admin, go to <strong className="text-gray-300">Settings → Notifications → Webhooks</strong></li>
+                  <li>Create webhooks for these topics, all pointing to:<br/>
+                    <code className="mt-1 block rounded bg-gray-800 px-2 py-1 text-xs text-green-400 font-mono">
+                      https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/shopify-webhook
+                    </code>
+                  </li>
+                  <li className="text-xs text-gray-500">
+                    Topics: <code>orders/create</code>, <code>orders/paid</code>, <code>orders/cancelled</code>,
+                    <code>orders/fulfilled</code>, <code>fulfillments/create</code>, <code>fulfillments/update</code>,
+                    <code>refunds/create</code>, <code>checkouts/create</code>, <code>checkouts/update</code>
+                  </li>
+                  <li>Copy the <strong className="text-gray-300">Webhook signing secret</strong> from Shopify</li>
+                  <li>Create an integration key above with source <strong className="text-gray-300">"shopify"</strong></li>
+                  <li>Set the <strong className="text-gray-300">provider_secret</strong> to the Shopify webhook signing secret and <strong className="text-gray-300">shop_domain</strong> to your Shopify domain (e.g. <code>mystore.myshopify.com</code>)</li>
+                </ol>
+                <p className="text-xs text-gray-500 mt-2">
+                  Once connected, Shopify orders flow automatically into OrderGuard for risk scoring and lifecycle tracking.
+                  Abandoned checkouts are scanned every 15 minutes.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ─── Lifecycle Events Reference ─────────────────────────────── */}
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          <button
+            onClick={() => setShowLifecycleDocs(!showLifecycleDocs)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10">
+                <Zap className="h-4 w-4 text-purple-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">Lifecycle Events Reference</h3>
+                <p className="text-xs text-gray-500">All event types and their payload contracts</p>
+              </div>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showLifecycleDocs ? 'rotate-180' : ''}`} />
+          </button>
+          {showLifecycleDocs && (
+            <div className="mt-4 space-y-3 border-t border-gray-800 pt-4 text-xs font-mono">
+              {[
+                { type: 'order_created', required: 'order_id', fields: 'total, currency, payment_method, cod(bool), items[], address{line,city,state,pincode}, risk_score(optional), pay_url(optional)' },
+                { type: 'order_confirmed', required: 'order_id', fields: 'reason(optional)' },
+                { type: 'order_paid', required: 'order_id', fields: 'payment_method' },
+                { type: 'order_shipped', required: 'order_id', fields: 'tracking_url, carrier' },
+                { type: 'order_delivered', required: 'order_id', fields: '—' },
+                { type: 'order_cancelled', required: 'order_id', fields: 'reason(optional)' },
+                { type: 'order_rto', required: 'order_id', fields: 'reason(optional)' },
+                { type: 'order_returned', required: 'order_id', fields: 'amount(optional)' },
+                { type: 'order_refunded', required: 'order_id', fields: 'amount(optional)' },
+                { type: 'cod_pending', required: 'order_id', fields: 'total, address_city, address_pincode' },
+                { type: 'prepay_nudge', required: 'order_id', fields: 'total, pay_url, discount(optional)' },
+                { type: 'cart_abandoned', required: 'checkout_url', fields: 'cart_total, currency, items[]' },
+                { type: 'checkout_started', required: 'checkout_token', fields: 'cart_total, currency, checkout_url' },
+                { type: 'customer_created', required: '—', fields: 'email(optional)' },
+              ].map(e => (
+                <div key={e.type} className="flex items-start gap-3 rounded-lg bg-gray-800/50 p-3">
+                  <code className="text-green-400 whitespace-nowrap min-w-[140px]">{e.type}</code>
+                  <div className="text-gray-400">
+                    <span className="text-yellow-400">required:</span> {e.required} · <span className="text-gray-500">{e.fields}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       </div>

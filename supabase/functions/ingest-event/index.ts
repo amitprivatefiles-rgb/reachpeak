@@ -1,12 +1,12 @@
 // Supabase Edge Function: ingest-event
-// Receives store events (cart abandoned, order created, etc.) via API key auth.
-// Normalizes phone, upserts contact, stores event (idempotent dedupe),
-// and fires journey-engine to process automations.
+// Receives store events via API key auth.
+// Delegates to shared eventPipeline for processing.
 //
 // Auth:   API key in Authorization header (Bearer rpk_live_...)
 // Deploy: supabase functions deploy ingest-event --no-verify-jwt
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { normalizePhone, runPipeline } from '../_shared/eventPipeline.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -28,18 +28,9 @@ const ALLOWED_EVENTS = new Set([
   'cart_abandoned', 'checkout_started', 'order_created', 'order_paid',
   'order_shipped', 'order_delivered', 'order_cancelled', 'cod_pending',
   'customer_created', 'custom',
+  // Phase 3 additions
+  'order_confirmed', 'order_rto', 'order_returned', 'order_refunded', 'prepay_nudge',
 ]);
-
-// ── Phone normalization ──
-function normalizePhone(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  const digits = raw.replace(/[^0-9]/g, '');
-  if (digits.length === 0) return null;
-  // Indian 10-digit → prefix 91
-  if (digits.length === 10) return '91' + digits;
-  // Already has country code
-  return digits;
-}
 
 // ── SHA-256 hash ──
 async function sha256(text: string): Promise<string> {
@@ -102,101 +93,42 @@ Deno.serve(async (req: Request) => {
 
     /* ── 2. Parse and validate body ── */
     const body = await req.json();
-    const {
-      event_type,
-      dedupe_key,
-      contact,
-      payload = {},
-    } = body;
+    const { event_type, dedupe_key, contact, payload = {} } = body;
 
     if (!event_type || !ALLOWED_EVENTS.has(event_type))
       return json({ error: `Invalid event_type. Allowed: ${[...ALLOWED_EVENTS].join(', ')}` }, 400);
     if (!dedupe_key)
       return json({ error: 'dedupe_key is required' }, 400);
 
-    /* ── 3. Normalize phone ── */
+    /* ── 3. Run shared pipeline ── */
     const phone = normalizePhone(contact?.phone);
     const contactName = contact?.name ?? null;
 
-    /* ── 4. Upsert contact (if phone provided) ── */
-    if (phone) {
-      // Check if contact exists
-      const { data: existing } = await db
-        .from('contacts')
-        .select('id')
-        .eq('user_id', integration.user_id)
-        .eq('phone_number', phone)
-        .limit(1)
-        .maybeSingle();
-
-      if (existing) {
-        // Update name if provided and currently empty
-        if (contactName) {
-          await db.from('contacts')
-            .update({
-              name: contactName,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id)
-            .is('name', null);  // only update if name is null
-        }
-      } else {
-        // Insert new contact
-        const { error: insertErr } = await db.from('contacts').insert({
-          user_id: integration.user_id,
-          phone_number: phone,
-          name: contactName,
-          source: integration.source,
-          lead_type: 'Warm',
-        });
-        if (insertErr && insertErr.code !== '23505') {
-          console.error('[ingest-event] Contact insert error:', insertErr.message);
-        }
-      }
-    }
-
-    /* ── 5. Insert event (idempotent dedupe) ── */
-    const { data: eventRow, error: eventErr } = await db
-      .from('events')
-      .insert({
-        user_id: integration.user_id,
-        source: integration.source,
-        event_type,
-        contact_phone: phone,
-        contact_name: contactName,
-        dedupe_key,
-        payload,
-        status: 'received',
-      })
-      .select('id')
-      .single();
-
-    if (eventErr) {
-      // 23505 = unique violation = dedupe hit
-      if (eventErr.code === '23505') {
-        return json({ ok: true, deduped: true });
-      }
-      console.error('[ingest-event] Event insert error:', eventErr.message);
-      return json({ error: eventErr.message }, 500);
-    }
-
-    const eventId = eventRow!.id;
-
-    /* ── 6. Fire-and-forget → journey-engine ── */
-    fetch(`${SUPABASE_URL}/functions/v1/journey-engine`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SERVICE_ROLE}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ event_id: eventId }),
-    }).catch((err) => {
-      console.error('[ingest-event] journey-engine invoke error:', err.message);
+    const result = await runPipeline(db, SUPABASE_URL, SERVICE_ROLE, {
+      userId: integration.user_id,
+      source: integration.source,
+      eventType: event_type,
+      dedupeKey: dedupe_key,
+      phone,
+      contactName,
+      payload,
     });
 
-    /* ── 7. Return ── */
-    console.log(`[ingest-event] event=${eventId} type=${event_type} phone=${phone} source=${integration.source}`);
-    return json({ ok: true, event_id: eventId });
+    if (!result.ok) {
+      return json({ error: result.error }, result.deduped ? 200 : 500);
+    }
+
+    if (result.deduped) {
+      return json({ ok: true, deduped: true });
+    }
+
+    console.log(`[ingest-event] event=${result.eventId} type=${event_type} phone=${phone} source=${integration.source} risk=${result.riskScore ?? 'n/a'}`);
+    return json({
+      ok: true,
+      event_id: result.eventId,
+      risk_score: result.riskScore,
+      risk_band: result.riskBand,
+    });
 
   } catch (err: any) {
     console.error('[ingest-event] Unhandled error:', err);
