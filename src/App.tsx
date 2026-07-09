@@ -1,17 +1,29 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
-import { PublicLayout } from './components/public/PublicLayout';
-import { HomePage } from './components/public/HomePage';
-import { AboutPage } from './components/public/AboutPage';
-import { PricingPage } from './components/public/PricingPage';
-import { PrivacyPolicyPage } from './components/public/PrivacyPolicyPage';
-import { TermsPage } from './components/public/TermsPage';
-import { RefundPolicyPage } from './components/public/RefundPolicyPage';
-import { ContactPage } from './components/public/ContactPage';
-import { UseCasesPage } from './components/public/UseCasesPage';
-import { DataDeletionPage } from './components/public/DataDeletionPage';
+
+/* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
+const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
+const Landing = lazy(() => import('./components/marketing/Landing').then(m => ({ default: m.Landing })));
+const MktAboutPage = lazy(() => import('./components/marketing/AboutPage').then(m => ({ default: m.AboutPage })));
+const MktPricingPage = lazy(() => import('./components/marketing/PricingPage').then(m => ({ default: m.PricingPage })));
+const MktContactPage = lazy(() => import('./components/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
+const MktUseCasesPage = lazy(() => import('./components/marketing/UseCasesPage').then(m => ({ default: m.UseCasesPage })));
+const MktPrivacyPolicy = lazy(() => import('./components/marketing/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const MktTermsPage = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.TermsPage })));
+const MktRefundPolicy = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.RefundPolicyPage })));
+const MktDataDeletion = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.DataDeletionPage })));
+
+/* Solution pages */
+const EcommerceSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.EcommerceSolution })));
+const ClinicsSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.ClinicsSolution })));
+const SalonsSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.SalonsSolution })));
+const EducationSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.EducationSolution })));
+const RealEstateSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.RealEstateSolution })));
+const ServicesSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.ServicesSolution })));
+
+/* ─── APP PAGES (eagerly loaded — behind auth) ─── */
 import { Login } from './components/Login';
 import { Signup } from './components/Signup';
 import { PlanSelection } from './components/onboarding/PlanSelection';
@@ -34,6 +46,23 @@ import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
 import { Journeys } from './components/Journeys';
 import { OrderGuard } from './components/OrderGuard';
+
+/* ─── LOADING FALLBACK ─── */
+function MarketingLoading() {
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#070B14',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 8,
+        background: 'linear-gradient(135deg, #10B981, #059669)',
+        animation: 'spin 1s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
@@ -117,25 +146,36 @@ function AppDashboard() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route element={<PublicLayout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/refund-policy" element={<RefundPolicyPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/use-cases" element={<UseCasesPage />} />
-        <Route path="/data-deletion" element={<DataDeletionPage />} />
+      {/* ─── MARKETING (dark premium, lazy-loaded) ─── */}
+      <Route element={<Suspense fallback={<MarketingLoading />}><MarketingLayout /></Suspense>}>
+        <Route path="/" element={<Suspense fallback={null}><Landing /></Suspense>} />
+        <Route path="/about" element={<Suspense fallback={null}><MktAboutPage /></Suspense>} />
+        <Route path="/pricing" element={<Suspense fallback={null}><MktPricingPage /></Suspense>} />
+        <Route path="/contact" element={<Suspense fallback={null}><MktContactPage /></Suspense>} />
+        <Route path="/use-cases" element={<Suspense fallback={null}><MktUseCasesPage /></Suspense>} />
+        <Route path="/privacy-policy" element={<Suspense fallback={null}><MktPrivacyPolicy /></Suspense>} />
+        <Route path="/terms" element={<Suspense fallback={null}><MktTermsPage /></Suspense>} />
+        <Route path="/refund-policy" element={<Suspense fallback={null}><MktRefundPolicy /></Suspense>} />
+        <Route path="/data-deletion" element={<Suspense fallback={null}><MktDataDeletion /></Suspense>} />
+        {/* Solution verticals */}
+        <Route path="/solutions/ecommerce" element={<Suspense fallback={null}><EcommerceSolution /></Suspense>} />
+        <Route path="/solutions/clinics" element={<Suspense fallback={null}><ClinicsSolution /></Suspense>} />
+        <Route path="/solutions/salons" element={<Suspense fallback={null}><SalonsSolution /></Suspense>} />
+        <Route path="/solutions/education" element={<Suspense fallback={null}><EducationSolution /></Suspense>} />
+        <Route path="/solutions/real-estate" element={<Suspense fallback={null}><RealEstateSolution /></Suspense>} />
+        <Route path="/solutions/services" element={<Suspense fallback={null}><ServicesSolution /></Suspense>} />
       </Route>
 
+      {/* ─── AUTH ─── */}
       <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />
       <Route path="/signup" element={<AuthRedirect><Signup /></AuthRedirect>} />
 
+      {/* ─── ONBOARDING ─── */}
       <Route path="/select-plan" element={<OnboardingGuard><PlanSelection /></OnboardingGuard>} />
       <Route path="/payment-details" element={<OnboardingGuard><PaymentDetails /></OnboardingGuard>} />
       <Route path="/pending-review" element={<OnboardingGuard><PendingReview /></OnboardingGuard>} />
 
+      {/* ─── APP (behind auth) ─── */}
       <Route path="/app" element={<RequireAuth><AppDashboard /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
