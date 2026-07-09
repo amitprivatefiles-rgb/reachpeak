@@ -47,12 +47,7 @@ export function MarketingFooter() {
           {/* Brand */}
           <div>
             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 16 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 7,
-                background: 'linear-gradient(135deg, #E04632, #C83A28)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: 'white',
-              }}>R</div>
+              <img src="/logo.png" alt="ReachPeak" style={{ width: 36, height: 36, borderRadius: 8 }} />
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: 'white', letterSpacing: '-0.02em' }}>
                 ReachPeak
               </span>

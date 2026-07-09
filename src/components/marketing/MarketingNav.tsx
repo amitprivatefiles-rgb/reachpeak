@@ -38,16 +38,16 @@ export function MarketingNav() {
         }}
       >
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 72 }}>
-          {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginRight: 48 }}>
-            <img src="/logo.png" alt="ReachPeak" style={{ width: 34, height: 34, borderRadius: 6 }} />
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: 'white', letterSpacing: '-0.02em' }}>
+          {/* Logo — left */}
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+            <img src="/logo.png" alt="ReachPeak" style={{ width: 42, height: 42, borderRadius: 8 }} />
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, color: 'white', letterSpacing: '-0.02em' }}>
               ReachPeak
             </span>
           </Link>
 
-          {/* Desktop nav */}
-          <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 32, flex: 1 }}>
+          {/* Desktop nav — centered */}
+          <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 32, flex: 1, justifyContent: 'center' }}>
             <NavLink to="/#pillars" label="Product" />
             
             {/* Solutions dropdown */}
@@ -106,10 +106,11 @@ export function MarketingNav() {
 
             <NavLink to="/pricing" label="Pricing" />
             <NavLink to="/about" label="About" />
+            <NavLink to="/contact" label="Contact" />
           </div>
 
-          {/* Desktop CTAs */}
-          <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 12 }}>
+          {/* Desktop CTAs — right */}
+          <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 12, flexShrink: 0 }}>
             <Link to="/login" style={{
               padding: '8px 20px', borderRadius: 10, fontSize: 14, fontWeight: 500,
               color: '#94a3b8', textDecoration: 'none', transition: 'color 0.2s',
