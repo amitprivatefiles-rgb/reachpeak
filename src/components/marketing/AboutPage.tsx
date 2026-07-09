@@ -4,12 +4,11 @@ import { MetricTicker } from './graphics/MetricTicker';
 import { SpotlightCard } from './graphics/SpotlightCard';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 
-/* ─── TIMELINE ─── */
 const MILESTONES = [
-  { year: '2025', title: 'The Spark & Launch', desc: 'Founded by Amit Rai after struggling firsthand with COD fraud, no-shows, and fragmented communication tools in his own projects. He built ReachPeak to solve these problems.' },
-  { year: '2025 Q3', title: 'First 1M Messages', desc: 'Crossed one million WhatsApp messages delivered. D2C brands and service businesses saw rapid drops in cart abandonment and no-shows.' },
-  { year: '2025 Q4', title: 'OrderGuard™ Release', desc: 'Introduced automatic real-time COD fraud scoring and prepay conversion nudges. RTO rates dropped by 28% on average.' },
-  { year: '2026', title: 'Today', desc: 'A unified WhatsApp marketing and automation engine powering hundreds of businesses across India.' },
+  { year: 'Early 2025', title: 'The Frustration', desc: 'Running active businesses, Amit Rai faced constant friction: customer no-shows, unpaid invoices, and massive RTO losses on COD orders. The tools available were either too complex or didn\'t fit how Indian customers actually transact.' },
+  { year: 'Mid 2025', title: 'The Spark', desc: 'Realizing that every Indian customer uses WhatsApp natively, Amit began building a simple, direct, and revenue-centric automation layer to solve his own problems.' },
+  { year: 'Late 2025', title: 'Building ReachPeak', desc: 'ReachPeak was officially formed to bring this powerful WhatsApp automation to other Indian businesses, focusing on solving real problems like COD fraud and cart recovery.' },
+  { year: 'Today', title: 'Growing with Merchants', desc: 'ReachPeak is continually evolving, driven by the real-world needs of Indian merchants who require simple, effective solutions to drive revenue.' },
 ];
 
 function Timeline() {
@@ -66,23 +65,51 @@ const VALUES = [
   { title: 'India-First Integration', desc: 'Tailored for Indian business realities — UPI, COD, pincodes, and rupees — but scalable globally.', icon: '🇮🇳' },
 ];
 
-/* ─── INDIA MAP DOT GRID ─── */
-function IndiaMapAccent() {
+/* ─── GLOBE INDIA ACCENT ─── */
+function GlobeIndiaAccent() {
   return (
-    <svg width="200" height="240" viewBox="0 0 200 240" style={{ opacity: 0.06 }}>
-      {Array.from({ length: 20 }, (_, row) =>
-        Array.from({ length: 16 }, (_, col) => {
-          const x = col * 12 + 8;
-          const y = row * 12 + 8;
-          const inShape =
-            (row > 1 && row < 18 && col > 3 && col < 14) &&
-            !(row < 4 && col < 6) && !(row < 3 && col > 11) &&
-            !(row > 15 && col < 5) && !(row > 16 && col > 10) &&
-            !(row > 14 && col < 4);
-          return inShape ? <circle key={`${row}-${col}`} cx={x} cy={y} r={1.5} fill="white" /> : null;
-        })
-      )}
-    </svg>
+    <div style={{
+      width: 220, height: 220,
+      borderRadius: '50%',
+      background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.05), rgba(0,0,0,0.6))',
+      boxShadow: 'inset -12px -12px 24px rgba(0,0,0,0.6), inset 2px 2px 10px rgba(255,255,255,0.05), 0 0 40px rgba(224,70,50,0.15)',
+      position: 'relative',
+      overflow: 'hidden',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: '1px solid rgba(255,255,255,0.03)',
+      flexShrink: 0
+    }}>
+      {/* Background globe grid (latitude/longitude) */}
+      <svg width="220" height="220" viewBox="0 0 220 220" style={{ position: 'absolute', opacity: 0.1 }}>
+        <ellipse cx="110" cy="110" rx="100" ry="40" fill="none" stroke="white" strokeWidth="1" />
+        <ellipse cx="110" cy="110" rx="100" ry="75" fill="none" stroke="white" strokeWidth="1" />
+        <ellipse cx="110" cy="110" rx="40" ry="100" fill="none" stroke="white" strokeWidth="1" />
+        <ellipse cx="110" cy="110" rx="75" ry="100" fill="none" stroke="white" strokeWidth="1" />
+        <line x1="10" y1="110" x2="210" y2="110" stroke="white" strokeWidth="1" />
+        <line x1="110" y1="10" x2="110" y2="210" stroke="white" strokeWidth="1" />
+      </svg>
+      
+      {/* India Map Shape on the globe */}
+      <svg width="100" height="110" viewBox="0 0 100 110" style={{
+        position: 'absolute', top: '15%', left: '26%',
+        filter: 'drop-shadow(0 0 6px rgba(224,70,50,0.6))',
+        transform: 'rotate(-5deg)'
+      }}>
+        <path d="M 45 0 C 48 5, 52 10, 58 12 C 62 14, 68 18, 72 24 C 76 30, 85 35, 88 45 C 90 55, 85 68, 80 72 C 75 78, 68 85, 62 92 C 58 98, 52 105, 48 110 C 42 100, 38 95, 32 85 C 28 75, 22 68, 18 55 C 12 45, 8 38, 5 25 C 2 15, 8 10, 15 8 C 25 5, 30 2, 45 0 Z" 
+              fill="#E04632" opacity="0.9" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+        {/* Location marker dot */}
+        <circle cx="50" cy="65" r="4" fill="white" style={{ animation: 'pulseDot 2s infinite' }} />
+        <style>{`
+          @keyframes pulseDot {
+            0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
+            100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+          }
+        `}</style>
+      </svg>
+    </div>
   );
 }
 
@@ -194,12 +221,12 @@ export function AboutPage() {
       {/* Built in India */}
       <Section className="py-20">
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 48,
-          padding: '48px 32px', borderRadius: 24,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 64,
+          padding: '56px 40px', borderRadius: 24,
           background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
           flexWrap: 'wrap',
         }}>
-          <IndiaMapAccent />
+          <GlobeIndiaAccent />
           <div style={{ maxWidth: 400 }}>
             <DisplayHeading as="h3">
               Built in India,{' '}
