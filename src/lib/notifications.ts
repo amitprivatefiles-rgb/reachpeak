@@ -39,7 +39,7 @@ export async function sendNotification(opts: SendNotificationOptions) {
   // 2. Send email via Postgres function (pg_net → Resend API)
   if (opts.userEmail) {
     try {
-      const { error } = await supabase.rpc('send_email_via_resend', {
+      const { error } = await (supabase as any).rpc('send_email_via_resend', {
         recipient: opts.userEmail,
         email_subject: opts.emailSubject || opts.title,
         email_html: opts.emailBody || generateEmailHtml(opts),

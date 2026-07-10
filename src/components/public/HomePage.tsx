@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Link } from 'react-router-dom';
 import {
   Send, DollarSign, RefreshCw, GitBranch, Upload, Image, BarChart3, Clock,

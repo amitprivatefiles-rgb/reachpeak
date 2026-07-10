@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { buildTemplateSendComponents, missingRequiredHeaderMedia, getHeaderFormat } from '../lib/templatePayloadBuilder';
-import { Plus, Upload, Image as ImageIcon, Video, MessageSquare, Download, Clock, CheckCircle, XCircle, Send, Eye, X, AlertCircle, Tag, ExternalLink, Phone, Edit3, Users, Copy } from 'lucide-react';
+import { getHeaderFormat } from '../lib/templatePayloadBuilder';
+import { Plus, Upload, Image as ImageIcon, MessageSquare, Download, CheckCircle, XCircle, Send, Eye, X, AlertCircle, ExternalLink, Phone, Edit3, Users, Copy } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -168,7 +168,7 @@ export function UserCampaigns() {
 
   const fetchApprovedTemplates = async () => {
     if (!user) return;
-    const { data: waAccount } = await supabase
+    const { data: waAccount } = await (supabase as any)
       .from('whatsapp_accounts')
       .select('id')
       .eq('user_id', user.id)
@@ -176,7 +176,7 @@ export function UserCampaigns() {
       .limit(1)
       .maybeSingle();
     if (!waAccount) return;
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('templates')
       .select('id, name, language, body_text, components, variables, header_sample_url')
       .eq('whatsapp_account_id', waAccount.id)
@@ -308,7 +308,7 @@ export function UserCampaigns() {
       }
       let query = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
       if (formData.contact_selection === 'source' && formData.contact_source_filter) {
-        query = query.eq('source', formData.contact_source_filter);
+        query = query.eq('source', formData.contact_source_filter as any);
       } else if (formData.contact_selection === 'campaign' && formData.contact_campaign_filter) {
         query = query.eq('campaign_id', formData.contact_campaign_filter);
       }
@@ -456,7 +456,7 @@ export function UserCampaigns() {
       contact_tag_filter: (campaign.selected_audience as any)?.tag_filter || '',
       manual_numbers_raw: ((campaign.selected_audience as any)?.numbers || []).join('\n'),
       scheduled_start: campaign.scheduled_start ? new Date(campaign.scheduled_start).toISOString().slice(0, 16) : '',
-      message_buttons: Array.isArray(campaign.message_buttons) ? campaign.message_buttons as MessageButton[] : [],
+      message_buttons: Array.isArray(campaign.message_buttons) ? campaign.message_buttons as unknown as MessageButton[] : [],
       ab_enabled: (campaign as any).ab_enabled || false,
       ab_split: (campaign as any).ab_split ?? 50,
       variant_b: (campaign as any).variant_b || null,

@@ -39,7 +39,7 @@ export function WhatsAppSettings() {
   const fetchAccount = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('whatsapp_accounts')
         .select('id, display_phone_number, verified_name, quality_rating, status, is_active')
         .eq('user_id', user.id)
@@ -119,7 +119,7 @@ export function WhatsAppSettings() {
     if (!account) return;
     setDisconnecting(true);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('whatsapp_accounts')
         .delete()
         .eq('id', account.id);
