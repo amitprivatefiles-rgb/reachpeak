@@ -20,6 +20,7 @@ export function Landing() {
       <PillarsSection />
       <OrderGuardSection />
       <BookGuardSection />
+      <AICallingSection />
       <IndustriesGrid />
       <JourneyShowcase />
       <LogoMarquee />
@@ -64,11 +65,11 @@ function HeroSection() {
         {/* Copy */}
         <div style={{ maxWidth: 640 }}>
           <DisplayHeading as="h1">
-            Turn WhatsApp into your{' '}
-            <GradientText>#1 revenue channel.</GradientText>
+            Turn every conversation into{' '}
+            <GradientText>revenue.</GradientText>
           </DisplayHeading>
           <p className="mkt-body" style={{ marginTop: 24, maxWidth: 520, fontSize: 'clamp(1rem, 2vw, 1.2rem)' }}>
-            Campaigns, automated journeys, COD &amp; no-show protection, and in-chat payments — one platform for every business that runs on WhatsApp.
+            WhatsApp campaigns, automated journeys, and AI calling agents that reach, qualify and convert your leads — with COD & no-show protection and in-chat payments. One platform for every business.
           </p>
           <div style={{ display: 'flex', gap: 12, marginTop: 36, flexWrap: 'wrap' }}>
             <Link to="/signup" className="mkt-btn-primary">Start free</Link>
@@ -120,22 +121,29 @@ function MetricsBand() {
   return (
     <Section size="sm">
       <div className="mkt-metrics-grid">
+        <MetricTicker value={60} prefix="<" suffix="s" label="AI call time" />
         <MetricTicker value={3} suffix="×" label="cart recovery" />
         <MetricTicker value={28} suffix="%" label="lower RTO" />
         <MetricTicker value={98} suffix="%" label="open rate" />
-        <MetricTicker value={12.5} suffix="×" label="ROI" decimals={1} />
       </div>
     </Section>
   );
 }
 
-/* ─── THREE PILLARS ─── */
+/* ─── FOUR PILLARS ─── */
+import { LiveCallCard } from './graphics/voice/LiveCallCard';
+
 function PillarsSection() {
   const pillars = [
     {
       title: 'Campaigns & Journeys',
       desc: 'Broadcast to thousands. Automate cart recovery, order updates, and re-engagement — all triggered by real events.',
       graphic: <JourneyCanvas />,
+    },
+    {
+      title: 'AI Calling Agents',
+      desc: 'AI agents that call your leads in seconds, speak their language, qualify them, and hand the hot ones to you.',
+      graphic: <LiveCallCard compact />,
     },
     {
       title: 'OrderGuard™',
@@ -166,11 +174,11 @@ function PillarsSection() {
           <GradientText>Nothing you don't.</GradientText>
         </DisplayHeading>
       </div>
-      <div className="mkt-pillars-grid">
+      <div className="mkt-pillars-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
         {pillars.map((p, i) => (
           <SpotlightCard key={i}>
             <div style={{ padding: '28px 24px' }}>
-              <div style={{ marginBottom: 20, minHeight: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ marginBottom: 20, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {p.graphic}
               </div>
               <h3 style={{
@@ -303,6 +311,41 @@ function BookGuardSection() {
   );
 }
 
+/* ─── MEET YOUR AI CALLING AGENT ─── */
+import { AI_CALLING_LIVE } from './config';
+
+function AICallingSection() {
+  return (
+    <Section size="lg">
+      <div className="mkt-2col">
+        <div>
+          <div style={{
+            display: 'inline-block', padding: '6px 14px', borderRadius: 8,
+            background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
+            fontSize: 12, fontWeight: 600, color: '#E04632', marginBottom: 16,
+          }}>AI Calling Agents</div>
+          <DisplayHeading as="h2">
+            Meet your <GradientText>AI calling agent.</GradientText>
+          </DisplayHeading>
+          <p className="mkt-body" style={{ marginTop: 16, maxWidth: 480 }}>
+            Voice and WhatsApp are ONE journey. The AI agent calls; WhatsApp follows up with the link. Missed the call? The message is already in their chat.
+          </p>
+          <div style={{ marginTop: 32 }}>
+            {AI_CALLING_LIVE ? (
+              <Link to="/signup" className="mkt-btn-primary">Start free</Link>
+            ) : (
+              <Link to="/ai-calling" className="mkt-btn-primary">Get early access</Link>
+            )}
+          </div>
+        </div>
+        <div>
+          <LiveCallCard />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 /* ─── INDUSTRIES GRID ─── */
 const INDUSTRIES = [
   { path: '/solutions/ecommerce', name: 'D2C & E-commerce', icon: '🛒' },
@@ -357,9 +400,15 @@ function JourneyShowcase() {
         {/* Large cell */}
         <div className="mkt-glass mkt-bento-wide" style={{ minHeight: 180 }}>
           <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: '#f1f5f9', marginBottom: 16 }}>
-            Cart Recovery Journey
+            Lead Conversion Journey
           </h3>
-          <JourneyCanvas />
+          <JourneyCanvas steps={[
+            { label: 'Lead Arrived', type: 'trigger', icon: '📝' },
+            { label: 'AI Call', type: 'ai_call' },
+            { label: 'Send Brochure', type: 'send', icon: '💬' },
+            { label: 'Booked?', type: 'condition', icon: '🎯' },
+            { label: 'Converted ✓', type: 'exit', icon: '✅' },
+          ]} />
         </div>
 
         {/* Stat cells */}
@@ -498,6 +547,8 @@ function Testimonials() {
 const FAQ_ITEMS = [
   { q: 'Do I need Meta approval to use ReachPeak?', a: 'Yes — you need a Meta-verified WhatsApp Business API account. We handle the Embedded Signup in one click, and your number gets verified within 24 hours.' },
   { q: 'Is this the official WhatsApp API?', a: 'Yes. ReachPeak uses the official WhatsApp Cloud API (Meta\'s first-party solution). No unofficial hacks, no risk of number bans.' },
+  { q: 'Do you also make calls?', a: 'Yes! ReachPeak features AI Calling Agents that can call leads within 60 seconds, speak multiple regional languages natively, qualify prospects, and seamlessly sync the outcome back to WhatsApp.' },
+  { q: 'When is AI Calling available?', a: 'AI Calling is currently rolling out to early-access businesses. You can join the waitlist to secure your spot and get launch pricing.' },
   { q: 'Does it work without Shopify?', a: 'Absolutely. ReachPeak works with any platform via our REST API, webhooks, and Zapier. We have native Shopify and WooCommerce integrations, but also support PeakCart, custom stores, and manual CSV uploads.' },
   { q: 'Will my number get banned?', a: 'No. We enforce Meta\'s messaging policies, rate limits, and quality ratings. Your number\'s quality score is monitored in real-time, and we auto-pause campaigns if it drops.' },
   { q: 'How does OrderGuard scoring work?', a: 'Every COD order is scored using 12+ risk factors: customer history, order value, pincode RTO rate, payment pattern, and more. The score (0–100) determines the action: confirm, prepay nudge, or hold.' },

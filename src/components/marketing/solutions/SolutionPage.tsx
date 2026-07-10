@@ -30,7 +30,10 @@ interface SolutionConfig {
   featureTitle: string;
   featureDesc: string;
   metrics: Array<{ value: number; suffix?: string; prefix?: string; label: string; decimals?: number }>;
+  aiCallingDesc: string;
 }
+
+import { LiveCallCard } from '../graphics/voice/LiveCallCard';
 
 export function SolutionPage({ config }: { config: SolutionConfig }) {
   useEffect(() => {
@@ -92,6 +95,26 @@ export function SolutionPage({ config }: { config: SolutionConfig }) {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      {/* AI Calling Block */}
+      <Section>
+        <div className="mkt-2col" style={{ alignItems: 'center' }}>
+          <div>
+            <div style={{
+              display: 'inline-block', padding: '6px 14px', borderRadius: 8,
+              background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
+              fontSize: 12, fontWeight: 600, color: '#E04632', marginBottom: 16,
+            }}>AI Calling Agents</div>
+            <DisplayHeading as="h3">
+              Voice + WhatsApp in <GradientText>one journey.</GradientText>
+            </DisplayHeading>
+            <p className="mkt-body" style={{ marginTop: 16, maxWidth: 480 }}>{config.aiCallingDesc}</p>
+          </div>
+          <div>
+            <LiveCallCard />
+          </div>
         </div>
       </Section>
 

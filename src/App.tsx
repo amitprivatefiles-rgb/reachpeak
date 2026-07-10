@@ -6,6 +6,7 @@ import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionCo
 /* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
 const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
 const Landing = lazy(() => import('./components/marketing/Landing').then(m => ({ default: m.Landing })));
+const AICallingPage = lazy(() => import('./components/marketing/AICallingPage').then(m => ({ default: m.AICallingPage })));
 const MktAboutPage = lazy(() => import('./components/marketing/AboutPage').then(m => ({ default: m.AboutPage })));
 const MktPricingPage = lazy(() => import('./components/marketing/PricingPage').then(m => ({ default: m.PricingPage })));
 const MktContactPage = lazy(() => import('./components/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
@@ -149,6 +150,7 @@ function AppRoutes() {
       {/* ─── MARKETING (dark premium, lazy-loaded) ─── */}
       <Route element={<Suspense fallback={<MarketingLoading />}><MarketingLayout /></Suspense>}>
         <Route path="/" element={<Suspense fallback={null}><Landing /></Suspense>} />
+        <Route path="/ai-calling" element={<Suspense fallback={null}><AICallingPage /></Suspense>} />
         <Route path="/about" element={<Suspense fallback={null}><MktAboutPage /></Suspense>} />
         <Route path="/pricing" element={<Suspense fallback={null}><MktPricingPage /></Suspense>} />
         <Route path="/contact" element={<Suspense fallback={null}><MktContactPage /></Suspense>} />

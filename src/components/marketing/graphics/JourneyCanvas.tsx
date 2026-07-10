@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { Waveform } from './voice/Waveform';
 
 interface JourneyStep {
   label: string;
-  type: 'trigger' | 'wait' | 'send' | 'condition' | 'exit';
+  type: 'trigger' | 'wait' | 'send' | 'condition' | 'exit' | 'ai_call';
   icon?: string;
 }
 
@@ -25,6 +26,7 @@ const TYPE_COLORS: Record<string, string> = {
   send: '#3B82F6',
   condition: '#8B5CF6',
   exit: '#E04632',
+  ai_call: '#E04632', // voice uses primary color
 };
 
 export function JourneyCanvas({ steps = DEFAULT_STEPS, className = '' }: JourneyCanvasProps) {
@@ -37,7 +39,8 @@ export function JourneyCanvas({ steps = DEFAULT_STEPS, className = '' }: Journey
     return () => clearInterval(id);
   }, [steps.length]);
 
-  const color = TYPE_COLORS[steps[active]?.type] || '#E04632';
+  const currentStep = steps[active];
+  const color = TYPE_COLORS[currentStep?.type] || '#E04632';
 
   return (
     <div className={className} style={{ width: '100%' }}>
@@ -58,40 +61,38 @@ export function JourneyCanvas({ steps = DEFAULT_STEPS, className = '' }: Journey
       {/* Current step card */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 16px',
-        background: `${color}18`,
-        border: `1px solid ${color}40`,
-        borderRadius: 14,
-        transition: 'all 0.4s ease',
-        minHeight: 60,
+        padding: '16px 20px', borderRadius: 16,
+        background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}40`,
+        position: 'relative', overflow: 'hidden',
       }}>
         <div style={{
-          width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-          background: `${color}25`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20,
-        }}>
-          {steps[active]?.icon}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 14, fontWeight: 700, color: '#f1f5f9',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}>{steps[active]?.label}</div>
-          <div style={{
-            fontSize: 11, fontWeight: 500, color: color,
-            fontFamily: "'Inter', sans-serif",
-            marginTop: 1,
-          }}>Step {active + 1} of {steps.length}</div>
-        </div>
+          position: 'absolute', top: 0, left: 0, bottom: 0, width: 4,
+          background: color,
+        }} />
+        
         <div style={{
-          width: 28, height: 28, borderRadius: '50%',
-          border: `2px solid ${color}50`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 11, fontWeight: 700, color: color,
-          fontFamily: "'Space Grotesk', sans-serif",
-          flexShrink: 0,
-        }}>{active + 1}</div>
+          width: 48, height: 48, borderRadius: 12,
+          background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 24, position: 'relative'
+        }}>
+          {currentStep.type === 'ai_call' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 18 }}>📞</span>
+              <div style={{ width: 16 }}><Waveform active color={color} bars={3} height={16} /></div>
+            </div>
+          ) : (
+            currentStep.icon
+          )}
+        </div>
+        
+        <div>
+          <div style={{ fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 2 }}>
+            {currentStep.type.replace('_', ' ')}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
+            {currentStep.label}
+          </div>
+        </div>
       </div>
     </div>
   );

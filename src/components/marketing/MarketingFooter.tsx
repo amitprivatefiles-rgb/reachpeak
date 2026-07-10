@@ -5,6 +5,7 @@ const PRODUCT_LINKS = [
   { to: '/#orderguard', label: 'OrderGuard™' },
   { to: '/#inbox', label: 'Inbox & Payments' },
   { to: '/#journeys', label: 'Journeys' },
+  { to: '/ai-calling', label: 'AI Calling Agents (Early access)' },
   { to: '/pricing', label: 'Pricing' },
 ];
 

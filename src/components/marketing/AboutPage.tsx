@@ -8,6 +8,7 @@ const MILESTONES = [
   { year: 'Early 2025', title: 'The Frustration', desc: 'Running active businesses, Amit Rai faced constant friction: customer no-shows, unpaid invoices, and massive RTO losses on COD orders. The tools available were either too complex or didn\'t fit how Indian customers actually transact.' },
   { year: 'Mid 2025', title: 'The Spark', desc: 'Realizing that every Indian customer uses WhatsApp natively, Amit began building a simple, direct, and revenue-centric automation layer to solve his own problems.' },
   { year: 'Late 2025', title: 'Building ReachPeak', desc: 'ReachPeak was officially formed to bring this powerful WhatsApp automation to other Indian businesses, focusing on solving real problems like COD fraud and cart recovery.' },
+  { year: '2026', title: 'The AI Revenue Engine', desc: 'Recognizing that Voice and WhatsApp are one connected journey, ReachPeak expanded beyond messaging to launch AI Calling Agents — qualifying leads and recovering orders over the phone in seconds.' },
   { year: 'Today', title: 'Growing with Merchants', desc: 'ReachPeak is continually evolving, driven by the real-world needs of Indian merchants who require simple, effective solutions to drive revenue.' },
 ];
 
@@ -144,7 +145,7 @@ export function AboutPage() {
             <GradientText>for businesses.</GradientText>
           </DisplayHeading>
           <p style={{ fontSize: 18, color: '#94a3b8', marginTop: 20, lineHeight: 1.7, fontFamily: "'Inter', sans-serif", maxWidth: 650, margin: '20px auto 0' }}>
-            We started ReachPeak in 2025 because we kept running into the same problems: high COD cancellations, missed appointments, and scattered tools. We built the platform we wished existed.
+            ReachPeak is the AI Revenue Engine — on WhatsApp and on Calls. We started in 2025 because we kept running into the same problems: high COD cancellations, missed appointments, and scattered tools. We built the platform we wished existed, turning every conversation into revenue.
           </p>
         </div>
         <style>{`

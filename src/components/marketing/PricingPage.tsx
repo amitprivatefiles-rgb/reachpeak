@@ -187,6 +187,37 @@ export function PricingPage() {
         `}</style>
       </Section>
 
+      {/* AI Calling Early Access */}
+      <Section className="py-12" style={{ paddingBottom: '32px' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <div style={{
+            padding: 32, borderRadius: 24,
+            background: 'linear-gradient(135deg, rgba(224,70,50,0.05), rgba(224,70,50,0.01))',
+            border: '1px solid rgba(224,70,50,0.2)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+          }}>
+            <div style={{
+              padding: '6px 14px', borderRadius: 8,
+              background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
+              fontSize: 12, fontWeight: 600, color: '#E04632', marginBottom: 16,
+            }}>AI Calling Agents</div>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: '#f1f5f9' }}>Early Access</h3>
+            <p style={{ fontSize: 16, color: '#94a3b8', marginBottom: 24, fontFamily: "'Inter', sans-serif", maxWidth: 400 }}>
+              Per-minute pricing. Join the waitlist to secure launch pricing and priority access.
+            </p>
+            <Link to="/ai-calling" style={{
+              display: 'inline-block', padding: '14px 24px', borderRadius: 12,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+              color: '#e2e8f0', fontSize: 16, fontWeight: 600, textDecoration: 'none',
+              fontFamily: "'Inter', sans-serif", transition: 'background 0.2s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+            >Get early access</Link>
+          </div>
+        </div>
+      </Section>
+
       {/* Trust badges */}
       <Section className="py-12">
         <div style={{

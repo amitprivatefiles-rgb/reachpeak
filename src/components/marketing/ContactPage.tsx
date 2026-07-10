@@ -59,6 +59,13 @@ export function ContactPage() {
       desc: 'Sunday: Closed',
       bg: '#F59E0B10',
     },
+    {
+      icon: <MessageSquare size={24} color="#8B5CF6" />,
+      title: 'Join our Channel',
+      value: 'reachpeak.in/channel',
+      desc: 'Weekly product updates',
+      bg: '#8B5CF610',
+    },
   ];
 
   return (

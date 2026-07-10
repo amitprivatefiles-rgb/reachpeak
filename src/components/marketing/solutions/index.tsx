@@ -36,6 +36,7 @@ export function EcommerceSolution() {
       { value: 28, suffix: '%', label: 'lower RTO' },
       { value: 12.5, suffix: '×', label: 'ROI', decimals: 1 },
     ],
+    aiCallingDesc: 'Stop NDRs with instant voice calls. High-risk COD orders get an AI call to verify intent in their native language before shipping.',
   }} />;
 }
 
@@ -76,6 +77,7 @@ export function ClinicsSolution() {
       { value: 92, suffix: '%', label: 'confirmation rate' },
       { value: 4.8, suffix: '★', label: 'Google review avg', decimals: 1 },
     ],
+    aiCallingDesc: 'Automate appointment confirmations with a voice agent that can reschedule patients on the spot if they can\'t make it, freeing up your front desk.',
   }} />;
 }
 
@@ -115,6 +117,7 @@ export function SalonsSolution() {
       { value: 98, suffix: '%', label: 'message open rate' },
       { value: 2, suffix: '×', label: 'rebooking rate' },
     ],
+    aiCallingDesc: 'Win back lapsed clients with a personalized AI call offering a time-limited discount, synced perfectly with a WhatsApp booking link.',
   }} />;
 }
 
@@ -154,6 +157,7 @@ export function EducationSolution() {
       { value: 85, suffix: '%', label: 'on-time fee payment' },
       { value: 98, suffix: '%', label: 'message delivery' },
     ],
+    aiCallingDesc: 'Reach student enquiries in under 60 seconds with an AI counsellor that qualifies their interest, answers basic curriculum questions, and pushes a brochure via WhatsApp.',
   }} />;
 }
 
@@ -193,6 +197,7 @@ export function RealEstateSolution() {
       { value: 2, suffix: '×', label: 'site visit conversion' },
       { value: 45, suffix: '%', label: 'digital booking' },
     ],
+    aiCallingDesc: 'Never let a weekend lead go cold. The AI agent calls instantly, qualifies their budget and locality preference, and hands hot leads to your sales team.',
   }} />;
 }
 
@@ -232,5 +237,6 @@ export function ServicesSolution() {
       { value: 60, suffix: '%', label: 'faster payment' },
       { value: 85, suffix: '%', label: 'advance collected' },
     ],
+    aiCallingDesc: 'Follow up on sent quotes and pending invoices with a polite, professional AI voice agent that secures verbal commitment and triggers a WhatsApp payment link.',
   }} />;
 }

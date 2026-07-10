@@ -15,6 +15,7 @@ export function MarketingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [solOpen, setSolOpen] = useState(false);
+  const [prodOpen, setProdOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function MarketingNav() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); setSolOpen(false); }, [location.pathname]);
+  useEffect(() => { setMobileOpen(false); setSolOpen(false); setProdOpen(false); }, [location.pathname]);
 
   return (
     <>
@@ -48,7 +49,62 @@ export function MarketingNav() {
 
           {/* Desktop nav — centered */}
           <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 32, flex: 1, justifyContent: 'center' }}>
-            <NavLink to="/#pillars" label="Product" />
+            {/* Product dropdown */}
+            <div style={{ position: 'relative' }}
+              onMouseEnter={() => setProdOpen(true)}
+              onMouseLeave={() => setProdOpen(false)}
+            >
+              <button style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#94a3b8', fontSize: 14, fontWeight: 500, fontFamily: "'Inter', sans-serif",
+                display: 'flex', alignItems: 'center', gap: 4, padding: 0,
+                transition: 'color 0.2s',
+              }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
+              >
+                Product <ChevronDown size={14} style={{ transition: 'transform 0.2s', transform: prodOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+              </button>
+              
+              {prodOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: -16, paddingTop: 12,
+                }}>
+                  <div style={{
+                    background: 'rgba(13,20,36,0.98)', backdropFilter: 'blur(24px)',
+                    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16,
+                    padding: 8, minWidth: 280, boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+                  }}>
+                    <Link to="/#pillars" style={{
+                      display: 'block', padding: '12px 16px', borderRadius: 10, textDecoration: 'none',
+                      transition: 'background 0.15s',
+                    }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 2 }}>WhatsApp Automation</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Campaigns, Journeys & OrderGuard</div>
+                    </Link>
+                    <Link to="/ai-calling" style={{
+                      display: 'block', padding: '12px 16px', borderRadius: 10, textDecoration: 'none',
+                      transition: 'background 0.15s',
+                    }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>AI Calling Agents</div>
+                        <span style={{
+                          padding: '2px 6px', borderRadius: 12, fontSize: 10, fontWeight: 600,
+                          background: 'rgba(224,70,50,0.1)', color: '#E04632', border: '1px solid rgba(224,70,50,0.2)',
+                        }}>Early access</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Call, qualify & convert in seconds</div>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* Solutions dropdown */}
             <div style={{ position: 'relative' }}
