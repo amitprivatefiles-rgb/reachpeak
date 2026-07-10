@@ -30,8 +30,11 @@ export function MarketingLayout() {
 
   // Scroll to top on route change
   useEffect(() => {
-    lenisRef.current?.scrollTo(0, { immediate: true });
-    window.scrollTo(0, 0);
+    const timeout = setTimeout(() => {
+      window.scrollTo(0, 0);
+      lenisRef.current?.scrollTo(0, { immediate: true });
+    }, 50);
+    return () => clearTimeout(timeout);
   }, [location.pathname]);
 
   return (

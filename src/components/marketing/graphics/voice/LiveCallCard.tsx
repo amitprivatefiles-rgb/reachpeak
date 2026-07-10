@@ -32,10 +32,11 @@ export function LiveCallCard({
 
   useEffect(() => {
     let step = 0;
+    setActiveLine(0); // Show first line immediately
     const interval = setInterval(() => {
       step++;
-      if (step <= transcript.length) {
-        setActiveLine(step - 1);
+      if (step < transcript.length) {
+        setActiveLine(step);
       }
     }, 2500);
     return () => clearInterval(interval);
