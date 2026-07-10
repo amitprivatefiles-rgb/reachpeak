@@ -30,10 +30,15 @@ interface SolutionConfig {
   featureTitle: string;
   featureDesc: string;
   metrics: Array<{ value: number; suffix?: string; prefix?: string; label: string; decimals?: number }>;
-  aiCallingDesc: string;
+  aiCallingHeadline: string;
+  aiCallingBullets: string[];
+  aiCallingTranscript: Array<{ speaker: 'AI' | 'Customer', text: string }>;
+  aiCallingOutcomeLabel: string;
+  aiCallingOutcomeValue?: string;
 }
 
 import { LiveCallCard } from '../graphics/voice/LiveCallCard';
+import { Check } from 'lucide-react';
 
 export function SolutionPage({ config }: { config: SolutionConfig }) {
   useEffect(() => {
@@ -108,12 +113,23 @@ export function SolutionPage({ config }: { config: SolutionConfig }) {
               fontSize: 12, fontWeight: 600, color: '#E04632', marginBottom: 16,
             }}>AI Calling Agents</div>
             <DisplayHeading as="h3">
-              Voice + WhatsApp in <GradientText>one journey.</GradientText>
+              {config.aiCallingHeadline.split(':')[0]}: <GradientText>{config.aiCallingHeadline.split(':')[1] || config.aiCallingHeadline}</GradientText>
             </DisplayHeading>
-            <p className="mkt-body" style={{ marginTop: 16, maxWidth: 480 }}>{config.aiCallingDesc}</p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '24px 0 0 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {config.aiCallingBullets.map((bullet, i) => (
+                <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 15, color: '#cbd5e1', fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                  <Check size={20} color="#E04632" style={{ flexShrink: 0, marginTop: 2 }} />
+                  {bullet}
+                </li>
+              ))}
+            </ul>
           </div>
           <div>
-            <LiveCallCard />
+            <LiveCallCard 
+              transcript={config.aiCallingTranscript} 
+              outcomeLabel={config.aiCallingOutcomeLabel} 
+              outcomeValue={config.aiCallingOutcomeValue} 
+            />
           </div>
         </div>
       </Section>

@@ -60,80 +60,134 @@ export function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#070B14', fontFamily: "'Inter', sans-serif" }}>
+      {/* Background glow */}
+      <div style={{
+        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        width: '600px', height: '600px', background: 'radial-gradient(circle, rgba(224,70,50,0.08) 0%, transparent 60%)',
+        filter: 'blur(80px)', pointerEvents: 'none',
+      }} />
+
+      <div className="w-full max-w-md" style={{ position: 'relative', zIndex: 10 }}>
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2.5 mb-4">
-            <img src={LOGO_URL} alt="ReachPeak API" className="w-12 h-12 rounded-xl" />
+          <Link to="/" className="inline-flex items-center gap-2 mb-6 transition hover:opacity-80">
+            <img src={LOGO_URL} alt="ReachPeak" style={{ width: 48, height: 48, borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }} />
           </Link>
-          <h1 className="text-3xl font-bold text-secondary mb-2">Create Your Account</h1>
-          <p className="text-secondary-light">Start scaling your WhatsApp marketing today</p>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 32, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 }}>
+            Create your account
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: 16 }}>Start scaling your WhatsApp revenue</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
-          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
+        <div style={{
+          background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 32,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+        }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }} autoComplete="off">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+              <div style={{
+                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                color: '#EF4444', padding: '12px 16px', borderRadius: 12, fontSize: 14, fontWeight: 500,
+              }}>
                 {error}
               </div>
             )}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
+              <div style={{
+                background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+                color: '#10B981', padding: '12px 16px', borderRadius: 12, fontSize: 14, fontWeight: 500,
+              }}>
                 {success}
-                <Link to="/login" className="block mt-2 text-brand font-medium hover:text-brand-dark">
+                <Link to="/login" style={{ display: 'block', marginTop: 8, color: '#10B981', fontWeight: 600, textDecoration: 'none' }}>
                   Go to Login →
                 </Link>
               </div>
             )}
+            
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1.5">Full Name</label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                Full Name
+              </label>
               <input
                 type="text"
                 value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-secondary placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition"
                 placeholder="Your full name"
+                style={{
+                  width: '100%', padding: '14px 16px', borderRadius: 12,
+                  background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#f1f5f9', fontSize: 15, outline: 'none', transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#E04632'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1.5">Email Address</label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                Email Address
+              </label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
                 autoComplete="new-password"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-secondary placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition"
-                placeholder="you@email.com"
+                placeholder="you@company.com"
+                style={{
+                  width: '100%', padding: '14px 16px', borderRadius: 12,
+                  background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#f1f5f9', fontSize: 15, outline: 'none', transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#E04632'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1.5">Password</label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                Password
+              </label>
               <input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
                 minLength={6}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-secondary placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition"
                 placeholder="Minimum 6 characters"
+                style={{
+                  width: '100%', padding: '14px 16px', borderRadius: 12,
+                  background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#f1f5f9', fontSize: 15, outline: 'none', transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#E04632'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
               />
             </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand text-white py-3 px-4 rounded-xl font-semibold hover:bg-brand-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                width: '100%', padding: '14px', borderRadius: 12,
+                background: '#E04632', color: 'white', fontWeight: 600, fontSize: 16,
+                border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
+                transition: 'background 0.2s', marginTop: 8,
+              }}
+              onMouseOver={(e) => !loading && (e.currentTarget.style.background = '#c83b27')}
+              onMouseOut={(e) => !loading && (e.currentTarget.style.background = '#E04632')}
             >
-              {loading ? 'Creating account...' : 'Sign Up'}
+              {loading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-sm text-secondary-light mt-6">
+        <p style={{ textAlign: 'center', marginTop: 32, color: '#94a3b8', fontSize: 14 }}>
           Already have an account?{' '}
-          <Link to="/login" className="text-brand font-medium hover:text-brand-dark transition">
-            Log In
+          <Link to="/login" style={{ color: '#E04632', fontWeight: 600, textDecoration: 'none' }}>
+            Sign in
           </Link>
         </p>
       </div>

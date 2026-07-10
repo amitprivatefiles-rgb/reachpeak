@@ -2,25 +2,25 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Shield } from 'lucide-react';
 
 const monthlyFeatures = [
-  'Unlimited WhatsApp Messages',
-  'Bulk Contact Upload',
-  'Rich Media Campaigns',
-  'A/B Message Testing',
-  'Real-Time Analytics Dashboard',
-  'Smart Auto-Retry',
-  'Campaign Scheduling & Controls',
-  'Agent Management & Tracking',
-  'Reports & CSV Export',
-  'Lead Source Analytics',
-  'Email Support',
-  '90-92% Delivery Rate',
+  'WhatsApp broadcasts & campaigns',
+  'Template manager + Meta sync',
+  'Team inbox (24h window, quick replies)',
+  'Contacts, tags & import',
+  'Scheduled campaigns',
+  'Basic analytics',
+  '1 WhatsApp number',
+  'Email support'
 ];
 
 const yearlyExtras = [
-  'Priority Support',
-  'Early Access to Features',
-  'Dedicated Account Manager',
-  'Custom Report Templates',
+  'Automated journeys (abandoned cart, reminders, etc.)',
+  'OrderGuard™ COD/RTO scoring & routing',
+  'Payment links in chat (Razorpay)',
+  'A/B testing + auto-retry',
+  'Shopify/WooCommerce/PeakCart + API & webhooks',
+  'Advanced analytics & exports',
+  'AI Calling Agents (priority early access)',
+  'Priority WhatsApp support'
 ];
 
 export function PlanSelection() {

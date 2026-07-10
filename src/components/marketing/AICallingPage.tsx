@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Section, DisplayHeading, GradientText } from './Shared';
 import { SpotlightCard } from './graphics/SpotlightCard';
 import { LiveCallCard } from './graphics/voice/LiveCallCard';
+import { Waveform } from './graphics/voice/Waveform';
+import { OutcomeChips } from './graphics/voice/OutcomeChips';
 import { CallFunnel } from './graphics/voice/CallFunnel';
 import { JourneyCanvas } from './graphics/JourneyCanvas';
 import { MetricTicker } from './graphics/MetricTicker';
@@ -156,21 +158,146 @@ export function AICallingPage() {
 
       {/* Voice + WhatsApp Journey */}
       <Section className="py-24" style={{ background: 'rgba(224,70,50,0.02)' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', textAlign: 'center', marginBottom: 48 }}>
-          <DisplayHeading as="h2">Voice and WhatsApp are <GradientText>ONE journey.</GradientText></DisplayHeading>
-          <p style={{ fontSize: 18, color: '#94a3b8', marginTop: 16, fontFamily: "'Inter', sans-serif" }}>
-            The AI agent calls; WhatsApp follows up with the link. Missed the call? The message is already in their chat.
-          </p>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div className="mkt-2col" style={{ alignItems: 'flex-start' }}>
+            {/* Left: Copy */}
+            <div style={{ position: 'sticky', top: 120 }}>
+              <DisplayHeading as="h2">Voice and WhatsApp are <GradientText>ONE journey.</GradientText></DisplayHeading>
+              <p style={{ fontSize: 18, color: '#94a3b8', marginTop: 24, fontFamily: "'Inter', sans-serif", lineHeight: 1.6 }}>
+                The AI agent calls; WhatsApp follows up with the link. Missed the call? The message is already in their chat. Unified context across both channels.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 40 }}>
+                {[
+                  { title: 'No lead waits', desc: 'Instantly trigger calls on form submissions or API events.' },
+                  { title: 'Missed call ≠ lost lead', desc: 'If they don\'t pick up, a WhatsApp message is sent immediately.' },
+                  { title: 'Every outcome logged', desc: 'Call transcripts, outcomes, and payments all in one unified dashboard.' }
+                ].map((bullet, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 16 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, background: 'rgba(224,70,50,0.1)',
+                      border: '1px solid rgba(224,70,50,0.2)', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', color: '#E04632', fontWeight: 700, flexShrink: 0
+                    }}>{i + 1}</div>
+                    <div>
+                      <div style={{ fontSize: 16, color: '#f1f5f9', fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>{bullet.title}</div>
+                      <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4, fontFamily: "'Inter', sans-serif" }}>{bullet.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Vertical Journey Rail */}
+            <div className="omni-rail" style={{ position: 'relative', paddingLeft: 40, display: 'flex', flexDirection: 'column', gap: 40 }}>
+              {/* The Beam */}
+              <div style={{
+                position: 'absolute', top: 0, bottom: 0, left: 15, width: 2,
+                background: 'rgba(255,255,255,0.05)',
+              }}>
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, width: '100%', height: 100,
+                  background: 'linear-gradient(to bottom, transparent, #E04632, transparent)',
+                  animation: 'omni-beam 4s infinite linear'
+                }} />
+              </div>
+
+              {/* Step 1 */}
+              <div className="omni-step">
+                <div className="omni-dot" />
+                <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Trigger</div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', padding: '12px 16px', borderRadius: 12, display: 'inline-block' }}>
+                  <span style={{ fontSize: 14, color: '#f1f5f9' }}>⚡ Lead created in CRM</span>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="omni-step">
+                <div className="omni-dot" style={{ borderColor: '#E04632' }} />
+                <div style={{ fontSize: 13, color: '#E04632', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>AI Call Node</div>
+                <div style={{ background: 'rgba(224,70,50,0.05)', border: '1px solid rgba(224,70,50,0.2)', padding: 16, borderRadius: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E04632', animation: 'pulse 2s infinite' }} />
+                    <span style={{ fontSize: 14, color: '#f1f5f9', fontWeight: 500 }}>Calling Vikram...</span>
+                  </div>
+                  <Waveform active={true} color="#E04632" bars={16} height={20} />
+                  <div style={{ marginTop: 12, display: 'flex' }}>
+                    <OutcomeChips label="Qualified ✓" delay={0} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="omni-step">
+                <div className="omni-dot" style={{ borderColor: '#10B981' }} />
+                <div style={{ fontSize: 13, color: '#10B981', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>WhatsApp Send</div>
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '12px 16px', borderRadius: '4px 16px 16px 16px', maxWidth: '80%' }}>
+                    <div style={{ fontSize: 13, color: '#e2e8f0' }}>As discussed, here is your site visit link:</div>
+                    <div style={{ marginTop: 8, background: '#10B981', color: 'white', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: 'center', cursor: 'pointer' }}>Book Sunday 11 AM</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="omni-step">
+                <div className="omni-dot" />
+                <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Wait</div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>⏱</span>
+                  <span style={{ fontSize: 13, color: '#cbd5e1' }}>Wait 2 hours</span>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className="omni-step">
+                <div className="omni-dot" style={{ background: '#F59E0B', borderColor: '#F59E0B' }} />
+                <div style={{ fontSize: 13, color: '#F59E0B', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Converted</div>
+                <div style={{ 
+                  background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', 
+                  padding: '16px 24px', borderRadius: 16, display: 'inline-block',
+                  boxShadow: '0 0 20px rgba(245,158,11,0.2)'
+                }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>₹</span> Site Visit Booked
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: 40, background: 'rgba(255,255,255,0.02)', borderRadius: 24, border: '1px solid rgba(255,255,255,0.05)' }}>
-          <JourneyCanvas steps={[
-            { label: 'Lead Created', type: 'trigger' },
-            { label: 'AI Call (Qualify)', type: 'ai_call' },
-            { label: 'Qualified?', type: 'condition' },
-            { label: 'Send Booking Link', type: 'send' },
-            { label: 'Meeting Booked', type: 'exit' },
-          ]} />
-        </div>
+        <style>{`
+          .omni-step {
+            position: relative;
+            padding-left: 20px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fade-up 0.6s forwards;
+          }
+          .omni-step:nth-child(2) { animation-delay: 0.2s; }
+          .omni-step:nth-child(3) { animation-delay: 0.4s; }
+          .omni-step:nth-child(4) { animation-delay: 0.6s; }
+          .omni-step:nth-child(5) { animation-delay: 0.8s; }
+          .omni-step:nth-child(6) { animation-delay: 1.0s; }
+          
+          .omni-dot {
+            position: absolute;
+            top: 4px; left: -29px;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #070B14;
+            border: 2px solid #64748b;
+            z-index: 2;
+          }
+          @keyframes omni-beam {
+            0% { top: -100px; }
+            100% { top: 100%; }
+          }
+          @media (max-width: 1024px) {
+            .omni-rail { padding-left: 20px !important; }
+            .omni-dot { left: -25px !important; }
+          }
+        `}</style>
       </Section>
 
       {/* Languages Strip */}

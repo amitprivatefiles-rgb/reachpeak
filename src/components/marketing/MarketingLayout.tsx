@@ -41,6 +41,9 @@ export function MarketingLayout() {
         background: '#070B14',
         color: '#e2e8f0',
         fontFamily: "'Inter', sans-serif",
+        overflowX: 'clip',
+        position: 'relative',
+        width: '100%',
       }}
     >
       <MarketingNav />

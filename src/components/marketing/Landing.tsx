@@ -139,23 +139,25 @@ function PillarsSection() {
       title: 'Campaigns & Journeys',
       desc: 'Broadcast to thousands. Automate cart recovery, order updates, and re-engagement — all triggered by real events.',
       graphic: <JourneyCanvas />,
+      stat: '98% open rate',
     },
     {
       title: 'AI Calling Agents',
       desc: 'AI agents that call your leads in seconds, speak their language, qualify them, and hand the hot ones to you.',
-      graphic: <LiveCallCard compact />,
+      graphic: <LiveCallCard />,
+      stat: '< 60s to call',
     },
     {
       title: 'OrderGuard™',
       desc: 'Score every COD order in real-time. Auto-confirm low-risk, nudge high-risk to prepay, block serial RTOs.',
-      graphic: <RiskGauge score={87} label="High · Prepay link sent" size={140} />,
+      graphic: <RiskGauge score={87} label="High · Prepay link sent" size={180} />,
+      stat: '28% lower RTO',
     },
     {
       title: 'Inbox & Payments',
       desc: 'Team inbox for WhatsApp. Send payment links mid-chat. Customers pay in one tap — you see it in real-time.',
       graphic: (
         <ChatMock
-          compact
           businessName="Support"
           messages={[
             { type: 'text', sender: 'customer', content: 'Can I pay online instead?', time: '4:12 PM' },
@@ -163,29 +165,37 @@ function PillarsSection() {
           ]}
         />
       ),
+      stat: 'Instant collection',
     },
   ];
 
   return (
     <Section id="pillars">
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ textAlign: 'center', marginBottom: 56 }}>
         <DisplayHeading as="h2">
           Everything you need.{' '}
           <GradientText>Nothing you don't.</GradientText>
         </DisplayHeading>
       </div>
-      <div className="mkt-pillars-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+      <div className="mkt-pillars-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 32 }}>
         {pillars.map((p, i) => (
           <SpotlightCard key={i}>
-            <div style={{ padding: '28px 24px' }}>
-              <div style={{ marginBottom: 20, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ padding: '32px 32px' }}>
+              <div style={{ marginBottom: 28, minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {p.graphic}
               </div>
-              <h3 style={{
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
-                fontSize: 20, color: '#f1f5f9', marginBottom: 8,
-              }}>{p.title}</h3>
-              <p className="mkt-body-sm">{p.desc}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h3 style={{
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                  fontSize: 22, color: '#f1f5f9', margin: 0,
+                }}>{p.title}</h3>
+                <span style={{
+                  background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
+                  color: '#E04632', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif",
+                }}>{p.stat}</span>
+              </div>
+              <p className="mkt-body" style={{ fontSize: 16 }}>{p.desc}</p>
             </div>
           </SpotlightCard>
         ))}

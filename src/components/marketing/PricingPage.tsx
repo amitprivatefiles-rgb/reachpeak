@@ -1,68 +1,212 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Section, DisplayHeading, GradientText, GlassCard, CTABand } from './Shared';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Section, DisplayHeading, GradientText, CTABand } from './Shared';
+import { Check, ChevronDown, ChevronUp, Link as LinkIcon, Users, Settings, Rocket, BarChart3 } from 'lucide-react';
 
-/* EXACT current tiers/prices — onboarding depends on these */
 const MONTHLY_FEATURES = [
-  'Unlimited WhatsApp Messages',
-  'Zero Per-Message Cost',
-  'Bulk Contact Upload (CSV/XLS/XLSX)',
-  'Rich Media Campaigns (Image/Video)',
-  'A/B Message Testing',
-  'Real-Time Analytics Dashboard',
-  'Smart Auto-Retry (up to 3 attempts)',
-  'Campaign Scheduling & Controls',
-  'Agent Management & Tracking',
-  'Detailed Reports & CSV Export',
-  'Lead Source Analytics',
-  'Contact Management & Deduplication',
-  'Email Support',
-  '90-92% Delivery Rate',
+  'WhatsApp broadcasts & campaigns (approval workflow)',
+  'Template manager + Meta sync',
+  'Team inbox (24h window, quick replies)',
+  'Contacts/tags/import',
+  'Scheduled campaigns',
+  'Basic analytics',
+  '1 WhatsApp number',
+  'Email support'
 ];
 
 const YEARLY_EXTRAS = [
-  'Priority Support (faster response times)',
-  'Early Access to New Features',
-  'Dedicated Account Manager (for high-volume)',
-  'Custom Report Templates',
+  'Automated journeys (abandoned cart, order updates, reminders, all presets)',
+  'OrderGuard™ COD/RTO scoring & routing',
+  'Payment links in chat (Razorpay)',
+  'A/B testing + auto-retry',
+  'Shopify/WooCommerce/PeakCart integrations + API & webhooks',
+  'Advanced analytics & exports',
+  'AI Calling Agents priority early access',
+  'Priority WhatsApp support'
 ];
 
-const COMPARISON_ROWS = [
-  { feature: 'Unlimited Messages', monthly: true, yearly: true },
-  { feature: 'Zero Per-Message Cost', monthly: true, yearly: true },
-  { feature: 'Bulk Contact Upload', monthly: true, yearly: true },
-  { feature: 'Rich Media Campaigns', monthly: true, yearly: true },
-  { feature: 'A/B Message Testing', monthly: true, yearly: true },
-  { feature: 'Real-Time Analytics', monthly: true, yearly: true },
-  { feature: 'Smart Auto-Retry', monthly: true, yearly: true },
-  { feature: 'Campaign Scheduling', monthly: true, yearly: true },
-  { feature: 'Agent Management', monthly: true, yearly: true },
-  { feature: 'Reports & CSV Export', monthly: true, yearly: true },
-  { feature: 'Lead Source Analytics', monthly: true, yearly: true },
-  { feature: 'Contact Deduplication', monthly: true, yearly: true },
-  { feature: 'Email Support', monthly: true, yearly: true },
-  { feature: 'OrderGuard™', monthly: true, yearly: true },
-  { feature: 'Automated Journeys', monthly: true, yearly: true },
-  { feature: 'Payment Links', monthly: true, yearly: true },
-  { feature: 'Team Inbox', monthly: true, yearly: true },
-  { feature: 'Priority Support', monthly: false, yearly: true },
-  { feature: 'Early Access to Features', monthly: false, yearly: true },
-  { feature: 'Dedicated Account Manager', monthly: false, yearly: true },
-  { feature: 'Custom Report Templates', monthly: false, yearly: true },
+const COMPARISON_CATEGORIES = [
+  {
+    name: 'Campaigns & Broadcasts',
+    features: [
+      { name: 'WhatsApp broadcasts', monthly: true, yearly: true },
+      { name: 'Template manager', monthly: true, yearly: true },
+      { name: 'Contacts & tags', monthly: true, yearly: true },
+      { name: 'Scheduled campaigns', monthly: true, yearly: true },
+      { name: 'A/B testing + auto-retry', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'Automation & Journeys',
+    features: [
+      { name: 'Automated journeys (all presets)', monthly: false, yearly: true },
+      { name: 'Abandoned cart & order updates', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'Team Inbox',
+    features: [
+      { name: 'Shared inbox (24h window)', monthly: true, yearly: true },
+      { name: 'Quick replies', monthly: true, yearly: true },
+    ]
+  },
+  {
+    name: 'OrderGuard™',
+    features: [
+      { name: 'COD/RTO scoring & routing', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'Payments',
+    features: [
+      { name: 'Payment links in chat (Razorpay)', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'Integrations',
+    features: [
+      { name: 'Shopify / WooCommerce / PeakCart', monthly: false, yearly: true },
+      { name: 'API & Webhooks', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'AI Calling',
+    features: [
+      { name: 'AI Calling Agents (Early Access)', monthly: false, yearly: true },
+    ]
+  },
+  {
+    name: 'Support',
+    features: [
+      { name: 'Email support', monthly: true, yearly: true },
+      { name: 'Priority WhatsApp support', monthly: false, yearly: true },
+    ]
+  }
 ];
 
 const PRICING_FAQS = [
-  { q: 'Can I switch from Monthly to Yearly?', a: 'Yes! You can upgrade from a Monthly plan to a Yearly plan at any time. Contact our support team and we will handle the transition for you.' },
-  { q: 'What happens when my plan expires?', a: 'When your plan expires, you will be prompted to renew. Your data and campaigns will remain intact, but you will not be able to send new messages until you renew.' },
-  { q: 'Is there a free trial?', a: 'We do not offer a free trial at this time, but we do have a 7-day money-back guarantee. If you are not satisfied, we will refund your payment in full.' },
-  { q: 'How do I make payment?', a: 'After selecting your plan, you will be shown a UPI QR code. Scan it with any UPI app, make the payment, and enter the transaction reference on our form.' },
-  { q: 'What is included in Priority Support?', a: 'Priority Support means faster response times (within 4 hours during business hours), a dedicated support channel, and escalation priority for any issues you face.' },
-  { q: 'Are there any per-message charges?', a: 'We charge zero per-message fees. However, WhatsApp conversations incur Meta\'s per-conversation charges (~₹0.70 for marketing). These are passed through at cost, no markup.' },
+  { q: 'Can I upgrade or downgrade later?', a: 'Yes, you can upgrade to Yearly at any time and we will prorate your payment. Downgrades take effect at the end of your current billing cycle.' },
+  { q: 'What happens at renewal?', a: 'Your plan will automatically renew unless cancelled. We send a reminder 7 days before any yearly renewal.' },
+  { q: 'Do you provide a GST invoice?', a: 'Absolutely. You can enter your GSTIN during checkout, and a GST invoice will be emailed to you instantly.' },
+  { q: 'Is AI calling included?', a: 'AI Calling Agents are in priority early access for Yearly members. Usage pricing (per minute) will be announced at full launch.' },
 ];
 
+function WorkflowStrip() {
+  const steps = [
+    { label: 'Connect number', icon: <LinkIcon size={16} /> },
+    { label: 'Import contacts', icon: <Users size={16} /> },
+    { label: 'Pick industry pack', icon: <Settings size={16} /> },
+    { label: 'Launch', icon: <Rocket size={16} /> },
+    { label: 'Track revenue', icon: <BarChart3 size={16} /> },
+  ];
+  
+  return (
+    <div style={{ padding: '40px 24px', maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <h3 style={{ fontSize: 18, color: '#f1f5f9', fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>How your first campaign ships</h3>
+      </div>
+      <div className="mkt-workflow-strip">
+        {steps.map((step, i) => (
+          <div key={i} className="mkt-workflow-node" style={{ flex: 1 }}>
+            <div className="mkt-workflow-icon">
+              {step.icon}
+            </div>
+            <div className="mkt-workflow-label">{step.label}</div>
+            {i < steps.length - 1 && <div className="mkt-workflow-connector" />}
+          </div>
+        ))}
+      </div>
+      <style>{`
+        .mkt-workflow-strip {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          position: relative;
+        }
+        .mkt-workflow-node {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          position: relative;
+          z-index: 2;
+        }
+        .mkt-workflow-icon {
+          width: 40px; height: 40px; border-radius: 50%;
+          background: rgba(224,70,50,0.1); border: 1px solid rgba(224,70,50,0.3);
+          color: #E04632;
+          display: flex; align-items: center; justify-content: center;
+          position: relative;
+        }
+        .mkt-workflow-label {
+          font-size: 13px; color: #cbd5e1; font-weight: 500; font-family: 'Inter', sans-serif;
+          white-space: nowrap; text-align: center;
+        }
+        .mkt-workflow-connector {
+          position: absolute;
+          top: 20px; left: 50%; width: 100%; height: 2px;
+          background: linear-gradient(90deg, rgba(224,70,50,0.3) 50%, transparent 50%);
+          background-size: 8px 100%;
+          z-index: -1;
+          animation: workflowDash 20s linear infinite;
+        }
+        @keyframes workflowDash {
+          to { background-position: -200px 0; }
+        }
+        @media (max-width: 768px) {
+          .mkt-workflow-strip {
+            flex-direction: column;
+            gap: 24px;
+            align-items: flex-start;
+            padding-left: 20px;
+          }
+          .mkt-workflow-node {
+            flex-direction: row;
+            width: 100%;
+          }
+          .mkt-workflow-connector {
+            width: 2px; height: 100%;
+            top: 40px; left: 20px;
+            background: linear-gradient(180deg, rgba(224,70,50,0.3) 50%, transparent 50%);
+            background-size: 100% 8px;
+            animation: workflowDashVert 20s linear infinite;
+          }
+          @keyframes workflowDashVert {
+            to { background-position: 0 -200px; }
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function CategoryAccordion({ cat }: { cat: typeof COMPARISON_CATEGORIES[number] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 12, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+      <button 
+        onClick={() => setOpen(!open)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'transparent', border: 'none', color: '#f1f5f9', fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, cursor: 'pointer' }}
+      >
+        {cat.name}
+        {open ? <ChevronUp size={20} color="#94a3b8" /> : <ChevronDown size={20} color="#94a3b8" />}
+      </button>
+      {open && (
+        <div style={{ padding: '0 20px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {cat.features.map((f, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px', gap: 12, padding: '12px 0', borderBottom: i === cat.features.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: "'Inter', sans-serif" }}>{f.name}</div>
+              <div style={{ textAlign: 'center' }}>{f.monthly ? <Check size={16} color="#E04632" style={{ margin: '0 auto' }} /> : <span style={{ color: '#475569' }}>—</span>}</div>
+              <div style={{ textAlign: 'center' }}>{f.yearly ? <Check size={16} color="#E04632" style={{ margin: '0 auto' }} /> : <span style={{ color: '#475569' }}>—</span>}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PricingPage() {
-  const [compOpen, setCompOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
 
   useEffect(() => {
@@ -87,235 +231,191 @@ export function PricingPage() {
             Simple, transparent <GradientText>pricing.</GradientText>
           </DisplayHeading>
           <p style={{ fontSize: 18, color: '#94a3b8', marginTop: 16, lineHeight: 1.7, fontFamily: "'Inter', sans-serif" }}>
-            No per-message fees. No hidden charges. Just one flat rate for unlimited WhatsApp marketing.
+            Two plans, one clear upgrade story. Choose the plan that fits your growth.
           </p>
         </div>
       </section>
 
       {/* Plans */}
-      <Section className="py-12">
+      <Section className="py-8">
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 24, maxWidth: 800, margin: '0 auto',
+          gap: 24, maxWidth: 900, margin: '0 auto',
         }}>
           {/* Monthly */}
           <div style={{
-            padding: 32, borderRadius: 24,
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 24, padding: 32,
             display: 'flex', flexDirection: 'column',
           }}>
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: '#f1f5f9' }}>Monthly Plan</h3>
-            <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, fontFamily: "'Inter', sans-serif" }}>Perfect for growing businesses</p>
-            <div style={{ marginBottom: 28 }}>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 48, fontWeight: 700, color: '#f1f5f9' }}>₹2,499</span>
-              <span style={{ fontSize: 16, color: '#64748b' }}>/month</span>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Monthly</h3>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 48, fontWeight: 800, color: '#f1f5f9', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>₹2,499</span>
+              <span style={{ fontSize: 16, color: '#94a3b8', fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>/mo</span>
             </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1, marginBottom: 32 }}>
-              {MONTHLY_FEATURES.map(f => (
-                <li key={f} style={{ fontSize: 14, color: '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: "'Inter', sans-serif" }}>
-                  <span style={{ color: '#E04632', fontSize: 14, marginTop: 1, flexShrink: 0 }}>✓</span> {f}
-                </li>
-              ))}
-            </ul>
-            <Link to="/signup" style={{
+            <p style={{ fontSize: 14, color: '#94a3b8', fontFamily: "'Inter', sans-serif", marginBottom: 32 }}>Core features for growing businesses.</p>
+            
+            <a href="/signup" style={{
               display: 'block', textAlign: 'center', padding: '14px 24px', borderRadius: 12,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#e2e8f0', fontSize: 16, fontWeight: 600, textDecoration: 'none',
-              fontFamily: "'Inter', sans-serif", transition: 'background 0.2s',
-            }}>Get started</Link>
+              border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)',
+              color: '#f1f5f9', fontSize: 15, fontWeight: 600, fontFamily: "'Inter', sans-serif",
+              textDecoration: 'none', marginBottom: 32, transition: 'background 0.2s'
+            }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
+              Get Started
+            </a>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What's included</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {MONTHLY_FEATURES.map((f, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 14, color: '#cbd5e1', fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                    <Check size={18} color="#E04632" style={{ flexShrink: 0, marginTop: 2 }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* Yearly */}
           <div style={{
-            padding: 32, borderRadius: 24,
-            background: 'rgba(224,70,50,0.04)',
-            border: '1px solid rgba(224,70,50,0.2)',
-            position: 'relative', overflow: 'hidden',
+            position: 'relative',
+            background: 'rgba(255,255,255,0.02)', border: '2px solid rgba(224,70,50,0.5)',
+            borderRadius: 24, padding: 32,
             display: 'flex', flexDirection: 'column',
+            boxShadow: '0 0 40px rgba(224,70,50,0.1), inset 0 0 20px rgba(224,70,50,0.05)',
           }}>
-            {/* Border beam */}
             <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-              background: 'linear-gradient(90deg, transparent, #E04632, transparent)',
-              animation: 'borderBeam 3s linear infinite',
-            }} />
-            <span style={{
-              position: 'absolute', top: 16, right: 16,
-              padding: '4px 12px', borderRadius: 6,
-              background: 'rgba(224,70,50,0.12)', fontSize: 11, fontWeight: 700, color: '#E04632',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>Best Value — Save ₹14,989/yr</span>
+              position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
+              background: 'linear-gradient(135deg, #E04632, #C83A28)', padding: '4px 16px', borderRadius: 20,
+              fontSize: 12, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em',
+              whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(224,70,50,0.3)'
+            }}>Best Value</div>
 
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: '#f1f5f9' }}>Yearly Plan</h3>
-            <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, fontFamily: "'Inter', sans-serif" }}>For established businesses</p>
-            <div style={{ marginBottom: 28 }}>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 48, fontWeight: 700, color: '#f1f5f9' }}>₹14,999</span>
-              <span style={{ fontSize: 16, color: '#64748b' }}>/year</span>
-              <div style={{ fontSize: 13, color: '#E04632', marginTop: 4, fontWeight: 500 }}>= ₹1,250/month</div>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Yearly</h3>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 48, fontWeight: 800, color: '#f1f5f9', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>₹14,999</span>
+              <span style={{ fontSize: 16, color: '#94a3b8', fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>/yr</span>
             </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1, marginBottom: 32 }}>
-              {MONTHLY_FEATURES.map(f => (
-                <li key={f} style={{ fontSize: 14, color: '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: "'Inter', sans-serif" }}>
-                  <span style={{ color: '#E04632', fontSize: 14, marginTop: 1, flexShrink: 0 }}>✓</span> {f}
-                </li>
-              ))}
-              <li style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(224,70,50,0.15)' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#E04632', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plus yearly extras:</span>
-              </li>
-              {YEARLY_EXTRAS.map(f => (
-                <li key={f} style={{ fontSize: 14, color: '#e2e8f0', fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: "'Inter', sans-serif" }}>
-                  <span style={{ color: '#E04632', fontSize: 14, marginTop: 1, flexShrink: 0 }}>✓</span> {f}
-                </li>
-              ))}
-            </ul>
-            <Link to="/signup" style={{
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
+              <span style={{ fontSize: 13, color: '#E04632', fontWeight: 600, background: 'rgba(224,70,50,0.1)', padding: '2px 8px', borderRadius: 4 }}>₹1,250/mo effective</span>
+              <span style={{ fontSize: 13, color: '#94a3b8', textDecoration: 'line-through' }}>Save 50%</span>
+            </div>
+            
+            <a href="/signup" style={{
               display: 'block', textAlign: 'center', padding: '14px 24px', borderRadius: 12,
               background: 'linear-gradient(135deg, #E04632, #C83A28)',
-              color: 'white', fontSize: 16, fontWeight: 600, textDecoration: 'none',
-              fontFamily: "'Inter', sans-serif",
-              boxShadow: '0 0 24px rgba(224,70,50,0.3)',
-            }}>Get started</Link>
-          </div>
-        </div>
+              color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: "'Inter', sans-serif",
+              textDecoration: 'none', marginBottom: 32, transition: 'box-shadow 0.2s',
+              boxShadow: '0 4px 14px rgba(224,70,50,0.4)',
+            }} onMouseOver={e => e.currentTarget.style.boxShadow = '0 6px 20px rgba(224,70,50,0.6)'} onMouseOut={e => e.currentTarget.style.boxShadow = '0 4px 14px rgba(224,70,50,0.4)'}>
+              Get Started
+            </a>
 
-        <style>{`
-          @keyframes borderBeam {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(100%); }
-          }
-        `}</style>
-      </Section>
-
-      {/* AI Calling Early Access */}
-      <Section className="py-12" style={{ paddingBottom: '32px' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <div style={{
-            padding: 32, borderRadius: 24,
-            background: 'linear-gradient(135deg, rgba(224,70,50,0.05), rgba(224,70,50,0.01))',
-            border: '1px solid rgba(224,70,50,0.2)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-          }}>
-            <div style={{
-              padding: '6px 14px', borderRadius: 8,
-              background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
-              fontSize: 12, fontWeight: 600, color: '#E04632', marginBottom: 16,
-            }}>AI Calling Agents</div>
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: '#f1f5f9' }}>Early Access</h3>
-            <p style={{ fontSize: 16, color: '#94a3b8', marginBottom: 24, fontFamily: "'Inter', sans-serif", maxWidth: 400 }}>
-              Per-minute pricing. Join the waitlist to secure launch pricing and priority access.
-            </p>
-            <Link to="/ai-calling" style={{
-              display: 'inline-block', padding: '14px 24px', borderRadius: 12,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#e2e8f0', fontSize: 16, fontWeight: 600, textDecoration: 'none',
-              fontFamily: "'Inter', sans-serif", transition: 'background 0.2s',
-            }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-            >Get early access</Link>
-          </div>
-        </div>
-      </Section>
-
-      {/* Trust badges */}
-      <Section className="py-12">
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 16, maxWidth: 800, margin: '0 auto',
-        }}>
-          {[
-            { icon: '🛡️', title: '7-Day Money Back', desc: 'No questions asked' },
-            { icon: '🔒', title: 'Secure Payments', desc: 'UPI with encryption' },
-            { icon: '⚡', title: '24hr Activation', desc: 'Go live within 24 hours' },
-            { icon: '🔓', title: 'Cancel Anytime', desc: 'No lock-in contracts' },
-          ].map((b, i) => (
-            <div key={i} style={{
-              textAlign: 'center', padding: 20, borderRadius: 16,
-              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
-            }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>{b.icon}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9', marginBottom: 2 }}>{b.title}</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>{b.desc}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Comparison table (collapsible) */}
-      <Section className="py-12">
-        <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <button onClick={() => setCompOpen(!compOpen)} style={{
-            width: '100%', padding: '16px 20px', borderRadius: 16,
-            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            cursor: 'pointer', color: '#f1f5f9', fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 600, fontSize: 16,
-          }}>
-            Feature Comparison
-            {compOpen ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
-          </button>
-          <div style={{
-            maxHeight: compOpen ? 1200 : 0,
-            overflow: 'hidden',
-            transition: 'max-height 0.4s ease',
-          }}>
-            <div style={{
-              marginTop: 8, borderRadius: 16, overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Inter', sans-serif" }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#64748b' }}>Feature</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#64748b' }}>Monthly</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#E04632' }}>Yearly</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {COMPARISON_ROWS.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                      <td style={{ padding: '10px 16px', fontSize: 13, color: '#e2e8f0' }}>{row.feature}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontSize: 14 }}>{row.monthly ? '✅' : '—'}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontSize: 14 }}>{row.yearly ? '✅' : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Everything in Monthly, plus:</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {YEARLY_EXTRAS.map((f, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 14, color: '#f1f5f9', fontFamily: "'Inter', sans-serif", lineHeight: 1.5, fontWeight: 500 }}>
+                    <Check size={18} color="#E04632" style={{ flexShrink: 0, marginTop: 2 }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
       </Section>
 
-      {/* Pricing FAQ */}
+      {/* Honesty Note */}
+      <Section className="py-4">
+        <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', fontSize: 13, color: '#94a3b8', fontFamily: "'Inter', sans-serif" }}>
+            <strong style={{ color: '#cbd5e1' }}>Note:</strong> Meta's per-conversation charges are billed separately by Meta at their standard rates.
+          </div>
+        </div>
+      </Section>
+
+      {/* Workflow Strip */}
+      <Section className="py-12">
+        <WorkflowStrip />
+      </Section>
+
+      {/* Feature Comparison */}
       <Section className="py-16">
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <DisplayHeading as="h2">
-            Pricing <GradientText>FAQ</GradientText>
-          </DisplayHeading>
-        </div>
-        <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {PRICING_FAQS.map((faq, i) => (
-            <div key={i} style={{
-              background: faqOpen === i ? 'rgba(255,255,255,0.03)' : 'transparent',
-              border: '1px solid rgba(255,255,255,0.04)',
-              borderRadius: 16, overflow: 'hidden',
-            }}>
-              <button onClick={() => setFaqOpen(faqOpen === i ? null : i)} style={{
-                width: '100%', padding: '16px 20px', background: 'none', border: 'none',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                cursor: 'pointer', textAlign: 'left',
-              }}>
-                <span style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>{faq.q}</span>
-                {faqOpen === i ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
-              </button>
-              <div style={{ maxHeight: faqOpen === i ? 200 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
-                <p style={{ padding: '0 20px 16px', fontSize: 14, color: '#94a3b8', lineHeight: 1.7, fontFamily: "'Inter', sans-serif", margin: 0 }}>
-                  {faq.a}
-                </p>
-              </div>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <DisplayHeading as="h2">Compare <GradientText>plans.</GradientText></DisplayHeading>
+          </div>
+          
+          {/* Desktop Table */}
+          <div className="hidden md:block" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.03)', fontSize: 13, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div>Features</div>
+              <div style={{ textAlign: 'center' }}>Monthly</div>
+              <div style={{ textAlign: 'center', color: '#E04632' }}>Yearly</div>
             </div>
-          ))}
+            
+            {COMPARISON_CATEGORIES.map((cat, i) => (
+              <div key={i}>
+                <div style={{ padding: '16px 24px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 14, fontWeight: 600, color: '#f1f5f9', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {cat.name}
+                </div>
+                {cat.features.map((f, j) => (
+                  <div key={j} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: 14, color: '#94a3b8', fontFamily: "'Inter', sans-serif", alignItems: 'center' }}>
+                    <div>{f.name}</div>
+                    <div style={{ textAlign: 'center' }}>{f.monthly ? <Check size={18} color="#E04632" style={{ margin: '0 auto' }} /> : <span style={{ color: '#475569' }}>—</span>}</div>
+                    <div style={{ textAlign: 'center' }}>{f.yearly ? <Check size={18} color="#E04632" style={{ margin: '0 auto' }} /> : <span style={{ color: '#475569' }}>—</span>}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile Accordions */}
+          <div className="block md:hidden">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginBottom: 16, paddingRight: 8, fontSize: 12, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ width: 60, textAlign: 'center' }}>Mo.</div>
+              <div style={{ width: 60, textAlign: 'center', color: '#E04632' }}>Yr.</div>
+            </div>
+            {COMPARISON_CATEGORIES.map((cat, i) => (
+              <CategoryAccordion key={i} cat={cat} />
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* FAQ */}
+      <Section className="py-20">
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <DisplayHeading as="h2">Questions?</DisplayHeading>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {PRICING_FAQS.map((faq, i) => (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden'
+              }}>
+                <button
+                  onClick={() => setFaqOpen(faqOpen === i ? null : i)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '20px 24px', background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: '#f1f5f9', fontSize: 16, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif",
+                    textAlign: 'left'
+                  }}
+                >
+                  {faq.q}
+                  {faqOpen === i ? <ChevronUp size={20} color="#E04632" /> : <ChevronDown size={20} color="#94a3b8" />}
+                </button>
+                {faqOpen === i && (
+                  <div style={{ padding: '0 24px 20px', color: '#94a3b8', fontSize: 15, lineHeight: 1.6, fontFamily: "'Inter', sans-serif" }}>
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </Section>
 

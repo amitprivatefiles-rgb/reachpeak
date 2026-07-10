@@ -2,13 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { Waveform } from './Waveform';
 import { OutcomeChips } from './OutcomeChips';
 
-const TRANSCRIPT_LINES = [
-  { speaker: 'AI', text: 'Hi Priya! Calling from Glow Salon about tomorrow\'s 4 PM appointment...' },
-  { speaker: 'Customer', text: 'Can we do 6 PM instead?' },
-  { speaker: 'AI', text: 'Done — moved to 6 PM. Confirmation on WhatsApp ✓' }
-];
+export interface TranscriptLine {
+  speaker: 'AI' | 'Customer';
+  text: string;
+}
 
-export function LiveCallCard({ compact = false }: { compact?: boolean }) {
+export function LiveCallCard({ 
+  compact = false, 
+  transcript = [
+    { speaker: 'AI', text: 'Hi Priya! Calling from Glow Salon about tomorrow\'s 4 PM appointment...' },
+    { speaker: 'Customer', text: 'Can we do 6 PM instead?' },
+    { speaker: 'AI', text: 'Done — moved to 6 PM. Confirmation on WhatsApp ✓' }
+  ],
+  outcomeLabel = 'Rescheduled ✓',
+  outcomeValue
+}: { 
+  compact?: boolean;
+  transcript?: TranscriptLine[];
+  outcomeLabel?: string;
+  outcomeValue?: string;
+}) {
   const [timer, setTimer] = useState(0);
   const [activeLine, setActiveLine] = useState(-1);
   
@@ -21,15 +34,15 @@ export function LiveCallCard({ compact = false }: { compact?: boolean }) {
     let step = 0;
     const interval = setInterval(() => {
       step++;
-      if (step <= TRANSCRIPT_LINES.length) {
+      if (step <= transcript.length) {
         setActiveLine(step - 1);
       }
     }, 2500);
     return () => clearInterval(interval);
-  }, []);
+  }, [transcript]);
 
   const formatTime = (s: number) => `00:${s.toString().padStart(2, '0')}`;
-  const callEnded = activeLine >= TRANSCRIPT_LINES.length - 1;
+  const callEnded = activeLine >= transcript.length - 1;
 
   return (
     <div style={{
@@ -72,7 +85,7 @@ export function LiveCallCard({ compact = false }: { compact?: boolean }) {
 
       {/* Transcript */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: compact ? 120 : 140 }}>
-        {TRANSCRIPT_LINES.map((line, i) => {
+        {transcript.map((line, i) => {
           if (i > activeLine) return null;
           const isAI = line.speaker === 'AI';
           return (
@@ -98,11 +111,17 @@ export function LiveCallCard({ compact = false }: { compact?: boolean }) {
       </div>
 
       {/* Outcome */}
-      {callEnded && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 16, display: 'flex', justifyContent: 'center' }}>
-          <OutcomeChips outcomes={['Converted']} delayBase={0} />
+      <div style={{
+        marginTop: 'auto',
+        opacity: callEnded ? 1 : 0,
+        transform: callEnded ? 'translateY(0)' : 'translateY(10px)',
+        transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1)',
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontFamily: "'Inter', sans-serif" }}>Live Outcome</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <OutcomeChips label={outcomeLabel} value={outcomeValue} delay={0} />
         </div>
-      )}
+      </div>
 
       <style>{`
         @keyframes orb-pulse {

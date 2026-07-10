@@ -36,7 +36,18 @@ export function EcommerceSolution() {
       { value: 28, suffix: '%', label: 'lower RTO' },
       { value: 12.5, suffix: '×', label: 'ROI', decimals: 1 },
     ],
-    aiCallingDesc: 'Stop NDRs with instant voice calls. High-risk COD orders get an AI call to verify intent in their native language before shipping.',
+    aiCallingHeadline: 'The AI agent that confirms COD orders before they become RTO.',
+    aiCallingBullets: [
+      'calls every OrderGuard-flagged order in minutes',
+      'verifies address & intent, offers prepaid switch',
+      'outcome synced — confirmed ships, declined cancelled'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'Hi Rahul! Confirming your ₹2,199 cash-on-delivery order from StyleKart — should we ship it today?' },
+      { speaker: 'Customer', text: 'Yes, but can I pay online instead?' },
+      { speaker: 'AI', text: 'Done — payment link sent on WhatsApp. 5% off for prepaid ✓' }
+    ],
+    aiCallingOutcomeLabel: 'Converted to Prepaid ₹',
   }} />;
 }
 
@@ -77,7 +88,18 @@ export function ClinicsSolution() {
       { value: 92, suffix: '%', label: 'confirmation rate' },
       { value: 4.8, suffix: '★', label: 'Google review avg', decimals: 1 },
     ],
-    aiCallingDesc: 'Automate appointment confirmations with a voice agent that can reschedule patients on the spot if they can\'t make it, freeing up your front desk.',
+    aiCallingHeadline: 'Reminder calls that reschedule on the spot — not just notify.',
+    aiCallingBullets: [
+      'confirms tomorrow\'s appointments by voice',
+      'reschedules in the same call, calendar updated',
+      'report-ready calls for patients who miss messages'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'Hi Amit, confirming your dental appointment tomorrow at 10 AM with Dr. Mehta.' },
+      { speaker: 'Customer', text: 'Can we do 6 PM?' },
+      { speaker: 'AI', text: 'Done — moved to 6 PM. Details on WhatsApp ✓' }
+    ],
+    aiCallingOutcomeLabel: 'Rescheduled ✓',
   }} />;
 }
 
@@ -117,7 +139,18 @@ export function SalonsSolution() {
       { value: 98, suffix: '%', label: 'message open rate' },
       { value: 2, suffix: '×', label: 'rebooking rate' },
     ],
-    aiCallingDesc: 'Win back lapsed clients with a personalized AI call offering a time-limited discount, synced perfectly with a WhatsApp booking link.',
+    aiCallingHeadline: 'Win back lapsed clients with a call, not a coupon.',
+    aiCallingBullets: [
+      'calls clients 30+ days inactive',
+      'books the slot in-call',
+      'same-day reminder calls kill no-shows'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'It\'s been 6 weeks since your last visit to Glow — Priya has a 4 PM free tomorrow, shall I book it?' },
+      { speaker: 'Customer', text: 'Yes please!' },
+      { speaker: 'AI', text: 'Booked ✓. See you at 4.' }
+    ],
+    aiCallingOutcomeLabel: 'Booked ✓',
   }} />;
 }
 
@@ -157,7 +190,18 @@ export function EducationSolution() {
       { value: 85, suffix: '%', label: 'on-time fee payment' },
       { value: 98, suffix: '%', label: 'message delivery' },
     ],
-    aiCallingDesc: 'Reach student enquiries in under 60 seconds with an AI counsellor that qualifies their interest, answers basic curriculum questions, and pushes a brochure via WhatsApp.',
+    aiCallingHeadline: 'Every enquiry counselled within 60 seconds.',
+    aiCallingBullets: [
+      'instant callback on form submit',
+      'qualifies course interest, batch & budget',
+      'fee-due reminder calls with payment link follow-up'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'Hi Neha, saw your inquiry for the Data Science course. Looking for weekend or weekday batches?' },
+      { speaker: 'Customer', text: 'Weekends, starting this month.' },
+      { speaker: 'AI', text: 'Great. Brochure and fee link sent on WhatsApp ✓' }
+    ],
+    aiCallingOutcomeLabel: 'Qualified ✓',
   }} />;
 }
 
@@ -197,7 +241,18 @@ export function RealEstateSolution() {
       { value: 2, suffix: '×', label: 'site visit conversion' },
       { value: 45, suffix: '%', label: 'digital booking' },
     ],
-    aiCallingDesc: 'Never let a weekend lead go cold. The AI agent calls instantly, qualifies their budget and locality preference, and hands hot leads to your sales team.',
+    aiCallingHeadline: 'Speed-to-lead, automated: every portal lead called instantly.',
+    aiCallingBullets: [
+      'budget/locality/timeline qualified by voice',
+      'site visits booked in-call',
+      'hot leads pushed to your team on WhatsApp with the transcript'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'Hi Vikram, thanks for your interest in Prestige Park. Are you looking in Whitefield under ₹90L?' },
+      { speaker: 'Customer', text: 'Yes, 3BHK ready to move.' },
+      { speaker: 'AI', text: 'Got it. Site visit booked for Sunday 11 AM ✓' }
+    ],
+    aiCallingOutcomeLabel: 'Hot Lead → Team',
   }} />;
 }
 
@@ -237,6 +292,17 @@ export function ServicesSolution() {
       { value: 60, suffix: '%', label: 'faster payment' },
       { value: 85, suffix: '%', label: 'advance collected' },
     ],
-    aiCallingDesc: 'Follow up on sent quotes and pending invoices with a polite, professional AI voice agent that secures verbal commitment and triggers a WhatsApp payment link.',
+    aiCallingHeadline: 'Quotes followed up. Jobs confirmed. By voice.',
+    aiCallingBullets: [
+      'follows up every quote in 24h',
+      'confirms bookings & collects deposits via link',
+      'feedback calls after job completion'
+    ],
+    aiCallingTranscript: [
+      { speaker: 'AI', text: 'Hi Rohan, did you have any questions about the painting quote we sent yesterday?' },
+      { speaker: 'Customer', text: 'Looks good, let\'s start Monday. Do I need to pay an advance?' },
+      { speaker: 'AI', text: 'Yes, sending the deposit link on WhatsApp now ✓' }
+    ],
+    aiCallingOutcomeLabel: 'Deposit Paid ₹',
   }} />;
 }
