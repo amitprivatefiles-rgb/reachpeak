@@ -7,13 +7,15 @@ export interface TranscriptLine {
   text: string;
 }
 
+const DEFAULT_TRANSCRIPT: TranscriptLine[] = [
+  { speaker: 'AI', text: 'Hi Priya! Calling from Glow Salon about tomorrow\'s 4 PM appointment...' },
+  { speaker: 'Customer', text: 'Can we do 6 PM instead?' },
+  { speaker: 'AI', text: 'Done — moved to 6 PM. Confirmation on WhatsApp ✓' }
+];
+
 export function LiveCallCard({ 
   compact = false, 
-  transcript = [
-    { speaker: 'AI', text: 'Hi Priya! Calling from Glow Salon about tomorrow\'s 4 PM appointment...' },
-    { speaker: 'Customer', text: 'Can we do 6 PM instead?' },
-    { speaker: 'AI', text: 'Done — moved to 6 PM. Confirmation on WhatsApp ✓' }
-  ],
+  transcript = DEFAULT_TRANSCRIPT,
   outcomeLabel = 'Rescheduled ✓',
   outcomeValue
 }: { 
