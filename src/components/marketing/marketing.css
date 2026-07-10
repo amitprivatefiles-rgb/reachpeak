@@ -44,6 +44,7 @@
 }
 
 /* ─── Two-column sections (OrderGuard, BookGuard, etc.) ─── */
+.mkt-2col > * { min-width: 0; }
 .mkt-2col {
   display: grid;
   grid-template-columns: 1fr;
@@ -51,7 +52,8 @@
   align-items: center;
 }
 @media (min-width: 1024px) {
-  .mkt-2col { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .mkt-2col > * { min-width: 0; }
+.mkt-2col { grid-template-columns: 1fr 1fr; gap: 64px; }
   .mkt-2col-reverse { grid-template-columns: auto 1fr; gap: 64px; }
 }
 
@@ -320,7 +322,7 @@
   color: #f1f5f9;
   line-height: 1.1;
   margin: 0;
-  font-size: clamp(2.25rem, 6vw, 5rem);
+  font-size: clamp(1.9rem, 8vw, 5.5rem);
 }
 .mkt-display-h2 {
   font-family: 'Space Grotesk', sans-serif;

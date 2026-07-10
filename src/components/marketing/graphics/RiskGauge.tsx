@@ -49,14 +49,14 @@ export function RiskGauge({ score, label = 'High · Prepay link sent', size = 20
 
   return (
     <div ref={ref} className={className} style={{
-      width: size, padding: size * 0.08,
+      width: '100%', maxWidth: size, padding: size * 0.08, margin: '0 auto',
       background: 'rgba(255,255,255,0.03)',
       backdropFilter: 'blur(8px)',
       border: '1px solid rgba(255,255,255,0.08)',
       borderRadius: 20,
       textAlign: 'center',
     }}>
-      <svg width={size * 0.84} height={size * 0.6} viewBox={`0 0 ${size} ${size * 0.7}`}>
+      <svg width="100%" height="auto" viewBox={`0 0 ${size} ${size * 0.7}`}>
         <defs>
           <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#E04632" />

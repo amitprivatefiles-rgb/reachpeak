@@ -57,7 +57,7 @@ export function DisplayHeading({ children, as: Tag = 'h2' }: {
 export function GlassCard({ children, className = '' }: {
   children: ReactNode; className?: string;
 }) {
-  return <div className={`mkt-glass ${className}`}>{children}</div>;
+  return <div className={`mkt-glass ${className}`} style={{ overflow: 'hidden' }}>{children}</div>;
 }
 
 /** CTA band */

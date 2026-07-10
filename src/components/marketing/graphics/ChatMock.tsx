@@ -51,7 +51,9 @@ export function ChatMock({ messages, businessName = 'ReachPeak Store', animate =
 
   return (
     <div ref={containerRef} className={className} style={{
-      width: compact ? 260 : 340,
+      width: '100%',
+      maxWidth: compact ? 260 : 340,
+      margin: '0 auto',
       borderRadius: 20 * sz,
       background: '#0B141A',
       border: '1px solid rgba(255,255,255,0.06)',
@@ -118,7 +120,7 @@ function MessageBubble({ msg, sz, paidFlipped }: { msg: ChatMessage; sz: number;
           }}>🛍️</div>
         )}
 
-        <div style={{ fontSize: 13 * sz, color: '#e2e8f0', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+        <div style={{ fontSize: 13 * sz, color: '#e2e8f0', lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {msg.content}
         </div>
 

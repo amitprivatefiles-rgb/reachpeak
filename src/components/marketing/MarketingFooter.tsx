@@ -39,14 +39,9 @@ export function MarketingFooter() {
     }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '64px 24px 32px' }}>
         {/* Link columns */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-          gap: 40,
-          marginBottom: 48,
-        }}>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 mb-12">
           {/* Brand */}
-          <div>
+          <div className="col-span-2 md:col-span-1 lg:col-span-1">
             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 16 }}>
               <img src="/logo.png" alt="ReachPeak" style={{ width: 36, height: 36, borderRadius: 8 }} />
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: 'white', letterSpacing: '-0.02em' }}>

@@ -177,14 +177,14 @@ function PillarsSection() {
           <GradientText>Nothing you don't.</GradientText>
         </DisplayHeading>
       </div>
-      <div className="mkt-pillars-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 32 }}>
+      <div className="mkt-pillars-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 32 }}>
         {pillars.map((p, i) => (
           <SpotlightCard key={i}>
             <div style={{ padding: '32px 32px' }}>
               <div style={{ marginBottom: 28, minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {p.graphic}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 <h3 style={{
                   fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                   fontSize: 22, color: '#f1f5f9', margin: 0,
@@ -192,7 +192,7 @@ function PillarsSection() {
                 <span style={{
                   background: 'rgba(224,70,50,0.1)', border: '1px solid rgba(224,70,50,0.2)',
                   color: '#E04632', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif", wordBreak: 'break-word'
                 }}>{p.stat}</span>
               </div>
               <p className="mkt-body" style={{ fontSize: 16 }}>{p.desc}</p>

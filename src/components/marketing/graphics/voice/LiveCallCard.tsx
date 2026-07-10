@@ -47,6 +47,9 @@ export function LiveCallCard({
 
   return (
     <div style={{
+      width: '100%',
+      maxWidth: compact ? 320 : 380,
+      margin: '0 auto',
       background: 'rgba(255,255,255,0.03)',
       backdropFilter: 'blur(16px)',
       border: '1px solid rgba(255,255,255,0.08)',
@@ -99,6 +102,7 @@ export function LiveCallCard({
               borderBottomLeftRadius: isAI ? 4 : 12,
               borderBottomRightRadius: !isAI ? 4 : 12,
               maxWidth: '85%',
+              wordBreak: 'break-word',
               fontSize: 13,
               fontFamily: "'Inter', sans-serif",
               color: '#e2e8f0',
