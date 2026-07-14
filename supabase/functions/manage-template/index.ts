@@ -68,12 +68,14 @@ Deno.serve(async (req) => {
     switch (action) {
       case 'create':
         return await handleCreate(serviceClient, waAccount, user.id, body);
+      case 'update':
+        return await handleUpdate(serviceClient, waAccount, user.id, body);
       case 'delete':
         return await handleDelete(serviceClient, waAccount, user.id, body);
       case 'sync':
         return await handleSync(serviceClient, waAccount, user.id);
       default:
-        return jsonResp({ error: `Unknown action: ${action}` }, 400);
+        return jsonResp({ error: `Unknown action: ${action}. Supported: create, update, delete, sync` }, 400);
     }
   } catch (err: any) {
     console.error('manage-template error:', err);
@@ -146,7 +148,7 @@ async function handleCreate(
   return jsonResp({ success: true, template });
 }
 
-// ─── DELETE ───
+// ─── DELETE (with journey guard) ───
 async function handleDelete(
   db: any,
   wa: { id: string; waba_id: string; access_token: string },
@@ -156,6 +158,35 @@ async function handleDelete(
   const { template_id, name } = body;
   if (!template_id || !name) {
     return jsonResp({ error: 'Missing required fields: template_id, name' }, 400);
+  }
+
+  // Guard: check if template is referenced by active journeys
+  const { data: activeJourneys } = await db
+    .from('journeys')
+    .select('id, name')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (activeJourneys && activeJourneys.length > 0) {
+    const referencingJourneys = activeJourneys.filter((j: any) => {
+      const steps = j.steps || (typeof j.steps === 'string' ? JSON.parse(j.steps) : []);
+      return Array.isArray(steps) && steps.some((s: any) => s.template_id === name);
+    });
+    // Also check by template DB name via steps JSON
+    const { data: tpl } = await db.from('templates').select('name').eq('id', template_id).maybeSingle();
+    const tplName = tpl?.name || name;
+    const allRefs = activeJourneys.filter((j: any) => {
+      const steps = Array.isArray(j.steps) ? j.steps : [];
+      return steps.some((s: any) => s.template_id === name || s.template_id === tplName);
+    });
+    if (allRefs.length > 0) {
+      const journeyNames = allRefs.map((j: any) => j.name).join(', ');
+      return jsonResp({
+        error: `Cannot delete: template "${name}" is used by ${allRefs.length} active journey(s): ${journeyNames}. Deactivate them first or use 'update' to edit the template in place.`,
+        code: 'template_in_use',
+        journeys: allRefs.map((j: any) => ({ id: j.id, name: j.name })),
+      }, 409);
+    }
   }
 
   // Delete from Meta (by name)
@@ -186,6 +217,101 @@ async function handleDelete(
   }
 
   return jsonResp({ success: true });
+}
+
+// ─── UPDATE ───
+// Edits an approved template's body/footer/buttons via Meta Graph API.
+// Name and category cannot be changed (Meta restriction).
+// This avoids the delete+recreate cycle and preserves approval status.
+async function handleUpdate(
+  db: any,
+  wa: { id: string; waba_id: string; access_token: string },
+  userId: string,
+  body: any
+) {
+  const { template_id, components } = body;
+  if (!template_id || !components) {
+    return jsonResp({ error: 'Missing required fields: template_id, components' }, 400);
+  }
+
+  // Look up existing template
+  const { data: existing, error: lookupErr } = await db
+    .from('templates')
+    .select('*')
+    .eq('id', template_id)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (lookupErr || !existing) {
+    return jsonResp({ error: 'Template not found' }, 404);
+  }
+
+  if (!existing.meta_template_id) {
+    return jsonResp({ error: 'Template has no Meta ID — it was never submitted. Use create instead.' }, 400);
+  }
+
+  // Meta only allows editing templates that are APPROVED, PAUSED, or REJECTED
+  const editableStatuses = ['approved', 'paused', 'rejected'];
+  if (!editableStatuses.includes(existing.status)) {
+    return jsonResp({
+      error: `Template status is "${existing.status}" — only approved, paused, or rejected templates can be edited.`,
+    }, 400);
+  }
+
+  // Submit edit to Meta
+  // Meta endpoint: POST /{template_id} with updated components
+  const metaUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${existing.meta_template_id}`;
+  const metaRes = await fetch(metaUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${wa.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      components,
+      // Meta may re-review the template after edit
+    }),
+  });
+
+  const metaJson = await metaRes.json();
+  if (!metaRes.ok) {
+    const errMsg = metaJson.error?.message || JSON.stringify(metaJson);
+    return jsonResp({ error: `Meta API error: ${errMsg}` }, metaRes.status >= 400 ? metaRes.status : 400);
+  }
+
+  // Parse updated components for DB columns
+  const parsed = parseComponents(components);
+
+  // Update local DB — Meta may change status to PENDING after edit
+  const newStatus = metaJson.status ? normStatus(metaJson.status) : existing.status;
+  const { data: updated, error: updateErr } = await db
+    .from('templates')
+    .update({
+      components,
+      header: parsed.header,
+      body_text: parsed.bodyText,
+      footer: parsed.footer,
+      buttons: parsed.buttons,
+      variables: parsed.variables,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', template_id)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (updateErr) {
+    return jsonResp({ error: updateErr.message }, 500);
+  }
+
+  return jsonResp({
+    success: true,
+    template: updated,
+    note: newStatus !== existing.status
+      ? `Status changed from "${existing.status}" to "${newStatus}" — Meta may re-review after edit.`
+      : undefined,
+  });
 }
 
 // ─── Re-host approved sample media to durable storage ───
