@@ -113,9 +113,9 @@ export async function runPipeline(
         if (settings?.enabled) {
           let result = await scoreOrder(db, order, settings);
 
-          // Blend external score if provided
+          // Blend external score if provided (PeakCart's score is authoritative)
           if (payload.risk_score !== undefined) {
-            result = blendExternalScore(result, payload.risk_score);
+            result = blendExternalScore(result, payload.risk_score, source);
           }
 
           // Re-determine band after blend

@@ -12,7 +12,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const GRAPH = `https://graph.facebook.com/${Deno.env.get('META_GRAPH_VERSION') ?? 'v23.0'}`;
+const GRAPH = `https://graph.facebook.com/${Deno.env.get('META_GRAPH_VERSION') ?? 'v25.0'}`;
 const APP_ID = Deno.env.get('META_APP_ID')!;
 const APP_SECRET = Deno.env.get('META_APP_SECRET')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;

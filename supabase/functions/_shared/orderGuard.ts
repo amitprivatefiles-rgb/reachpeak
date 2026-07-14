@@ -368,17 +368,34 @@ export async function scoreOrder(
 
 /**
  * Blend external risk_score if provided. Call AFTER scoreOrder.
+ * PeakCart is authoritative — its score wins outright for source='peakcart'.
+ * Other sources keep the existing 50/50 blend.
  */
 export function blendExternalScore(
   result: ScoreResult,
   externalScore: number | undefined,
+  source?: string,
 ): ScoreResult {
   if (externalScore === undefined || externalScore === null) return result;
-  const blended = Math.round(0.5 * result.score + 0.5 * Number(externalScore));
+  const ext = Number(externalScore);
+
+  if (source === 'peakcart') {
+    // PeakCart has a 6-signal engine; its score replaces ours
+    result.factors.push({
+      factor: 'PeakCart Score (authoritative)',
+      points: ext - result.score,
+      detail: `PeakCart score ${ext} replaces ReachPeak score ${result.score}`,
+    });
+    result.score = Math.max(0, Math.min(100, ext));
+    return result;
+  }
+
+  // Other sources: 50/50 blend (existing behaviour)
+  const blended = Math.round(0.5 * result.score + 0.5 * ext);
   result.factors.push({
     factor: 'External Score Blend',
     points: blended - result.score,
-    detail: `Store score ${externalScore}, ours ${result.score} → blended ${blended}`,
+    detail: `Store score ${ext}, ours ${result.score} → blended ${blended}`,
   });
   result.score = Math.max(0, Math.min(100, blended));
   return result;

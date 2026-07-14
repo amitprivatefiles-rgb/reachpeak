@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GRAPH_API_VERSION = Deno.env.get('GRAPH_API_VERSION') || 'v23.0';
+const GRAPH_API_VERSION = Deno.env.get('GRAPH_API_VERSION') || 'v25.0';
 
 // ─── Normalize Meta uppercase → lowercase ───
 function normStatus(s: string | null | undefined): string {

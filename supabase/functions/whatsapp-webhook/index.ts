@@ -7,6 +7,7 @@
 //   supabase functions deploy whatsapp-webhook --no-verify-jwt
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { classifyError, HARD_BOUNCE_BUCKETS } from '../_shared/errorClassifier.ts';
 
 const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || '';
 const APP_SECRET = Deno.env.get('WHATSAPP_APP_SECRET') || '';
@@ -35,6 +36,15 @@ async function verifySignature(rawBody: string, signature: string | null): Promi
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
   return diff === 0;
+}
+
+async function hmacSign(secret: string, data: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 function tsToIso(ts?: string): string {
@@ -228,13 +238,94 @@ Deno.serve(async (req: Request) => {
               patch.error_code = status.errors?.[0]?.code ? String(status.errors[0].code) : null;
               patch.error_message =
                 status.errors?.[0]?.title || status.errors?.[0]?.message || 'Failed';
+              // Classify error into actionable bucket
+              patch.error_bucket = classifyError(patch.error_code as string);
             }
             if (status.pricing) {
               patch.conversation_category = status.pricing.category ?? null;
               patch.pricing_billable = status.pricing.billable ?? null;
+              // Populate cost from config table (per delivered template message)
+              if (status.pricing.billable && status.pricing.category) {
+                const { data: costRow } = await supabase
+                  .from('messaging_cost_config')
+                  .select('cost_inr')
+                  .eq('category', status.pricing.category.toLowerCase())
+                  .maybeSingle();
+                if (costRow) patch.cost = costRow.cost_inr;
+              }
             }
             if (status.id) {
               await supabase.from('messages').update(patch).eq('wamid', status.id);
+
+              // Status callback for partner-originated messages
+              if (status.status === 'delivered' || status.status === 'read' || status.status === 'failed') {
+                const { data: msg } = await supabase.from('messages')
+                  .select('id, external_type, external_id, external_store_ref, user_id, wamid, error_code, error_bucket')
+                  .eq('wamid', status.id)
+                  .maybeSingle();
+
+                if (msg?.external_id) {
+                  // Dispatch status callback to partner
+                  const { data: intKey } = await supabase.from('integration_keys')
+                    .select('callback_url, callback_secret')
+                    .eq('user_id', msg.user_id)
+                    .eq('is_active', true)
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (intKey?.callback_url && intKey?.callback_secret) {
+                    const cbBody = JSON.stringify({
+                      callback_id: crypto.randomUUID(),
+                      type: 'message_status',
+                      status: status.status,
+                      external_ref: {
+                        type: msg.external_type,
+                        id: msg.external_id,
+                        store_ref: msg.external_store_ref,
+                      },
+                      message_id: msg.id,
+                      wamid: msg.wamid,
+                      error_code: msg.error_code,
+                      error_bucket: msg.error_bucket,
+                      occurred_at: whenIso,
+                    });
+                    const sig = await hmacSign(intKey.callback_secret, cbBody);
+                    fetch(intKey.callback_url, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-ReachPeak-Signature': sig,
+                        'X-ReachPeak-Timestamp': new Date().toISOString(),
+                      },
+                      body: cbBody,
+                    }).catch(err => console.error('[webhook] status callback error:', err.message));
+                  }
+                }
+
+                // Hard bounce auto-blacklist: after 3 hard bounces, suppress the contact
+                if (msg && status.status === 'failed' && HARD_BOUNCE_BUCKETS.has(patch.error_bucket as string)) {
+                  const { count } = await supabase
+                    .from('messages')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', msg.user_id)
+                    .eq('wa_to', status.recipient_id)
+                    .eq('status', 'failed')
+                    .in('error_bucket', [...HARD_BOUNCE_BUCKETS])
+                    .gte('failed_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+
+                  if ((count ?? 0) >= 3) {
+                    await supabase.from('contacts')
+                      .update({
+                        is_blacklisted: true,
+                        blacklist_reason: 'hard_bounce',
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('user_id', msg.user_id)
+                      .eq('phone_number', status.recipient_id);
+                    console.log(`[webhook] Auto-blacklisted ${status.recipient_id} after 3+ hard bounces`);
+                  }
+                }
+              }
             }
           }
 
@@ -392,7 +483,6 @@ Deno.serve(async (req: Request) => {
             }
           }
 
-          // 3) Template approval status updates
           if (change.field === 'message_template_status_update') {
             const evt = value as Record<string, any>;
             const metaTemplateId = evt.message_template_id != null ? String(evt.message_template_id) : null;
@@ -407,6 +497,43 @@ Deno.serve(async (req: Request) => {
                 })
                 .eq('meta_template_id', metaTemplateId);
               if (tplErr) console.error('Template status update error:', tplErr.message);
+            }
+          }
+
+          // 4) Account quality updates — auto-pause marketing on yellow/red
+          if (change.field === 'phone_number_quality_update' ||
+              change.field === 'account_update') {
+            const evt = value as Record<string, any>;
+            const qualityRating = evt.current_limit
+              ?? evt.quality_rating ?? null;
+            const displayPhoneNumber = evt.display_phone_number;
+
+            if (qualityRating && displayPhoneNumber) {
+              const cleanPhone = String(displayPhoneNumber).replace(/[^0-9]/g, '');
+              const isHealthy = /green/i.test(String(qualityRating));
+              const isDegraded = /yellow|red|flagged/i.test(String(qualityRating));
+
+              const accountPatch: Record<string, unknown> = {
+                quality_rating: String(qualityRating).toLowerCase(),
+                updated_at: new Date().toISOString(),
+              };
+
+              if (isDegraded) {
+                // Auto-pause marketing sends to protect the number
+                accountPatch.marketing_paused = true;
+                accountPatch.marketing_paused_reason =
+                  `Quality dropped to ${qualityRating} — marketing auto-paused at ${new Date().toISOString()}`;
+                console.warn(`[webhook] WABA ${cleanPhone} quality=${qualityRating} — marketing auto-paused`);
+              } else if (isHealthy) {
+                // Resume marketing when quality recovers
+                accountPatch.marketing_paused = false;
+                accountPatch.marketing_paused_reason = null;
+                console.log(`[webhook] WABA ${cleanPhone} quality=${qualityRating} — marketing resumed`);
+              }
+
+              await supabase.from('whatsapp_accounts')
+                .update(accountPatch)
+                .eq('display_phone_number', displayPhoneNumber);
             }
           }
         }

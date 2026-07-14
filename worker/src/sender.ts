@@ -1,4 +1,4 @@
-const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v23.0';
+const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v25.0';
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
 
 // ---------- Token-bucket rate limiter (per phone_number_id) ----------

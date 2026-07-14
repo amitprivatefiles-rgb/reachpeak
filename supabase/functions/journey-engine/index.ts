@@ -232,6 +232,57 @@ async function runSteps(
       return;
     }
 
+    // ── Quiet hours: delay send steps until quiet_hours_end ──
+    // Queue and send at 8am — never drop. Extend reply timeout.
+    if (step.type === 'send_template' || step.type === 'send_buttons') {
+      const { data: ogSettings } = await db.from('orderguard_settings')
+        .select('quiet_hours_start, quiet_hours_end, quiet_hours_tz')
+        .eq('user_id', exec.user_id).maybeSingle();
+
+      if (ogSettings?.quiet_hours_start && ogSettings?.quiet_hours_end) {
+        const tz = ogSettings.quiet_hours_tz || 'Asia/Kolkata';
+        const nowLocal = new Date().toLocaleString('en-US', { timeZone: tz });
+        const localDate = new Date(nowLocal);
+        const localHHMM = localDate.getHours() * 60 + localDate.getMinutes();
+
+        const [startH, startM] = ogSettings.quiet_hours_start.split(':').map(Number);
+        const [endH, endM] = ogSettings.quiet_hours_end.split(':').map(Number);
+        const quietStart = startH * 60 + startM;
+        const quietEnd = endH * 60 + endM;
+
+        // Check if current time is in quiet hours (handles overnight wrap)
+        const inQuietHours = quietStart > quietEnd
+          ? (localHHMM >= quietStart || localHHMM < quietEnd)  // e.g. 22:00-08:00
+          : (localHHMM >= quietStart && localHHMM < quietEnd); // e.g. 01:00-06:00
+
+        if (inQuietHours) {
+          // Calculate wake time: next occurrence of quiet_hours_end in the tenant's tz
+          const tomorrow = new Date(localDate);
+          if (localHHMM >= quietStart) {
+            tomorrow.setDate(tomorrow.getDate() + 1);
+          }
+          tomorrow.setHours(endH, endM, 0, 0);
+
+          // Approximate: convert back from local tz to UTC by using offset
+          const offsetMs = new Date().getTime() - localDate.getTime();
+          const wakeAt = new Date(tomorrow.getTime() + offsetMs).toISOString();
+
+          console.log(`[journey-engine] exec=${exec.id} step=${stepIdx} delayed until ${wakeAt} (quiet hours ${ogSettings.quiet_hours_start}-${ogSettings.quiet_hours_end} ${tz})`);
+
+          await db.from('journey_executions').update({
+            status: 'waiting_delay',
+            current_step: stepIdx,
+            wake_at: wakeAt,
+            context: {
+              ...exec.context,
+              _quiet_hours_delayed: true,
+            },
+          }).eq('id', exec.id);
+          return; // cron will resume at wake time
+        }
+      }
+    }
+
     if (step.type === 'wait') {
       const minutes = step.minutes ?? 1;
       const wakeAt = new Date(Date.now() + minutes * 60_000).toISOString();
@@ -273,9 +324,15 @@ async function runSteps(
         await finish(exec, 'error', `Step ${stepIdx}: ${result.error}`);
         return;
       }
-      // Wait for reply
-      const timeoutAt = step.reply_timeout_hours
-        ? new Date(Date.now() + step.reply_timeout_hours * 3600_000).toISOString()
+      // Wait for reply — extend timeout if message was delayed by quiet hours
+      let timeoutHours = step.reply_timeout_hours ?? 0;
+      if (timeoutHours > 0 && exec.context?._quiet_hours_delayed) {
+        // Add quiet hours duration to the reply window so the customer
+        // gets the full timeout after they actually receive the message
+        timeoutHours += 10; // conservative: max quiet period is ~10h (22:00-08:00)
+      }
+      const timeoutAt = timeoutHours > 0
+        ? new Date(Date.now() + timeoutHours * 3600_000).toISOString()
         : null;
       await db.from('journey_executions').update({
         status: 'waiting_reply',
@@ -596,8 +653,15 @@ Deno.serve(async (req: Request) => {
       const onReply = awaitingConfig?.on_reply || {};
 
       // Match button payload to on_reply branches
-      const normalPayload = button_payload.toUpperCase().trim();
-      const branchSteps = onReply[normalPayload] || onReply[button_payload] || null;
+      // Normalize: strip emoji/non-alpha, collapse whitespace, uppercase
+      // e.g. "✅ Confirm" → "CONFIRM", "❌ Cancel" → "CANCEL"
+      const normalPayload = button_payload
+        .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toUpperCase();
+      const branchSteps = onReply[normalPayload] || onReply[button_payload.toUpperCase().trim()] || onReply[button_payload] || null;
 
       if (!branchSteps || branchSteps.length === 0) {
         // No matching branch — continue to next step
