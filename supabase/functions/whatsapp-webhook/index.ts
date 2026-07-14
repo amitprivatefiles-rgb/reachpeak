@@ -203,11 +203,11 @@ Deno.serve(async (req: Request) => {
           const phoneNumberId = value.metadata?.phone_number_id;
 
           // Which tenant does this number belong to?
-          let account: { id: string; user_id: string; access_token: string } | null = null;
+          let account: { id: string; user_id: string; access_token?: string } | null = null;
           if (phoneNumberId) {
             const { data } = await supabase
               .from('whatsapp_accounts')
-              .select('id, user_id, access_token')
+              .select('id, user_id')
               .eq('phone_number_id', phoneNumberId)
               .maybeSingle();
             account = data ?? null;
@@ -255,13 +255,17 @@ Deno.serve(async (req: Request) => {
                 const mediaObj = msg[msgType];
                 messagePreview = mediaObj?.caption || `📎 ${msgType}`;
                 // Download and store media
-                if (mediaObj?.id && account.access_token) {
-                  mediaUrl = await downloadAndStoreMedia(
-                    mediaObj.id,
-                    account.access_token,
-                    account.user_id,
-                    mediaObj.mime_type || 'application/octet-stream',
-                  );
+                if (mediaObj?.id) {
+                  // Decrypt WABA token for media download
+                  const { data: mediaAccessToken } = await supabase.rpc('get_waba_access_token', { p_account_id: account.id });
+                  if (mediaAccessToken) {
+                    mediaUrl = await downloadAndStoreMedia(
+                      mediaObj.id,
+                      mediaAccessToken,
+                      account.user_id,
+                      mediaObj.mime_type || 'application/octet-stream',
+                    );
+                  }
                 }
               } else if (msgType === 'button') {
                 // Quick-reply button tap (e.g. from a template button)

@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
         user_id: user.id,
         waba_id,
         phone_number_id,
-        access_token: accessToken,
+        access_token: '***VAULT***',
         business_id: business_id ?? null,
         display_phone_number: info?.display_phone_number ?? null,
         verified_name: info?.verified_name ?? null,
@@ -143,6 +143,11 @@ Deno.serve(async (req: Request) => {
   if (upErr) {
     console.error('[embedded-signup] DB upsert failed:', upErr);
     return json({ error: 'db_upsert_failed', detail: upErr.message }, 500);
+  }
+
+  // Store token in vault
+  if (acct?.id) {
+    await admin.rpc('set_waba_access_token', { p_account_id: acct.id, p_token: accessToken });
   }
 
   console.log(`[embedded-signup] Connected ${acct?.display_phone_number} for user ${user.id}`);

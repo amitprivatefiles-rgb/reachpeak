@@ -68,14 +68,18 @@ Deno.serve(async (req: Request) => {
       .not('wamid', 'is', null);
 
     if (unreadMessages && unreadMessages.length > 0 && conv.whatsapp_account_id) {
-      // Get account access token
+      // Get account info
       const { data: account } = await supabase
         .from('whatsapp_accounts')
-        .select('phone_number_id, access_token')
+        .select('id, phone_number_id')
         .eq('id', conv.whatsapp_account_id)
         .maybeSingle();
 
       if (account) {
+        // Decrypt WABA token from Vault
+        const { data: accessToken } = await supabase.rpc('get_waba_access_token', { p_account_id: account.id });
+
+        if (accessToken) {
         // Send read receipts (fire and forget — don't block the response)
         for (const msg of unreadMessages) {
           if (msg.wamid) {
@@ -84,7 +88,7 @@ Deno.serve(async (req: Request) => {
               {
                 method: 'POST',
                 headers: {
-                  Authorization: `Bearer ${account.access_token}`,
+                  Authorization: `Bearer ${accessToken}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -96,6 +100,7 @@ Deno.serve(async (req: Request) => {
             ).catch(() => {}); // fire and forget
           }
         }
+        } // end if (accessToken)
 
         // Mark messages as read in our DB
         await supabase

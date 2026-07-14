@@ -58,13 +58,17 @@ Deno.serve(async (req: Request) => {
     // 3. Load the caller's WhatsApp account
     const { data: account, error: acctErr } = await supabase
       .from('whatsapp_accounts')
-      .select('id, phone_number_id, access_token, display_phone_number')
+      .select('id, phone_number_id, display_phone_number')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
 
     if (acctErr) return json({ error: 'Account lookup failed: ' + acctErr.message }, 500);
     if (!account) return json({ error: 'No active WhatsApp account connected' }, 400);
+
+    // Decrypt WABA token from Vault
+    const { data: accessToken, error: tokenErr } = await supabase.rpc('get_waba_access_token', { p_account_id: account.id });
+    if (tokenErr || !accessToken) return json({ error: 'Failed to decrypt WhatsApp credentials' }, 500);
 
     // 4. Build the Cloud API payload
     let payload: Record<string, unknown>;
@@ -163,7 +167,7 @@ Deno.serve(async (req: Request) => {
     const waRes = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${account.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),

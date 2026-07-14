@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         .update({
           waba_id,
           phone_number_id,
-          access_token,
+          access_token: '***VAULT***',
           display_phone_number,
           verified_name: verified_name || null,
           status: 'connected',
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
           user_id: user.id,
           waba_id,
           phone_number_id,
-          access_token,
+          access_token: '***VAULT***',
           display_phone_number,
           verified_name: verified_name || null,
           status: 'connected',
@@ -99,6 +99,11 @@ Deno.serve(async (req) => {
         });
       }
       throw error;
+    }
+
+    // Store token in vault
+    if (data?.id) {
+      await serviceClient.rpc('set_waba_access_token', { p_account_id: data.id, p_token: access_token });
     }
 
     // Return ONLY non-secret columns — never access_token

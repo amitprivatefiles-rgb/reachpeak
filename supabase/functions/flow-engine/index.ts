@@ -164,10 +164,14 @@ Deno.serve(async (req: Request) => {
     if (!convo) return new Response('no conversation', { status: 404 });
 
     const { data: account } = await db.from('whatsapp_accounts')
-      .select('id, phone_number_id, access_token, user_id')
+      .select('id, phone_number_id, user_id')
       .eq('id', convo.whatsapp_account_id)
       .single();
     if (!account) return new Response('no account', { status: 404 });
+
+    // Decrypt WABA token from Vault
+    const { data: vaultToken } = await db.rpc('get_waba_access_token', { p_account_id: account.id });
+    (account as any).access_token = vaultToken ?? '';
 
     const windowOpen = convo.window_expires_at && new Date(convo.window_expires_at) > new Date();
 

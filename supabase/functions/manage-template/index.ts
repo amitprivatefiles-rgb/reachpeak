@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     // Get the tenant's WhatsApp account
     const { data: waAccount, error: waErr } = await serviceClient
       .from('whatsapp_accounts')
-      .select('id, waba_id, access_token, phone_number_id')
+      .select('id, waba_id, phone_number_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .limit(1)
@@ -53,6 +53,14 @@ Deno.serve(async (req) => {
     if (waErr || !waAccount) {
       return jsonResp({ error: 'No active WhatsApp account found. Connect one in Settings → WhatsApp.' }, 400);
     }
+
+    // Decrypt WABA token from Vault
+    const { data: accessToken, error: tokenErr } = await serviceClient.rpc('get_waba_access_token', { p_account_id: waAccount.id });
+    if (tokenErr || !accessToken) {
+      return jsonResp({ error: 'Failed to decrypt WhatsApp credentials' }, 500);
+    }
+    // Attach to waAccount for use in handlers
+    (waAccount as any).access_token = accessToken;
 
     const body = await req.json();
     const { action } = body;

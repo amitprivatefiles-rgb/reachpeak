@@ -88,12 +88,16 @@ async function isBlacklisted(userId: string, phone: string): Promise<boolean> {
 
 async function getWhatsAppAccount(userId: string) {
   const { data } = await db.from('whatsapp_accounts')
-    .select('id, phone_number_id, access_token, display_phone_number')
+    .select('id, phone_number_id, display_phone_number')
     .eq('user_id', userId)
     .eq('is_active', true)
     .limit(1)
     .maybeSingle();
-  return data;
+  if (!data) return null;
+
+  // Decrypt WABA token from Vault
+  const { data: accessToken } = await db.rpc('get_waba_access_token', { p_account_id: data.id });
+  return { ...data, access_token: accessToken ?? '' };
 }
 
 function matchFilters(filters: Record<string, any>, payload: Record<string, any>): boolean {

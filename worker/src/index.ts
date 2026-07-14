@@ -15,7 +15,7 @@ async function getAccount(accountId: string) {
 
   const { data, error } = await supabase
     .from('whatsapp_accounts')
-    .select('phone_number_id, access_token')
+    .select('phone_number_id')
     .eq('id', accountId)
     .eq('is_active', true)
     .single();
@@ -25,8 +25,19 @@ async function getAccount(accountId: string) {
     return null;
   }
 
-  accountCache.set(accountId, data);
-  return data;
+  // Decrypt WABA token from Vault via RPC
+  const { data: accessToken, error: tokenErr } = await supabase.rpc('get_waba_access_token', {
+    p_account_id: accountId,
+  });
+
+  if (tokenErr || !accessToken) {
+    console.error(`[Worker] Failed to decrypt token for account ${accountId}`);
+    return null;
+  }
+
+  const account = { phone_number_id: data.phone_number_id, access_token: accessToken };
+  accountCache.set(accountId, account);
+  return account;
 }
 
 async function processMessages(messages: ClaimedMessage[]) {
