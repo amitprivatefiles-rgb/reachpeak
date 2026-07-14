@@ -8,6 +8,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { classifyError, HARD_BOUNCE_BUCKETS } from '../_shared/errorClassifier.ts';
+import { dispatchCallback } from '../_shared/callbackDispatcher.ts';
 
 const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || '';
 const APP_SECRET = Deno.env.get('WHATSAPP_APP_SECRET') || '';
@@ -265,7 +266,7 @@ Deno.serve(async (req: Request) => {
                   .maybeSingle();
 
                 if (msg?.external_id) {
-                  // Dispatch status callback to partner
+                  // Dispatch status callback via dispatcher (with retry)
                   const { data: intKey } = await supabase.from('integration_keys')
                     .select('callback_url, callback_secret')
                     .eq('user_id', msg.user_id)
@@ -274,7 +275,7 @@ Deno.serve(async (req: Request) => {
                     .maybeSingle();
 
                   if (intKey?.callback_url && intKey?.callback_secret) {
-                    const cbBody = JSON.stringify({
+                    await dispatchCallback(supabase, msg.user_id, intKey.callback_url, intKey.callback_secret, {
                       callback_id: crypto.randomUUID(),
                       type: 'message_status',
                       status: status.status,
@@ -289,16 +290,6 @@ Deno.serve(async (req: Request) => {
                       error_bucket: msg.error_bucket,
                       occurred_at: whenIso,
                     });
-                    const sig = await hmacSign(intKey.callback_secret, cbBody);
-                    fetch(intKey.callback_url, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'X-ReachPeak-Signature': sig,
-                        'X-ReachPeak-Timestamp': new Date().toISOString(),
-                      },
-                      body: cbBody,
-                    }).catch(err => console.error('[webhook] status callback error:', err.message));
                   }
                 }
 

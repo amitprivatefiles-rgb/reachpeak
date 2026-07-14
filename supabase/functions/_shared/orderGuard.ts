@@ -78,8 +78,11 @@ export async function applyOrderEvent(
   payload: Record<string, any>,
   contactPhone: string | null,
 ): Promise<OrderRow | null> {
-  const orderId = payload.order_id || payload.external_order_id;
-  if (!orderId) return null; // lifecycle events require order_id
+  // order_uuid is the canonical identity (PeakCart UUID).
+  // order_id is kept for backward compat (Shopify/Woo order numbers).
+  // order_number is display-only.
+  const orderId = payload.order_uuid || payload.order_id || payload.external_order_id;
+  if (!orderId) return null; // lifecycle events require an order identifier
 
   const now = new Date().toISOString();
 
@@ -101,6 +104,7 @@ export async function applyOrderEvent(
       user_id: userId,
       source,
       external_order_id: String(orderId),
+      order_number: payload.order_number ?? null,
       contact_id: contactId,
       contact_phone: contactPhone,
       total: payload.total ?? null,

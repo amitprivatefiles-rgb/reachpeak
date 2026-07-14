@@ -13,6 +13,7 @@ import {
   blendExternalScore,
 } from './orderGuard.ts';
 import { createPaymentLink } from './payments.ts';
+import { dispatchCallback } from './callbackDispatcher.ts';
 
 // ── Phone normalization ──
 export function normalizePhone(raw: string | undefined | null): string | null {
@@ -50,16 +51,6 @@ interface PipelineResult {
   error?: string;
   riskScore?: number;
   riskBand?: string;
-}
-
-// ── HMAC-SHA256 for callbacks ──
-async function hmacSign(secret: string, data: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export async function runPipeline(
@@ -118,10 +109,19 @@ export async function runPipeline(
             result = blendExternalScore(result, payload.risk_score, source);
           }
 
-          // Re-determine band after blend
-          const band: 'low' | 'medium' | 'high' =
-            result.score <= settings.low_max ? 'low' :
-            result.score <= settings.medium_max ? 'medium' : 'high';
+          // Determine band — 4 levels: low / medium / high / critical
+          // PeakCart is authoritative: if source='peakcart' and risk_level is provided,
+          // use it directly. Otherwise compute from ReachPeak thresholds.
+          const criticalMin = settings.critical_min ?? 70;
+          let band: string;
+          if (source === 'peakcart' && payload.risk_level) {
+            // PeakCart provides risk_level — use it as-is
+            band = String(payload.risk_level).toLowerCase();
+          } else {
+            band = result.score <= settings.low_max ? 'low' :
+              result.score <= settings.medium_max ? 'medium' :
+              result.score >= criticalMin ? 'critical' : 'high';
+          }
           result.band = band;
 
           // Write score to order
@@ -233,7 +233,9 @@ async function routeByRisk(
         ...order,
         risk_score: scoreResult.score,
         risk_band: scoreResult.band,
-        order_id: order.external_order_id,
+        order_uuid: order.external_order_id,
+        order_number: order.order_number ?? order.external_order_id,
+        order_id: order.external_order_id, // backward compat
       },
       status: 'received',
     }).select('id').single().then(({ data: evt }) => {
@@ -293,7 +295,7 @@ async function routeByRisk(
         event_type: 'cod_pending',
         contact_phone: order.contact_phone,
         dedupe_key: dedupeKey,
-        payload: { ...order, risk_score: scoreResult.score, risk_band: scoreResult.band, order_id: order.external_order_id },
+        payload: { ...order, risk_score: scoreResult.score, risk_band: scoreResult.band, order_uuid: order.external_order_id, order_number: order.order_number ?? order.external_order_id, order_id: order.external_order_id },
         status: 'received',
       }).select('id').single().then(({ data: evt }) => {
         if (evt) {
@@ -315,7 +317,9 @@ async function routeByRisk(
       contact_phone: order.contact_phone,
       dedupe_key: dedupeKey,
       payload: {
-        order_id: order.external_order_id,
+        order_uuid: order.external_order_id,
+        order_number: order.order_number ?? order.external_order_id,
+        order_id: order.external_order_id, // backward compat
         total: order.total,
         pay_url: payUrl,
         discounted_total: discountedTotal,
@@ -344,24 +348,21 @@ async function routeByRisk(
         .limit(1).maybeSingle();
 
       if (intKey?.callback_url && intKey?.callback_secret) {
-        const callbackBody = JSON.stringify({
-          action: 'hold',
-          order_id: order.external_order_id,
+        await dispatchCallback(db, userId, intKey.callback_url, intKey.callback_secret, {
+          callback_id: crypto.randomUUID(),
+          type: 'action',
+          action: 'order.hold',
+          external_ref: {
+            type: 'order',
+            id: order.external_order_id,
+            store_ref: null,
+          },
+          order_uuid: order.external_order_id,
+          order_number: order.order_number ?? order.external_order_id,
           risk_score: scoreResult.score,
           risk_band: scoreResult.band,
           phone: order.contact_phone,
-          timestamp: new Date().toISOString(),
-        });
-        const signature = await hmacSign(intKey.callback_secret, callbackBody);
-        fetch(intKey.callback_url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-ReachPeak-Signature': signature,
-          },
-          body: callbackBody,
-        }).catch(err => {
-          console.error('[pipeline] hold callback error:', err.message);
+          occurred_at: new Date().toISOString(),
         });
       }
     }

@@ -11,6 +11,7 @@ import { buildTemplateSendComponents } from '../_shared/templatePayload.ts';
 import type { StoredTemplate } from '../_shared/templatePayload.ts';
 import { updateOrderConfirmStatus } from '../_shared/orderGuard.ts';
 import { createPaymentLink } from '../_shared/payments.ts';
+import { dispatchCallback } from '../_shared/callbackDispatcher.ts';
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -372,35 +373,44 @@ async function runSteps(
       stepIdx++;
 
     } else if (step.type === 'callback') {
+      // Build unified callback payload with external_ref
+      const ctx = exec.context?.payload ?? {};
+      const callbackId = crypto.randomUUID();
+      const callbackPayload = {
+        callback_id: callbackId,
+        type: 'action' as const,
+        action: step.action ?? step.decision, // prefer 'action', fallback 'decision' for compat
+        external_ref: {
+          type: ctx.external_type ?? 'order',
+          id: ctx.order_uuid ?? ctx.order_id ?? null,
+          store_ref: ctx.store_ref ?? ctx.external_store_ref ?? null,
+        },
+        source: 'whatsapp_button',
+        phone: exec.contact_phone,
+        event_id: exec.event_id,
+        order_uuid: ctx.order_uuid ?? ctx.order_id ?? null,
+        order_number: ctx.order_number ?? null,
+        occurred_at: new Date().toISOString(),
+      };
+
       if (integrationKey?.callback_url && integrationKey?.callback_secret) {
-        const callbackBody = JSON.stringify({
-          decision: step.decision,
-          phone: exec.contact_phone,
-          event_id: exec.event_id,
-          order_id: exec.context?.payload?.order_id ?? null,
-          timestamp: new Date().toISOString(),
-        });
-        const signature = await hmacSign(integrationKey.callback_secret, callbackBody);
-        fetch(integrationKey.callback_url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-ReachPeak-Signature': signature,
-          },
-          body: callbackBody,
-        }).catch(err => {
-          console.error(`[journey-engine] callback error: ${err.message}`);
-        });
+        // Dispatch with retry (logged to callback_log)
+        await dispatchCallback(
+          db, exec.user_id,
+          integrationKey.callback_url, integrationKey.callback_secret,
+          callbackPayload,
+        );
       }
 
-      // OrderGuard: update order confirm_status based on callback decision
-      const cbOrderId = exec.context?.payload?.order_id;
+      // OrderGuard: update order confirm_status based on action
+      const cbOrderId = ctx.order_uuid ?? ctx.order_id;
       if (cbOrderId) {
         try {
-          const cbSource = exec.context?.payload?.source ?? 'api';
-          if (step.decision === 'confirmed') {
+          const cbSource = ctx.source ?? 'api';
+          const actionVal = step.action ?? step.decision;
+          if (actionVal === 'order.confirm' || actionVal === 'confirmed') {
             await updateOrderConfirmStatus(db, exec.user_id, cbSource, String(cbOrderId), 'confirmed');
-          } else if (step.decision === 'cancelled') {
+          } else if (actionVal === 'order.cancel' || actionVal === 'cancelled') {
             await updateOrderConfirmStatus(db, exec.user_id, cbSource, String(cbOrderId), 'declined');
           }
         } catch (e: any) {
