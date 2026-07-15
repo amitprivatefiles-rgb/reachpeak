@@ -28,8 +28,13 @@ function resolveBinding(binding: string, context: Record<string, any>): string {
   const parts = binding.split('.');
   let val: any = context;
   for (const part of parts) {
-    if (val === null || val === undefined) return '';
+    if (val === null || val === undefined) break;
     val = val[part];
+  }
+  // Fallback: if top-level lookup failed and binding has no dots,
+  // check context.payload.{binding} (convenience for journey step authors)
+  if ((val === null || val === undefined) && !binding.includes('.') && context.payload) {
+    val = context.payload[binding];
   }
   return String(val ?? '');
 }
