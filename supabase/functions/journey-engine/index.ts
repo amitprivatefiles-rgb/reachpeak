@@ -147,11 +147,14 @@ async function enqueueTemplate(
   variableBindings: Record<string, string>, headerMedia: string | null,
   context: Record<string, any>,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Load template
-  const { data: tpl } = await db.from('templates')
+  // Load template — templateId may be a UUID or a template name
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
+  const query = db.from('templates')
     .select('name, language, components, body_text, header_sample_url')
-    .eq('id', templateId)
-    .maybeSingle();
+    .eq('whatsapp_account_id', account.id);
+  const { data: tpl } = isUuid
+    ? await query.eq('id', templateId).maybeSingle()
+    : await query.eq('name', templateId).eq('status', 'approved').maybeSingle();
 
   if (!tpl) return { ok: false, error: `Template ${templateId} not found` };
 
