@@ -88,7 +88,19 @@ export async function runPipeline(
     }
   }
 
-  /* ── 2. OrderGuard lifecycle tracking (try-catch protected) ── */
+  /* ── 2. Normalize risk_band for cod_pending ── */
+  // When PeakCart sends cod_pending with risk_level but no risk_band,
+  // copy risk_level to risk_band so journey trigger_filters match.
+  if (eventType === 'cod_pending' && payload.risk_level && !payload.risk_band) {
+    payload.risk_band = payload.risk_level;
+  }
+
+  // Ensure order_id is set (PeakCart sends order_uuid)
+  if (!payload.order_id && payload.order_uuid) {
+    payload.order_id = payload.order_uuid;
+  }
+
+  /* ── 3. OrderGuard lifecycle tracking (try-catch protected) ── */
   let order: any = null;
   let scoreResult: { score: number; band: string; factors: any[] } | null = null;
 
