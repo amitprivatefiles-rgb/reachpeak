@@ -41,8 +41,15 @@ export function buildTemplateSendComponents(
   inputs: RuntimeInputs = {},
 ): any[] {
   const out: any[] = [];
+  // If components is null/empty but body_text exists, synthesize a minimal components array
+  // so the BODY variable loop below fires. This covers templates inserted manually (not via handleCreate).
+  const components: any[] = t.components?.length
+    ? t.components
+    : t.body_text
+      ? [{ type: 'BODY', text: t.body_text }]
+      : [];
 
-  for (const c of t.components ?? []) {
+  for (const c of components) {
     const type = String(c.type ?? "").toUpperCase();
 
     if (type === "HEADER") {
