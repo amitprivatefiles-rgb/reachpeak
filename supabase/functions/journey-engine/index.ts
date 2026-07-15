@@ -673,8 +673,10 @@ Deno.serve(async (req: Request) => {
       // Match button payload to on_reply branches
       // Normalize: strip emoji/non-alpha, collapse whitespace, uppercase
       // e.g. "✅ Confirm" → "CONFIRM", "❌ Cancel" → "CANCEL"
+      // Also handles literal "uXXXX" escapes from WhatsApp (e.g. "u274c Cancel")
       const normalPayload = button_payload
         .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
+        .replace(/\bu[0-9a-fA-F]{4,5}\b/g, '')  // strip "u274c", "u2705" etc.
         .replace(/[^a-zA-Z0-9\s]/g, '')
         .trim()
         .replace(/\s+/g, ' ')
