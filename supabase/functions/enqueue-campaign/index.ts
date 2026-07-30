@@ -63,11 +63,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', caller.id)
       .single();
 
-    if (!profile || profile.role !== 'admin')
+    if (!profile || profile.role !== 'admin' || !profile.is_active)
       return json(
         {
           error:

@@ -104,7 +104,7 @@ export const PRESET_ORDER_SHIPPED: JourneyPreset = {
   name: 'Order Shipped',
   description: 'Notify customer when their order ships.',
   trigger_event: 'order_shipped',
-  exit_on_events: [],
+  exit_on_events: ['order_returned', 'order_cancelled'],
   steps: [
     {
       type: 'send_template',
@@ -123,7 +123,7 @@ export const PRESET_ORDER_DELIVERED: JourneyPreset = {
   name: 'Review Request',
   description: 'Ask for a review 72 hours after delivery.',
   trigger_event: 'order_delivered',
-  exit_on_events: [],
+  exit_on_events: ['order_returned', 'order_refunded'],
   steps: [
     { type: 'wait', minutes: 4320, label: 'Wait 72 hours' },  // 72h = 4320m
     {
@@ -144,7 +144,7 @@ export const PRESET_COD_CONFIRM: JourneyPreset = {
   name: 'COD Confirmation',
   description: 'Ask COD customers to confirm their order via button reply. Sends decision to your store callback.',
   trigger_event: 'cod_pending',
-  exit_on_events: [],
+  exit_on_events: ['order_confirmed', 'order_cancelled', 'order_paid'],
   steps: [
     {
       type: 'send_buttons',

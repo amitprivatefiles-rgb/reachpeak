@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile, error: profileFetchError } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', requestingUser.id)
       .single();
 
@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || profile.role !== 'admin' || !profile.is_active) {
       return new Response(
         JSON.stringify({ error: 'Admin access required. Your role: ' + (profile?.role || 'none') }),
         {

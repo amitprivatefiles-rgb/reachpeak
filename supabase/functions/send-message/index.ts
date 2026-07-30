@@ -215,12 +215,16 @@ Deno.serve(async (req: Request) => {
         : type === 'template' ? `📋 Template: ${template?.name}`
         : `📎 ${type}`;
 
+      // A1.4: Extend human_active_until when a human agent manually replies.
+      // This is NOT a journey message (no journey_execution_id), so it's a
+      // genuine human reply — pause automation for this contact.
       await supabase
         .from('conversations')
         .update({
           last_message_at: new Date().toISOString(),
           last_message_preview: messagePreview,
           last_message_direction: 'outbound',
+          human_active_until: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
         })
         .eq('id', conversation_id);
     }

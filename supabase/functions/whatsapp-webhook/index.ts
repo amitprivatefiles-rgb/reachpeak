@@ -14,6 +14,45 @@ const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || '';
 const APP_SECRET = Deno.env.get('WHATSAPP_APP_SECRET') || '';
 const GRAPH_API_VERSION = Deno.env.get('GRAPH_API_VERSION') || 'v25.0';
 
+// ── Opt-out keyword detection (A1.3) ──
+// Word-boundary aware: matches if message equals, starts with, or contains these as whole words.
+// Errs toward over-detecting (legally safer).
+const OPT_OUT_KEYWORDS = [
+  'stop', 'unsubscribe', 'band karo', 'बंद करो', 'रोको', 'nahi chahiye',
+  'नहीं चाहिए', 'hatao', 'हटाओ', 'opt out', 'opt-out', 'cancel subscription',
+];
+
+function isOptOutMessage(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  // Exact match
+  if (OPT_OUT_KEYWORDS.includes(normalized)) return true;
+  // Starts with a keyword
+  for (const kw of OPT_OUT_KEYWORDS) {
+    if (normalized.startsWith(kw + ' ') || normalized.startsWith(kw + '.') || normalized.startsWith(kw + ',')) return true;
+  }
+  // Contains keyword as a whole word (word-boundary aware)
+  for (const kw of OPT_OUT_KEYWORDS) {
+    // Build a regex that matches the keyword with word boundaries
+    // For non-ASCII keywords, use simpler surrouding-space check
+    const hasNonAscii = /[^\x00-\x7F]/.test(kw);
+    if (hasNonAscii) {
+      // For Hindi/non-Latin: check if the keyword appears surrounded by spaces or at start/end
+      if (normalized === kw || normalized.startsWith(kw + ' ') || normalized.endsWith(' ' + kw)
+          || normalized.includes(' ' + kw + ' ')) return true;
+    } else {
+      try {
+        const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i');
+        if (re.test(normalized)) return true;
+      } catch {
+        if (normalized.includes(kw)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+const HUMAN_ACTIVE_WINDOW_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -400,6 +439,42 @@ Deno.serve(async (req: Request) => {
                 conversation_id: conversationId,
                 created_at: tsToIso(msg.timestamp),
               });
+
+              // ── A1.3: Opt-out keyword detection ──
+              // Check free-text inbound messages for opt-out intent.
+              // Word-boundary aware; errs toward over-detecting (legally safer).
+              if (!insErr && msgType === 'text' && msg.text?.body && isOptOutMessage(msg.text.body)) {
+                console.log(`[whatsapp-webhook] OPT-OUT detected from ${msg.from}: "${msg.text.body.substring(0, 50)}"`);
+
+                // Mark contact as opted out
+                await supabase.from('contacts').update({
+                  is_blacklisted: true,
+                  blacklist_reason: 'opt_out',
+                  opted_out_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                }).eq('user_id', account.user_id).eq('phone_number', msg.from);
+
+                // Cancel ALL active journey executions for this contact
+                const { data: cancelledJourneys } = await supabase.from('journey_executions').update({
+                  status: 'cancelled',
+                  cancel_reason: 'opted_out',
+                  finished_at: new Date().toISOString(),
+                }).eq('user_id', account.user_id)
+                  .eq('contact_phone', msg.from)
+                  .in('status', ['active', 'waiting_delay', 'waiting_reply'])
+                  .select('id');
+
+                console.log(`[whatsapp-webhook] Opted out ${msg.from}: cancelled ${cancelledJourneys?.length ?? 0} active journeys`);
+              }
+
+              // ── A1.4: Set human_active_until for free-text inbound (NOT button/interactive replies) ──
+              // Journey sends will defer while this timestamp is in the future.
+              if (!insErr && msgType !== 'button' && msgType !== 'interactive' && msgType !== 'reaction') {
+                await supabase.from('conversations').update({
+                  human_active_until: new Date(Date.now() + HUMAN_ACTIVE_WINDOW_MS).toISOString(),
+                }).eq('user_id', account.user_id).eq('contact_phone', msg.from);
+              }
+
               // ── Fire-and-forget hooks: flow-engine + journey-engine ──
               // Runs AFTER message insert succeeds. Both engines are called
               // independently — neither swallows the other.
