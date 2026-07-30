@@ -850,16 +850,136 @@ export function Integrations() {
           )}
         </section>
 
-                </ol>
-                <p className="text-xs text-gray-500 mt-2">
-                  Once connected, Shopify orders flow automatically into OrderGuard for risk scoring and lifecycle tracking.
-                  Abandoned checkouts are scanned every 15 minutes.
-                </p>
+        {/* ─── Shopify Connection Card ─────────────────────────────────── */}
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          {(() => {
+            const shopifyKey = keys.find(k => k.source === 'shopify' && k.is_active);
+            const isConnected = !!shopifyKey;
+            const status = shopifyKey?.connection_status || 'pending';
+            const lastEvent = shopifyKey?.last_event_at;
+            const isStale = lastEvent && (Date.now() - new Date(lastEvent).getTime() > 6 * 60 * 60 * 1000);
+            const neverFired = isConnected && !lastEvent;
+
+            const statusConfig: Record<string, { label: string; classes: string; icon: string }> = {
+              healthy: { label: 'Connected', classes: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', icon: '✓' },
+              pending: { label: 'Pending', classes: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', icon: '⏳' },
+              error: { label: 'Error', classes: 'bg-red-500/15 text-red-400 border-red-500/30', icon: '✕' },
+              stale: { label: 'Stale', classes: 'bg-orange-500/15 text-orange-400 border-orange-500/30', icon: '!' },
+            };
+            const st = statusConfig[isStale ? 'stale' : status] || statusConfig.pending;
+
+            return (
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10">
+                      <Store className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-white">Shopify Integration</h3>
+                      <p className="text-xs text-gray-500">
+                        {isConnected ? shopifyKey.shop_domain : 'Connect your Shopify store for automatic order tracking'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {isConnected && (
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${st.classes}`}>
+                        {st.icon} {st.label}
+                      </span>
+                    )}
+                    {!isConnected ? (
+                      <button
+                        onClick={() => setShowShopifyWizard(true)}
+                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 transition-colors flex items-center gap-2"
+                      >
+                        <Zap className="h-4 w-4" /> Connect Shopify
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowShopifyGuide(!showShopifyGuide)}
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        <ChevronDown className={`h-4 w-4 transition-transform ${showShopifyGuide ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Connected details */}
+                {isConnected && showShopifyGuide && (
+                  <div className="mt-4 border-t border-gray-800 pt-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-lg bg-gray-800/50 p-3">
+                        <p className="text-xs text-gray-500 mb-1">Last Event</p>
+                        <p className="text-sm text-white">
+                          {lastEvent ? relativeTime(lastEvent) : 'Never received'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-800/50 p-3">
+                        <p className="text-xs text-gray-500 mb-1">Store Domain</p>
+                        <p className="text-sm text-white font-mono">{shopifyKey.shop_domain}</p>
+                      </div>
+                    </div>
+
+                    {neverFired && (
+                      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-yellow-400 font-medium">No events received yet</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Place a test order in your Shopify store, or use the &quot;Re-test&quot; button to send a simulated event.</p>
+                        </div>
+                      </div>
+                    )}
+                    {isStale && (
+                      <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-orange-400 font-medium">Connection may be stale</p>
+                          <p className="text-xs text-gray-400 mt-0.5">No events received in over 6 hours. Check your Shopify webhook configuration.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={() => setShowShopifyWizard(true)}
+                        className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-gray-300 hover:text-white hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="h-3 w-3" /> Re-test
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Disconnect this Shopify store? Webhooks will stop processing.')) return;
+                          await supabase.from('integration_keys').update({
+                            is_active: false,
+                            connection_status: 'pending',
+                          }).eq('id', shopifyKey.id);
+                          fetchKeys();
+                        }}
+                        className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <Trash2 className="h-3 w-3" /> Disconnect
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </section>
 
+        {/* Shopify Connect Wizard */}
+        {showShopifyWizard && (
+          <ShopifyConnect
+            onClose={() => { setShowShopifyWizard(false); fetchKeys(); }}
+            onConnected={(keyId: string, domain: string) => {
+              setShowShopifyWizard(false);
+              fetchKeys();
+              fetchEvents();
+            }}
+          />
+        )}
         {/* ─── Lifecycle Events Reference ─────────────────────────────── */}
         <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
           <button
