@@ -15,9 +15,12 @@ import {
   ChevronRight,
   X,
   Shield,
+  Store,
+  AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import ShopifyConnect from './ShopifyConnect';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,8 +33,11 @@ interface IntegrationKey {
   key_hash: string;
   callback_url: string | null;
   callback_secret: string | null;
+  shop_domain: string | null;
   is_active: boolean;
   last_used_at: string | null;
+  last_event_at: string | null;
+  connection_status: string;
   created_at: string;
 }
 
@@ -369,6 +375,7 @@ export function Integrations() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [showShopifyGuide, setShowShopifyGuide] = useState(false);
+  const [showShopifyWizard, setShowShopifyWizard] = useState(false);
   const [showLifecycleDocs, setShowLifecycleDocs] = useState(false);
 
   // ── Events state ──
@@ -843,42 +850,6 @@ export function Integrations() {
           )}
         </section>
 
-        {/* ─── Shopify Setup Guide ───────────────────────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-          <button
-            onClick={() => setShowShopifyGuide(!showShopifyGuide)}
-            className="flex w-full items-center justify-between text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10">
-                <ExternalLink className="h-4 w-4 text-green-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Shopify Integration</h3>
-                <p className="text-xs text-gray-500">Connect your Shopify store for automatic order tracking</p>
-              </div>
-            </div>
-            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showShopifyGuide ? 'rotate-180' : ''}`} />
-          </button>
-          {showShopifyGuide && (
-            <div className="mt-4 space-y-3 border-t border-gray-800 pt-4 text-sm text-gray-300">
-              <div className="space-y-2">
-                <p className="font-semibold text-white">Setup Steps:</p>
-                <ol className="list-decimal pl-5 space-y-1.5 text-gray-400">
-                  <li>In your Shopify Admin, go to <strong className="text-gray-300">Settings → Notifications → Webhooks</strong></li>
-                  <li>Create webhooks for these topics, all pointing to:<br/>
-                    <code className="mt-1 block rounded bg-gray-800 px-2 py-1 text-xs text-green-400 font-mono">
-                      https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/shopify-webhook
-                    </code>
-                  </li>
-                  <li className="text-xs text-gray-500">
-                    Topics: <code>orders/create</code>, <code>orders/paid</code>, <code>orders/cancelled</code>,
-                    <code>orders/fulfilled</code>, <code>fulfillments/create</code>, <code>fulfillments/update</code>,
-                    <code>refunds/create</code>, <code>checkouts/create</code>, <code>checkouts/update</code>
-                  </li>
-                  <li>Copy the <strong className="text-gray-300">Webhook signing secret</strong> from Shopify</li>
-                  <li>Create an integration key above with source <strong className="text-gray-300">"shopify"</strong></li>
-                  <li>Set the <strong className="text-gray-300">provider_secret</strong> to the Shopify webhook signing secret and <strong className="text-gray-300">shop_domain</strong> to your Shopify domain (e.g. <code>mystore.myshopify.com</code>)</li>
                 </ol>
                 <p className="text-xs text-gray-500 mt-2">
                   Once connected, Shopify orders flow automatically into OrderGuard for risk scoring and lifecycle tracking.

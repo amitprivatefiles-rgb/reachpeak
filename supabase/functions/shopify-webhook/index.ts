@@ -73,9 +73,15 @@ function mapShopifyTopic(topic: string, body: any): MappedEvent | null {
     sku: li.sku,
   }));
 
-  // Detect COD
-  const gateway = (body.gateway || body.payment_gateway_names?.[0] || '').toLowerCase();
-  const isCod = /cod|cash/.test(gateway);
+  // Detect COD — precise matching to avoid false-positives on "Cashfree", "Cashback" etc.
+  // Matches: "Cash on Delivery", "COD", "manual" (Shopify's default COD gateway name),
+  // and common Indian COD gateway names. Word-boundary aware.
+  const gateway = (body.gateway || body.payment_gateway_names?.[0] || '').toLowerCase().trim();
+  const isCod = /\bcash on delivery\b/.test(gateway)
+    || /\bcod\b/.test(gateway)
+    || gateway === 'manual'
+    || gateway === 'cash on delivery (cod)'
+    || /\bcod[-_ ]?(?:payment|mode|order)\b/.test(gateway);
 
   // Common payload
   const basePayload: Record<string, any> = {
@@ -227,7 +233,7 @@ Deno.serve(async (req: Request) => {
     // Resolve tenant by shop_domain
     const { data: integration, error: intErr } = await db
       .from('integration_keys')
-      .select('id, user_id, source, callback_url, callback_secret, provider_secret')
+      .select('id, user_id, source, callback_url, callback_secret')
       .eq('shop_domain', shopDomain)
       .eq('source', 'shopify')
       .eq('is_active', true)
@@ -237,13 +243,16 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Unknown shop domain' }), { status: 401 });
     }
 
-    // Verify HMAC
-    if (!integration.provider_secret) {
-      console.error('[shopify-webhook] No provider_secret configured for shop:', shopDomain);
+    // Verify HMAC — read secret from Vault (with plaintext fallback during migration)
+    const { data: providerSecret, error: secretErr } = await db.rpc('get_provider_secret', {
+      p_key_id: integration.id,
+    });
+    if (secretErr || !providerSecret) {
+      console.error('[shopify-webhook] No provider_secret (Vault or plaintext) for shop:', shopDomain);
       return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), { status: 401 });
     }
 
-    const hmacValid = await verifyHmac(rawBody, integration.provider_secret, hmacHeader);
+    const hmacValid = await verifyHmac(rawBody, providerSecret, hmacHeader);
     if (!hmacValid) {
       console.error('[shopify-webhook] HMAC verification failed for shop:', shopDomain);
       return new Response(JSON.stringify({ error: 'HMAC verification failed' }), { status: 401 });
@@ -274,6 +283,13 @@ Deno.serve(async (req: Request) => {
     });
 
     console.log(`[shopify-webhook] shop=${shopDomain} topic=${topic} event=${mapped.eventType} result=${JSON.stringify(result)}`);
+
+    // Update health status (fire-and-forget)
+    db.from('integration_keys').update({
+      last_event_at: new Date().toISOString(),
+      connection_status: 'healthy',
+    }).eq('id', integration.id).then(() => {}).catch(() => {});
+
     return new Response(JSON.stringify({ ok: true, ...result }), { status: 200 });
 
   } catch (err: any) {
