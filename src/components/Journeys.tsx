@@ -1019,7 +1019,7 @@ function CreateJourneyModal({
         name: journeyName,
         preset: selectedPreset.key,
         trigger_event: selectedPreset.trigger_event,
-        trigger_filters: Object.keys(triggerFilters).length > 0 ? triggerFilters : null,
+        trigger_filters: Object.keys(triggerFilters).length > 0 ? triggerFilters : {},
         exit_on_events: selectedPreset.exit_on_events,
         steps: buildSteps(),
         is_active: autoActivate,
