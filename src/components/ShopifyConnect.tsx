@@ -5,7 +5,7 @@ import {
   Store, Eye, EyeOff, CheckSquare
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { JOURNEY_PRESETS } from '../lib/journeyPresets';
+import { ALL_PRESETS } from '../lib/journeyPresets';
 
 interface ShopifyConnectProps {
   onClose: () => void;
@@ -79,8 +79,7 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
         // Create journeys
         const presetKeys = ['abandoned_cart', 'order_created', 'order_shipped', 'order_delivered', 'cod_confirm', 'review_request'];
         for (const key of presetKeys) {
-          // Type casting since JOURNEY_PRESETS might not strictly match the keys depending on how it's defined
-          const preset = Object.values(JOURNEY_PRESETS).find((p: any) => p.key === key) as any;
+          const preset = ALL_PRESETS.find((p) => p.key === key);
           if (!preset) continue;
           
           await supabase.from('journeys').insert({
