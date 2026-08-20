@@ -39,7 +39,7 @@ export function PaymentSettings() {
   const [showSecret, setShowSecret] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const webhookUrl = user ? `https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/razorpay-webhook?u=${user.id}` : '';
+  const webhookUrl = user ? `https://api.reachpeakapi.in/functions/v1/razorpay-webhook?u=${user.id}` : '';
 
   useEffect(() => {
     if (!user) return;

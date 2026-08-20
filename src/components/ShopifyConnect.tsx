@@ -250,7 +250,7 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
         );
 
       case 3:
-        const webhookUrl = 'https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/shopify-webhook';
+        const webhookUrl = 'https://api.reachpeakapi.in/functions/v1/shopify-webhook';
         const topics = [
           'orders/create', 'orders/paid', 'orders/cancelled', 'orders/fulfilled',
           'fulfillments/create', 'fulfillments/update', 'refunds/create',

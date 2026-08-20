@@ -81,7 +81,7 @@ export function DataDeletionPage() {
               <h2 className="text-xl font-bold text-secondary mb-3">Data Deletion Callback</h2>
               <p>For automated data deletion requests (e.g., from Meta's platform), our data deletion callback endpoint is:</p>
               <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 mt-2 font-mono text-sm break-all">
-                https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/data-deletion
+                https://api.reachpeakapi.in/functions/v1/data-deletion
               </div>
               <p className="text-sm text-gray-500 mt-2">This endpoint processes deletion requests programmatically and returns a confirmation URL for tracking.</p>
             </div>

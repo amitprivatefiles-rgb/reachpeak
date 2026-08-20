@@ -60,7 +60,7 @@ type Source = 'peakcart' | 'shopify' | 'woocommerce' | 'api';
 const SOURCES: Source[] = ['peakcart', 'shopify', 'woocommerce', 'api'];
 
 const INGEST_URL =
-  'https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/ingest-event';
+  'https://api.reachpeakapi.in/functions/v1/ingest-event';
 
 const PAGE_SIZE = 20;
 
