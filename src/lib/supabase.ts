@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Self-hosted ReachPeak API (public values — the anon key ships in the browser by design).
+// Env vars take precedence; these defaults guarantee the app works even if Vercel env is misconfigured.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://api.reachpeakapi.in';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg3MjIwMjU3LCJleHAiOjIxMDI1ODAyNTd9.hIa3jRN_znoL8GC76Qn8qSreFXWluJYY25Pvcs7Ta_I';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   // Show visible error instead of silently crashing
