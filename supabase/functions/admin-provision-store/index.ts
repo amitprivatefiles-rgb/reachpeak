@@ -159,7 +159,12 @@ Deno.serve(async (req: Request) => {
       if (upErr || !acct?.id) return json({ error: 'Failed to link number: ' + (upErr?.message || 'unknown') }, 500);
 
       // 6. Store the system token as this account's send token (existing send paths decrypt per-account).
-      await db.rpc('set_waba_access_token', { p_account_id: acct.id, p_token: sysToken });
+      const { error: tokErr } = await db.rpc('set_waba_access_token', { p_account_id: acct.id, p_token: sysToken });
+      if (tokErr) {
+        // Roll back the link so a half-provisioned account can't sit unable to send.
+        await db.from('whatsapp_accounts').update({ is_active: false, status: 'error' }).eq('id', acct.id);
+        return json({ error: 'Linked the number but could not store its send token: ' + tokErr.message, code: 'token_store_failed' }, 500);
+      }
 
       // 7. Optional opening wallet credit.
       let credited = 0;

@@ -5,6 +5,11 @@
 -- store's ReachPeak account. Idempotent.
 -- ============================================================
 
+-- Legacy plaintext token column is superseded by access_token_enc (Vault). It was
+-- still NOT NULL, which made set_waba_access_token() fail (it nulls this column) —
+-- never hit before because no WABA had ever connected. Make it nullable.
+alter table whatsapp_accounts alter column access_token drop not null;
+
 create table if not exists managed_whatsapp_config (
   singleton        boolean primary key default true check (singleton = true),
   business_id      text,
