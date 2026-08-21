@@ -47,6 +47,7 @@ import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
 import { Journeys } from './components/Journeys';
 import { OrderGuard } from './components/OrderGuard';
+import { ConnectWhatsApp } from './components/ConnectWhatsApp';
 
 /* ─── LOADING FALLBACK ─── */
 function MarketingLoading() {
@@ -88,6 +89,26 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (subscription.status === 'rejected') return <Navigate to="/select-plan" replace />;
   if (subscription.status === 'expired') return <Navigate to="/select-plan" replace />;
   return <>{children}</>;
+}
+
+// Standalone WhatsApp connect page — reached via the magic link from PeakCart.
+// User-only guard (a PeakCart merchant has no ReachPeak subscription, so we must NOT
+// send them through the subscription checks that /app uses).
+function ConnectWhatsAppPage() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  return (
+    <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ maxWidth: 560, width: '100%', background: '#fff', borderRadius: 20, padding: 36, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Connect your WhatsApp</h1>
+        <p style={{ color: '#64748b', fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>
+          Link your WhatsApp Business number to start sending automated order updates. You'll be guided through Meta's secure signup.
+        </p>
+        <ConnectWhatsApp />
+      </div>
+    </div>
+  );
 }
 
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
@@ -180,6 +201,7 @@ function AppRoutes() {
       {/* ─── APP (behind auth) ─── */}
       <Route path="/app" element={<RequireAuth><AppDashboard /></RequireAuth>} />
 
+      <Route path="/connect-whatsapp" element={<ConnectWhatsAppPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
