@@ -52,6 +52,7 @@ import { AdminBilling } from './components/AdminBilling';
 import { OnboardingChoice } from './components/onboarding/OnboardingChoice';
 import { Support } from './components/Support';
 import { AdminSupport } from './components/AdminSupport';
+import { AdminProvisionStore } from './components/AdminProvisionStore';
 import { supabase } from './lib/supabase';
 
 /* ─── LOADING FALLBACK ─── */
@@ -167,6 +168,7 @@ function AppDashboard() {
       case 'dashboard': return <Dashboard />;
       case 'setup': return <OnboardingChoice onComplete={() => setCurrentPage('dashboard')} />;
       case 'support': return isAdmin ? <AdminSupport /> : <Support />;
+      case 'provision': return isAdmin ? <AdminProvisionStore /> : <Dashboard />;
       case 'inbox': return <Inbox />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
       case 'templates': return <Templates />;

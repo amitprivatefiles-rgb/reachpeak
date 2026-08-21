@@ -72,6 +72,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'users', label: 'User Management', icon: Shield },
+    { id: 'provision', label: 'Provision Store', icon: Smartphone },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'settings', label: 'Settings', icon: Settings },
