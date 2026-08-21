@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
@@ -50,6 +50,9 @@ import { OrderGuard } from './components/OrderGuard';
 import { Wallet } from './components/Wallet';
 import { AdminBilling } from './components/AdminBilling';
 import { ConnectWhatsApp } from './components/ConnectWhatsApp';
+import { OnboardingChoice } from './components/onboarding/OnboardingChoice';
+import { Support } from './components/Support';
+import { AdminSupport } from './components/AdminSupport';
 import { supabase } from './lib/supabase';
 
 /* ─── LOADING FALLBACK ─── */
@@ -155,11 +158,20 @@ function LoadingScreen() {
 
 function AppDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+
+  // Onboarding gate: send a non-admin who hasn't picked a WhatsApp model to Setup first.
+  useEffect(() => {
+    if (!user || isAdmin) return;
+    supabase.from('profiles').select('onboarding_choice').eq('id', user.id).maybeSingle()
+      .then(({ data }) => { if (!data?.onboarding_choice) setCurrentPage('setup'); });
+  }, [user, isAdmin]);
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
+      case 'setup': return <OnboardingChoice onComplete={() => setCurrentPage('dashboard')} />;
+      case 'support': return isAdmin ? <AdminSupport /> : <Support />;
       case 'inbox': return <Inbox />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
       case 'templates': return <Templates />;

@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone } from 'lucide-react';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
@@ -73,11 +73,13 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'users', label: 'User Management', icon: Shield },
     { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const userNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'setup', label: 'Connect WhatsApp', icon: Smartphone },
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
     { id: 'templates', label: 'Templates', icon: FileText },
@@ -87,6 +89,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'journeys', label: 'Journeys', icon: Zap },
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
     { id: 'integrations', label: 'Integrations', icon: Key },
+    { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
