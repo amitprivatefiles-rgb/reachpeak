@@ -18,6 +18,20 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [inboxUnread, setInboxUnread] = useState(0);
+  const [waConnected, setWaConnected] = useState(false);
+
+  // Hide the "Connect WhatsApp" setup tab once a number is connected.
+  useEffect(() => {
+    if (isAdmin) return;
+    supabase.from('whatsapp_accounts').select('id').eq('is_active', true).limit(1).maybeSingle()
+      .then(({ data }) => setWaConnected(!!data));
+    const ch = supabase.channel('wa-connected')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_accounts' }, () => {
+        supabase.from('whatsapp_accounts').select('id').eq('is_active', true).limit(1).maybeSingle()
+          .then(({ data }) => setWaConnected(!!data));
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdmin]);
 
   // Use customer's business logo if available, fallback to ReachPeak brand
   const logoUrl = subscription?.logo_url || LOGO_URL;
@@ -94,7 +108,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const navItems = isAdmin ? adminNavItems : userNavItems;
+  const navItems = isAdmin
+    ? adminNavItems
+    : userNavItems.filter(i => !(i.id === 'setup' && waConnected));
 
   const handleSignOut = async () => {
     try { await signOut(); } catch {}

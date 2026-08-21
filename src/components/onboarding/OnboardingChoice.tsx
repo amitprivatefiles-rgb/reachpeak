@@ -24,15 +24,22 @@ function StepRow({ done, label, sub }: { done: boolean; label: string; sub?: str
 }
 
 export function OnboardingChoice({ onComplete }: { onComplete?: () => void }) {
-  const [view, setView] = useState<'loading' | 'choose' | 'own_billing' | 'wallet'>('loading');
+  const [view, setView] = useState<'loading' | 'choose' | 'own_billing' | 'wallet' | 'connected'>('loading');
   const [status, setStatus] = useState<any>(null);
+  const [connectedAcct, setConnectedAcct] = useState<any>(null);
   const [checking, setChecking] = useState(false);
   const [walletMsg, setWalletMsg] = useState('');
   const [savingWallet, setSavingWallet] = useState(false);
 
-  // Load existing choice.
+  // Load: if a WhatsApp number is already connected, show the connected state.
+  // Otherwise fall back to the saved onboarding choice (or the chooser).
   useEffect(() => {
     (async () => {
+      const { data: acct } = await supabase.from('whatsapp_accounts')
+        .select('display_phone_number, verified_name, status, onboarded_via')
+        .eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (acct) { setConnectedAcct(acct); setView('connected'); return; }
+
       const { data } = await supabase.functions.invoke('support', { body: { action: 'get_status' } });
       const choice = data?.onboarding_choice;
       if (choice === 'own_billing') setView('own_billing');
@@ -64,6 +71,36 @@ export function OnboardingChoice({ onComplete }: { onComplete?: () => void }) {
 
   if (view === 'loading') {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Loader2 size={26} style={{ animation: 'spin 1s linear infinite', color: brand }} /></div>;
+  }
+
+  // ─────────────── ALREADY CONNECTED ───────────────
+  if (view === 'connected') {
+    return (
+      <div style={{ maxWidth: 620, margin: '0 auto' }}>
+        <div style={{ ...card, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <CheckCircle2 size={30} color="#10b981" />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', margin: '0 0 8px' }}>WhatsApp connected</h1>
+          <p style={{ fontSize: 14.5, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 18px' }}>
+            Your WhatsApp Business number is set up and ready to send.
+          </p>
+          <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, padding: '14px 22px', borderRadius: 12, background: '#0b1220', border: '1px solid #1e293b', marginBottom: 20 }}>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9' }}>{connectedAcct?.display_phone_number || 'Number connected'}</span>
+            {connectedAcct?.verified_name && <span style={{ fontSize: 13, color: '#94a3b8' }}>{connectedAcct.verified_name}</span>}
+            <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>● {connectedAcct?.status === 'connected' ? 'Active' : (connectedAcct?.status || 'Connected')}{connectedAcct?.onboarded_via === 'managed' ? ' · Managed by ReachPeak' : ''}</span>
+          </div>
+          <div>
+            <button onClick={() => onComplete?.()} style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+              Go to dashboard →
+            </button>
+          </div>
+          <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 18 }}>
+            Need to change your setup? <a href={`https://wa.me/${SUPPORT_PHONE_WA}`} target="_blank" rel="noreferrer" style={{ color: brand }}>Contact support</a>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // ─────────────── CHOICE SCREEN ───────────────
