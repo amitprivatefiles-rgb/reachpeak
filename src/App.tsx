@@ -49,7 +49,6 @@ import { Journeys } from './components/Journeys';
 import { OrderGuard } from './components/OrderGuard';
 import { Wallet } from './components/Wallet';
 import { AdminBilling } from './components/AdminBilling';
-import { ConnectWhatsApp } from './components/ConnectWhatsApp';
 import { OnboardingChoice } from './components/onboarding/OnboardingChoice';
 import { Support } from './components/Support';
 import { AdminSupport } from './components/AdminSupport';
@@ -108,28 +107,24 @@ function ConnectWhatsAppPage() {
     else { setPwMsg('✓ Password set! You can now log in at reachpeakapi.in with your email and this password.'); setPw(''); }
   };
   return (
-    <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ maxWidth: 560, width: '100%', background: '#fff', borderRadius: 20, padding: 36, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Connect your WhatsApp</h1>
-        <p style={{ color: '#64748b', fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>
-          Link your WhatsApp Business number to start sending automated order updates. You'll be guided through Meta's secure signup.
-        </p>
-        <ConnectWhatsApp />
-        <hr style={{ margin: '28px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Own your account (optional)</h2>
-        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+    <div style={{ minHeight: '100vh', background: '#070B14', padding: '40px 24px' }}>
+      <OnboardingChoice />
+      {/* Own-your-account: set a password (for PeakCart merchants arriving via magic link) */}
+      <div style={{ maxWidth: 620, margin: '24px auto 0', background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16, padding: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Own your account (optional)</h2>
+        <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
           Set a password so you can log into <strong>reachpeakapi.in</strong> anytime to manage campaigns, chat &amp; templates.
-          {user.email ? <> Your login email: <strong>{user.email}</strong></> : null}
+          {user.email ? <> Your login email: <strong style={{ color: '#e2e8f0' }}>{user.email}</strong></> : null}
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Create a password (min 8 chars)"
-            style={{ flex: 1, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14 }} />
+            style={{ flex: 1, padding: '10px 12px', border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', borderRadius: 8, fontSize: 14 }} />
           <button onClick={savePassword} disabled={saving}
-            style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            style={{ padding: '10px 16px', background: 'linear-gradient(135deg,#E04632,#c83b27)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             {saving ? 'Saving…' : 'Set password'}
           </button>
         </div>
-        {pwMsg && <p style={{ marginTop: 8, fontSize: 13, color: pwMsg.startsWith('✓') ? '#059669' : '#dc2626' }}>{pwMsg}</p>}
+        {pwMsg && <p style={{ marginTop: 8, fontSize: 13, color: pwMsg.startsWith('✓') ? '#10b981' : '#ef4444' }}>{pwMsg}</p>}
       </div>
     </div>
   );
