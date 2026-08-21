@@ -48,6 +48,7 @@ import { Integrations } from './components/Integrations';
 import { Journeys } from './components/Journeys';
 import { OrderGuard } from './components/OrderGuard';
 import { ConnectWhatsApp } from './components/ConnectWhatsApp';
+import { supabase } from './lib/supabase';
 
 /* ─── LOADING FALLBACK ─── */
 function MarketingLoading() {
@@ -96,8 +97,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 // send them through the subscription checks that /app uses).
 function ConnectWhatsAppPage() {
   const { user, loading } = useAuth();
+  const [pw, setPw] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
+  const [saving, setSaving] = useState(false);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  const savePassword = async () => {
+    if (pw.length < 8) { setPwMsg('⚠ Password must be at least 8 characters.'); return; }
+    setSaving(true); setPwMsg('');
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    setSaving(false);
+    if (error) { setPwMsg('⚠ ' + error.message); }
+    else { setPwMsg('✓ Password set! You can now log in at reachpeakapi.in with your email and this password.'); setPw(''); }
+  };
   return (
     <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 560, width: '100%', background: '#fff', borderRadius: 20, padding: 36, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
@@ -106,6 +118,21 @@ function ConnectWhatsAppPage() {
           Link your WhatsApp Business number to start sending automated order updates. You'll be guided through Meta's secure signup.
         </p>
         <ConnectWhatsApp />
+        <hr style={{ margin: '28px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Own your account (optional)</h2>
+        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+          Set a password so you can log into <strong>reachpeakapi.in</strong> anytime to manage campaigns, chat &amp; templates.
+          {user.email ? <> Your login email: <strong>{user.email}</strong></> : null}
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Create a password (min 8 chars)"
+            style={{ flex: 1, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14 }} />
+          <button onClick={savePassword} disabled={saving}
+            style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {saving ? 'Saving…' : 'Set password'}
+          </button>
+        </div>
+        {pwMsg && <p style={{ marginTop: 8, fontSize: 13, color: pwMsg.startsWith('✓') ? '#059669' : '#dc2626' }}>{pwMsg}</p>}
       </div>
     </div>
   );

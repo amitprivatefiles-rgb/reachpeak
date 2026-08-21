@@ -66,6 +66,22 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── 1b. Auto-activate the account (PeakCart-provisioned = NO admin approval, NO plan selection) ──
+    const { data: existingSub } = await db.from('subscriptions').select('id, status').eq('user_id', userId).maybeSingle();
+    if (!existingSub) {
+      await db.from('subscriptions').insert({
+        user_id: userId,
+        plan_type: 'monthly',
+        amount: 0,
+        status: 'active',
+        business_name: store_name || 'PeakCart Store',
+        starts_at: new Date().toISOString(),
+        expires_at: '2099-12-31T00:00:00Z',
+      });
+    } else if (existingSub.status !== 'active') {
+      await db.from('subscriptions').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', existingSub.id);
+    }
+
     // ── 2. Rotate: deactivate any prior PeakCart key for this user (idempotent re-connect) ──
     await db.from('integration_keys').update({ is_active: false }).eq('user_id', userId).eq('source', 'peakcart');
 
