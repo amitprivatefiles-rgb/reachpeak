@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Loader2, CheckCircle, AlertTriangle, Smartphone } from 'lucide-react';
 
-const APP_ID = import.meta.env.VITE_META_APP_ID as string;
-const CONFIG_ID = import.meta.env.VITE_META_CONFIG_ID as string;
+// Public Meta values (App ID + embedded-signup Config ID ship in the browser by design).
+// Env vars win; defaults guarantee the signup works even if Vercel env is misconfigured.
+const APP_ID = (import.meta.env.VITE_META_APP_ID as string) || '2460230341442657';
+const CONFIG_ID = (import.meta.env.VITE_META_CONFIG_ID as string) || '2046672922584148';
 const GRAPH_VERSION = (import.meta.env.VITE_META_GRAPH_VERSION as string) || 'v23.0';
 
 declare global {
