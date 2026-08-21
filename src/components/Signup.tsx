@@ -45,13 +45,13 @@ export function Signup() {
       if (signInError) {
         // Email confirmation is enabled — user needs to confirm email first
         setSuccess(
-          'Account created successfully! Please check your email to confirm your account, then log in to continue with plan selection.'
+          'Account created successfully! Please check your email to confirm your account, then log in to start.'
         );
         return;
       }
 
-      // Auto-login succeeded — go to plan selection
-      navigate('/select-plan');
+      // Auto-login succeeded — straight into the dashboard (no approval / plan selection)
+      navigate('/app');
     } catch (err: any) {
       setError(err.message || 'Error creating account');
     } finally {

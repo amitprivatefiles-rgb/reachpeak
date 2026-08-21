@@ -9,6 +9,18 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '50', 10);
 // Cache for whatsapp_accounts to avoid repeated lookups within a tick
 const accountCache = new Map<string, { phone_number_id: string; access_token: string }>();
 
+// ── Wallet billing settlement (idempotent by ref 'msg:<id>') ──
+// The hold was placed by partner-send at enqueue time. On a real send we settle it
+// (money leaves), on failure we release it (refund to balance). No-op if no hold exists.
+async function settleCharge(messageId: string) {
+  const { error } = await supabase.rpc('wallet_settle', { p_reference: 'msg:' + messageId });
+  if (error) console.error(`[Worker] wallet_settle failed for ${messageId}:`, error.message);
+}
+async function releaseCharge(messageId: string) {
+  const { error } = await supabase.rpc('wallet_release', { p_reference: 'msg:' + messageId });
+  if (error) console.error(`[Worker] wallet_release failed for ${messageId}:`, error.message);
+}
+
 async function getAccount(accountId: string) {
   const cached = accountCache.get(accountId);
   if (cached) return cached;
@@ -63,6 +75,8 @@ async function processMessages(messages: ClaimedMessage[]) {
           failed_at: new Date().toISOString(),
         })
         .in('id', ids);
+      // Refund the wallet holds — these messages were never sent.
+      for (const id of ids) await releaseCharge(id);
       continue;
     }
 
@@ -85,6 +99,9 @@ async function processMessages(messages: ClaimedMessage[]) {
           })
           .eq('id', msg.id);
 
+        // Settle the wallet hold — the message really went out, money is now spent.
+        await settleCharge(msg.id);
+
         console.log(`[Worker] Sent ${msg.id} → wamid=${result.wamid} to=${msg.wa_to}`);
       } else {
         await supabase
@@ -96,6 +113,9 @@ async function processMessages(messages: ClaimedMessage[]) {
             failed_at: new Date().toISOString(),
           })
           .eq('id', msg.id);
+
+        // Refund the wallet hold — the message did not send.
+        await releaseCharge(msg.id);
 
         console.error(`[Worker] Failed ${msg.id}: ${result.errorCode} — ${result.errorMessage}`);
       }
@@ -123,6 +143,7 @@ async function recoverStaleClaims() {
     .select('id');
 
   if (!recErr && recovered && recovered.length > 0) {
+    for (const r of recovered) await settleCharge(r.id); // they went out → settle
     console.log(`[Recovery] ${recovered.length} stale rows with wamid → sent`);
   }
 
@@ -141,6 +162,7 @@ async function recoverStaleClaims() {
     .select('id');
 
   if (!failErr && failed && failed.length > 0) {
+    for (const r of failed) await releaseCharge(r.id); // ambiguous, not confirmed sent → refund
     console.warn(`[Recovery] ${failed.length} stale rows without wamid → failed (stale_claim)`);
   }
 }

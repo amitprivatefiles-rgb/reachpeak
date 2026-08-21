@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard } from 'lucide-react';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
@@ -72,6 +72,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'users', label: 'User Management', icon: Shield },
+    { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -81,6 +82,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'My Contacts', icon: Users },
+    { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'reports', label: 'Reports', icon: Activity },
     { id: 'journeys', label: 'Journeys', icon: Zap },
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },

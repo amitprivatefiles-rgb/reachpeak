@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 
 /* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
 const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
@@ -47,6 +47,8 @@ import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
 import { Journeys } from './components/Journeys';
 import { OrderGuard } from './components/OrderGuard';
+import { Wallet } from './components/Wallet';
+import { AdminBilling } from './components/AdminBilling';
 import { ConnectWhatsApp } from './components/ConnectWhatsApp';
 import { supabase } from './lib/supabase';
 
@@ -68,27 +70,19 @@ function MarketingLoading() {
 }
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin } = useAuth();
-  const { subscription, loading: subLoading } = useSubscription();
-  if (loading || subLoading) return <LoadingScreen />;
-  // Only redirect if user is fully set up (admin or has active subscription)
-  if (user && (isAdmin || (subscription && subscription.status === 'active'))) {
-    return <Navigate to="/app" replace />;
-  }
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  // No approval flow: any logged-in user goes straight to the app.
+  if (user) return <Navigate to="/app" replace />;
   return <>{children}</>;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin } = useAuth();
-  const { subscription, loading: subLoading } = useSubscription();
-
-  if (loading || subLoading) return <LoadingScreen />;
+  const { user, loading } = useAuth();
+  // NO SIGNUP APPROVAL: any authenticated user reaches the dashboard immediately.
+  // Sending is gated at the wallet level ("recharge to send"), not here.
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (isAdmin) return <>{children}</>;
-  if (!subscription) return <Navigate to="/select-plan" replace />;
-  if (subscription.status === 'pending') return <Navigate to="/pending-review" replace />;
-  if (subscription.status === 'rejected') return <Navigate to="/select-plan" replace />;
-  if (subscription.status === 'expired') return <Navigate to="/select-plan" replace />;
   return <>{children}</>;
 }
 
@@ -139,14 +133,13 @@ function ConnectWhatsAppPage() {
 }
 
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin } = useAuth();
-  const { subscription, loading: subLoading } = useSubscription();
-
-  if (loading || subLoading) return <LoadingScreen />;
+  // Legacy onboarding routes (plan/payment/pending) are deprecated — approval was removed.
+  // Logged-in users go to the app; everyone else to login. `children` retained for route shape.
+  const { user, loading } = useAuth();
+  void children;
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (isAdmin) return <Navigate to="/app" replace />;
-  if (subscription?.status === 'active') return <Navigate to="/app" replace />;
-  return <>{children}</>;
+  return <Navigate to="/app" replace />;
 }
 
 function LoadingScreen() {
@@ -180,6 +173,8 @@ function AppDashboard() {
       case 'integrations': return <Integrations />;
       case 'journeys': return <Journeys />;
       case 'orderguard': return <OrderGuard />;
+      case 'wallet': return <Wallet />;
+      case 'billing': return isAdmin ? <AdminBilling /> : <Wallet />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
