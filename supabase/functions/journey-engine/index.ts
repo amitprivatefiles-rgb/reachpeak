@@ -24,6 +24,8 @@ const db = createClient(SUPABASE_URL, SERVICE_ROLE, {
 // ─── Helpers ───
 
 function resolveBinding(binding: string, context: Record<string, any>): string {
+  // "literal:<text>" → static/custom text typed by the automation author.
+  if (binding.startsWith('literal:')) return binding.slice(8);
   // Supports "contact.name", "payload.cart_total", "payload.items[0].title"
   const parts = binding.split('.');
   let val: any = context;

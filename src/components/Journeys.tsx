@@ -130,6 +130,45 @@ function getPresetIconBg(presetKey: string) {
   return PRESET_ICON_BG[presetKey] || PRESET_ICON_BG.custom;
 }
 
+// ── Variable-mapping helpers (self-serve automation builder) ──
+// Friendly labels: the dropdown shows the label, but saves the binding path the
+// journey engine resolves (contact.* / payload.*). 'literal:' = static text.
+const FIELD_LABELS: Record<string, string> = {
+  'contact.name': 'Customer name',
+  'contact.first_name': 'Customer first name',
+  'contact.phone': 'Customer phone',
+  'contact.email': 'Customer email',
+  'payload.first_name': 'Customer first name',
+  'payload.order_number': 'Order number',
+  'payload.total': 'Order total',
+  'payload.total_display': 'Order total (₹)',
+  'payload.cart_total': 'Cart total (₹)',
+  'payload.cart_value': 'Cart value (₹)',
+  'payload.product_name': 'Product name',
+  'payload.items': 'Product list',
+  'payload.discount_code': 'Discount code',
+  'payload.discount': 'Discount amount',
+  'payload.checkout_url': 'Checkout link',
+  'payload.cart_url': 'Cart link',
+  'payload.tracking_url': 'Tracking link',
+  'payload.tracking_number': 'Tracking number',
+  'payload.eta': 'Delivery ETA',
+  'payload.store_name': 'Store name',
+  'payload.refund_amount': 'Refund amount (₹)',
+};
+function labelForField(binding: string): string {
+  return FIELD_LABELS[binding] || binding;
+}
+// Pull variable tokens from a template body: {{1}}, {{2}}, {{name}} → ['1','2','name']
+function parseTemplateVars(bodyText?: string | null): string[] {
+  if (!bodyText) return [];
+  const seen = new Set<string>();
+  const re = /\{\{\s*([^}]+?)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(bodyText)) !== null) seen.add(m[1].trim());
+  return Array.from(seen);
+}
+
 function getStatusStyle(status: string) {
   return STATUS_STYLES[status] || STATUS_STYLES.error;
 }
@@ -1264,7 +1303,14 @@ function ConfigureJourney({
                   </label>
                   <select
                     value={cfg.template_id}
-                    onChange={(e) => updateStepConfig(idx, { template_id: e.target.value })}
+                    onChange={(e) => {
+                      const tid = e.target.value;
+                      const tpl = templates.find((t) => t.id === tid);
+                      const vars = parseTemplateVars(tpl?.body_text);
+                      const nb: Record<string, string> = {};
+                      vars.forEach((v) => { nb[v] = cfg.variable_bindings[v] || ''; });
+                      updateStepConfig(idx, { template_id: tid, variable_bindings: nb });
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                   >
                     <option value="">Select a template…</option>
@@ -1276,34 +1322,46 @@ function ConfigureJourney({
                   </select>
                 </div>
 
-                {/* Variable bindings */}
-                {Object.keys(cfg.variable_bindings).length > 0 && (
+                {/* Variable mapping — "what data fills each blank?" */}
+                {cfg.template_id && Object.keys(cfg.variable_bindings).length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-400">Variable Bindings</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {Object.entries(cfg.variable_bindings).map(([key, val]) => (
-                        <div key={key} className="flex items-center gap-2">
-                          <span className="w-8 h-7 rounded bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-mono flex-shrink-0">
-                            {`{{${key}}}`}
-                          </span>
-                          <select
-                            value={val}
-                            onChange={(e) => {
-                              const newBindings = { ...cfg.variable_bindings, [key]: e.target.value };
-                              updateStepConfig(idx, { variable_bindings: newBindings });
-                            }}
-                            className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
-                          >
-                            <option value="">Select field…</option>
-                            {allBindingOptions.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
+                    <p className="text-xs text-gray-400">What data fills each blank in this template?</p>
+                    <div className="space-y-2">
+                      {Object.entries(cfg.variable_bindings).map(([key, val]) => {
+                        const isCustom = typeof val === 'string' && val.startsWith('literal:');
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="w-9 h-8 rounded bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-mono flex-shrink-0">
+                              {`{{${key}}}`}
+                            </span>
+                            <select
+                              value={isCustom ? '__custom__' : val}
+                              onChange={(e) => {
+                                const v = e.target.value === '__custom__' ? 'literal:' : e.target.value;
+                                updateStepConfig(idx, { variable_bindings: { ...cfg.variable_bindings, [key]: v } });
+                              }}
+                              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                            >
+                              <option value="">Select data…</option>
+                              {allBindingOptions.map((opt) => (
+                                <option key={opt} value={opt}>{labelForField(opt)}</option>
+                              ))}
+                              <option value="__custom__">✍️ Custom text…</option>
+                            </select>
+                            {isCustom && (
+                              <input
+                                type="text"
+                                value={val.slice(8)}
+                                placeholder="Type fixed text"
+                                onChange={(e) => updateStepConfig(idx, { variable_bindings: { ...cfg.variable_bindings, [key]: 'literal:' + e.target.value } })}
+                                className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                    <p className="text-[11px] text-gray-500">Pick where each blank pulls real data from — customer name, order number, total, etc.</p>
                   </div>
                 )}
               </>
