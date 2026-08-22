@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
 
 /* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
 const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
@@ -81,11 +81,25 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  // NO SIGNUP APPROVAL: any authenticated user reaches the dashboard immediately.
-  // Sending is gated at the wallet level ("recharge to send"), not here.
-  if (loading) return <LoadingScreen />;
+  const { user, loading, isAdmin } = useAuth();
+  const { subscription, loading: subLoading } = useSubscription();
+  if (loading || subLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (isAdmin) return <>{children}</>;   // admins are never subscription-gated
+  // Direct signups must have an ACTIVE subscription. PeakCart/managed accounts get
+  // an active ₹0 subscription at provision time, so they pass automatically.
+  if (subscription?.status !== 'active') return <Navigate to="/select-plan" replace />;
+  return <>{children}</>;
+}
+
+// /select-plan: logged-in users without an active subscription pay here.
+// Already-active users (incl. PeakCart/managed) + admins skip straight to the app.
+function SelectPlanGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading, isAdmin } = useAuth();
+  const { subscription, loading: subLoading } = useSubscription();
+  if (loading || subLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (isAdmin || subscription?.status === 'active') return <Navigate to="/app" replace />;
   return <>{children}</>;
 }
 
@@ -225,7 +239,7 @@ function AppRoutes() {
       <Route path="/signup" element={<AuthRedirect><Signup /></AuthRedirect>} />
 
       {/* ─── ONBOARDING ─── */}
-      <Route path="/select-plan" element={<OnboardingGuard><PlanSelection /></OnboardingGuard>} />
+      <Route path="/select-plan" element={<SelectPlanGuard><PlanSelection /></SelectPlanGuard>} />
       <Route path="/payment-details" element={<OnboardingGuard><PaymentDetails /></OnboardingGuard>} />
       <Route path="/pending-review" element={<OnboardingGuard><PendingReview /></OnboardingGuard>} />
 
