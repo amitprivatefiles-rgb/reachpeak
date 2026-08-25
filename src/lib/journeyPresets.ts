@@ -50,6 +50,19 @@ export interface JourneyPreset {
 // ─── Payload fields shared across presets ───
 const CONTACT_FIELDS = ['contact.name', 'contact.phone_number', 'contact.city', 'contact.state'];
 
+// Master catalog of every field a store event can provide — used so the
+// variable-mapping dropdown always offers all store data, and so custom
+// (auto-discovered) triggers have rich mapping options.
+export const MASTER_BINDING_FIELDS: string[] = [
+  'contact.name', 'contact.first_name', 'contact.phone_number', 'contact.email', 'contact.city', 'contact.state',
+  'payload.order_id', 'payload.order_number', 'payload.total', 'payload.total_display', 'payload.currency',
+  'payload.items', 'payload.product_name', 'payload.payment_method',
+  'payload.cart_total', 'payload.cart_value', 'payload.checkout_url', 'payload.cart_url',
+  'payload.discount', 'payload.discount_code', 'payload.tracking_url', 'payload.tracking_number',
+  'payload.carrier', 'payload.eta', 'payload.store_name', 'payload.refund_amount',
+  'payload.address_city', 'payload.address_pincode', 'payload.email', 'payload.pay_url',
+];
+
 // ─── 1. Abandoned Cart ───
 export const PRESET_ABANDONED_CART: JourneyPreset = {
   key: 'abandoned_cart',

@@ -58,6 +58,7 @@ export function Inbox() {
   const [messageText, setMessageText] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [tplFill, setTplFill] = useState<{ template: Template; vars: string[]; values: Record<string, string> } | null>(null);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
@@ -246,8 +247,18 @@ export function Inbox() {
     }
   };
 
-  // Send template message
-  const sendTemplate = async (template: Template) => {
+  // Extract {{1}}, {{2}}, {{name}} tokens from a template body
+  const parseTplVars = (body?: string | null): string[] => {
+    if (!body) return [];
+    const seen = new Set<string>();
+    const re = /\{\{\s*([^}]+?)\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) seen.add(m[1].trim());
+    return Array.from(seen).sort((a, b) => (Number(a) || 999) - (Number(b) || 999));
+  };
+
+  // Actually send, with filled body params (Meta requires the exact param count)
+  const sendTemplateNow = async (template: Template, bodyParams: string[]) => {
     if (!activeConversation || sending) return;
     setSending(true);
     try {
@@ -255,21 +266,28 @@ export function Inbox() {
         body: {
           to: activeConversation.contact_phone,
           type: 'template',
-          template: {
-            name: template.name,
-            language: template.language || 'en_US',
-            components: template.components || [],
-          },
+          template: { name: template.name, language: template.language || 'en', bodyParams },
           conversation_id: activeConversation.id,
         },
       });
       if (error) throw error;
       setShowTemplates(false);
+      setTplFill(null);
     } catch (err: any) {
       alert('Failed to send template: ' + (err.message || 'Unknown error'));
     } finally {
       setSending(false);
     }
+  };
+
+  // Entry point: if the template has variables, ask for their values first.
+  const sendTemplate = (template: Template) => {
+    const vars = parseTplVars(template.body_text);
+    if (vars.length === 0) { sendTemplateNow(template, []); return; }
+    const values: Record<string, string> = {};
+    const cname = (activeConversation as any)?.contact_name || (activeConversation as any)?.name || '';
+    vars.forEach((v, i) => { values[v] = i === 0 && cname ? String(cname).trim().split(/\s+/)[0] : ''; });
+    setTplFill({ template, vars, values });
   };
 
   // Upload and send media
@@ -918,6 +936,36 @@ export function Inbox() {
           </div>
         )}
       </div>
+      {/* Fill template variables before sending */}
+      {tplFill && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setTplFill(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-white font-semibold text-lg mb-1">Fill in the template</h3>
+            <p className="text-gray-400 text-sm mb-4">"{tplFill.template.name}" needs these details before it can be sent:</p>
+            <div className="space-y-3 max-h-72 overflow-y-auto">
+              {tplFill.vars.map((v) => (
+                <div key={v}>
+                  <label className="block text-xs text-gray-400 mb-1 font-mono">{`{{${v}}}`}</label>
+                  <input
+                    value={tplFill.values[v] || ''}
+                    onChange={(e) => setTplFill({ ...tplFill, values: { ...tplFill.values, [v]: e.target.value } })}
+                    placeholder="Enter value"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setTplFill(null)} className="px-4 py-2 text-sm text-gray-300 hover:text-white">Cancel</button>
+              <button
+                disabled={sending}
+                onClick={() => sendTemplateNow(tplFill.template, tplFill.vars.map((v) => tplFill.values[v] || ''))}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg"
+              >{sending ? 'Sending…' : 'Send template'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

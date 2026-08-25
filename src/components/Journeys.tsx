@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { ALL_PRESETS, JourneyPreset, JourneyStep } from '../lib/journeyPresets';
+import { ALL_PRESETS, MASTER_BINDING_FIELDS, JourneyPreset, JourneyStep } from '../lib/journeyPresets';
 import {
   Zap,
   Plus,
@@ -155,6 +155,17 @@ const FIELD_LABELS: Record<string, string> = {
   'payload.eta': 'Delivery ETA',
   'payload.store_name': 'Store name',
   'payload.refund_amount': 'Refund amount (₹)',
+  'contact.phone_number': 'Customer phone',
+  'contact.city': 'Customer city',
+  'contact.state': 'Customer state',
+  'payload.order_id': 'Order ID',
+  'payload.currency': 'Currency',
+  'payload.payment_method': 'Payment method',
+  'payload.carrier': 'Courier / carrier',
+  'payload.address_city': 'Delivery city',
+  'payload.address_pincode': 'Delivery pincode',
+  'payload.pay_url': 'Payment link',
+  'payload.email': 'Customer email',
 };
 function labelForField(binding: string): string {
   return FIELD_LABELS[binding] || binding;
@@ -1232,7 +1243,8 @@ function ConfigureJourney({
   onBack: () => void;
 }) {
   const colors = getPresetColor(preset.key);
-  const allBindingOptions = [...preset.contact_fields, ...preset.payload_fields];
+  // Comprehensive: this trigger's fields first, then the full store-data catalog.
+  const allBindingOptions = Array.from(new Set([...preset.contact_fields, ...preset.payload_fields, ...MASTER_BINDING_FIELDS]));
 
   return (
     <div className="space-y-6">
