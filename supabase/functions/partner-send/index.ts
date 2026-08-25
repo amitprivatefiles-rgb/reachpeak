@@ -52,6 +52,18 @@ const db = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// ── Wallet billing helpers ──
+// Map a WhatsApp/template category to one of our four priced buckets.
+function normalizeCategory(c: string | null | undefined): string {
+  const v = (c || '').toString().toLowerCase();
+  if (v === 'marketing' || v === 'utility' || v === 'authentication' || v === 'service') return v;
+  return 'utility'; // unknown → charge as utility (never silently free)
+}
+async function priceForCategory(cat: string): Promise<number> {
+  const { data } = await db.from('message_pricing').select('price_paise').eq('category', cat).maybeSingle();
+  return data ? Number(data.price_paise) : 0;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS')
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -198,6 +210,7 @@ Deno.serve(async (req: Request) => {
     let payload: Record<string, unknown>;
     let messageType = type;
     let templateName: string | null = null;
+    let chargeCategory = 'service'; // text/media session messages default to 'service'
 
     switch (type) {
       case 'text':
@@ -245,7 +258,7 @@ Deno.serve(async (req: Request) => {
         // Load stored template
         const { data: storedTpl } = await db
           .from('templates')
-          .select('name, language, components, body_text, header_sample_url, status')
+          .select('name, language, components, body_text, header_sample_url, status, category')
           .eq('whatsapp_account_id', account.id)
           .eq('name', template.name)
           .limit(1)
@@ -260,6 +273,7 @@ Deno.serve(async (req: Request) => {
             code: storedTpl.status === 'paused' ? 'template_paused' : 'template_rejected',
           }, 422);
         }
+        chargeCategory = normalizeCategory(storedTpl.category);
 
         const inputs = {
           headerMedia: template.headerMedia,
@@ -293,20 +307,46 @@ Deno.serve(async (req: Request) => {
       .eq('phone_number', phone)
       .maybeSingle();
 
-    /* ── 9. Insert message (queued — worker will send it) ── */
+    /* ── 8b. Ensure a conversation exists so outbound sends appear in the Inbox ── */
+    let conversationId: string | null = null;
+    if (!dry_run) {
+      const preview = messageType === 'template' ? `📋 ${templateName ?? 'Template'}` : (text ?? '').slice(0, 120);
+      const nowIso = new Date().toISOString();
+      const { data: existingConvo } = await db.from('conversations')
+        .select('id').eq('user_id', userId).eq('contact_phone', phone).maybeSingle();
+      if (existingConvo?.id) {
+        conversationId = existingConvo.id;
+        await db.from('conversations').update({
+          last_message_at: nowIso, last_message_preview: preview,
+          last_message_direction: 'outbound', updated_at: nowIso,
+        }).eq('id', existingConvo.id);
+      } else {
+        const { data: newConvo } = await db.from('conversations').insert({
+          user_id: userId, whatsapp_account_id: account.id, contact_phone: phone,
+          last_message_at: nowIso, last_message_preview: preview, last_message_direction: 'outbound',
+        }).select('id').single();
+        conversationId = newConvo?.id ?? null;
+      }
+    }
+
+    /* ── 9. Insert message. Wallet billing: insert as 'pending_charge' first, then HOLD funds,
+           then flip to 'queued' only if paid. The worker only claims 'queued', so an unpaid
+           message is never sent. dry_run is never charged. ── */
     const messageRow = {
       user_id: userId,
       whatsapp_account_id: account.id,
       contact_id: contactRow?.id ?? null,
+      conversation_id: conversationId,
       direction: 'outbound',
       wa_from: account.display_phone_number?.replace(/[^0-9]/g, '') || null,
       wa_to: phone,
       message_type: messageType,
       template_name: templateName,
       content: messageType === 'text' ? { text: (payload as any).text } : { template: (payload as any).template },
-      status: dry_run ? 'cancelled' : 'queued',
+      status: dry_run ? 'cancelled' : 'pending_charge',
       is_dry_run: dry_run,
       idempotency_key,
+      charge_category: dry_run ? null : chargeCategory,
       external_type: external_ref?.type ?? null,
       external_id: external_ref?.id ?? null,
       external_store_ref: external_ref?.store_ref ?? null,
@@ -330,21 +370,64 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Failed to enqueue message: ' + insErr.message }, 500);
     }
 
+    const messageId = inserted!.id;
+
     if (dry_run) {
       return json({
         queued: false,
         dry_run: true,
-        message_id: inserted!.id,
+        message_id: messageId,
         idempotency_key,
         validation: 'passed',
       });
     }
 
-    console.log(`[partner-send] Enqueued ${inserted!.id} to=${phone} type=${messageType} key=${idempotency_key}`);
+    /* ── 9b. Charge the wallet: HOLD the per-category price (idempotent on 'msg:<id>'). ── */
+    const price = await priceForCategory(chargeCategory);
+
+    if (price <= 0) {
+      // Free category (e.g. service, or admin set price to 0) — no hold needed.
+      await db.from('messages').update({ status: 'queued', charge_paise: 0 }).eq('id', messageId);
+    } else {
+      const holdRef = 'msg:' + messageId;
+      const { error: holdErr } = await db.rpc('wallet_hold', {
+        p_user: userId, p_amount: price, p_reference: holdRef,
+        p_meta: { category: chargeCategory, message_id: messageId, to: phone },
+      });
+
+      if (holdErr) {
+        if ((holdErr.message || '').includes('insufficient_balance')) {
+          await db.from('messages').update({ status: 'blocked_insufficient_balance', charge_paise: price }).eq('id', messageId);
+          return json({
+            queued: false,
+            blocked: true,
+            code: 'insufficient_balance',
+            error: 'Insufficient wallet balance. Recharge to continue sending.',
+            message_id: messageId,
+            required_paise: price,
+            category: chargeCategory,
+          }, 402);
+        }
+        // Unexpected hold failure — do not send. Mark failed so it is not stuck as pending_charge.
+        console.error('[partner-send] wallet_hold error:', holdErr.message);
+        await db.from('messages').update({
+          status: 'failed', error_code: 'WALLET_HOLD_FAILED', error_message: holdErr.message,
+          failed_at: new Date().toISOString(),
+        }).eq('id', messageId);
+        return json({ error: 'Billing hold failed: ' + holdErr.message, code: 'billing_error' }, 500);
+      }
+
+      // Paid & reserved → release to the worker.
+      await db.from('messages').update({ status: 'queued', charge_paise: price }).eq('id', messageId);
+    }
+
+    console.log(`[partner-send] Enqueued ${messageId} to=${phone} type=${messageType} cat=${chargeCategory} price=${price} key=${idempotency_key}`);
     return json({
       queued: true,
-      message_id: inserted!.id,
+      message_id: messageId,
       idempotency_key,
+      charged_paise: price,
+      category: chargeCategory,
     }, 201);
 
   } catch (err: any) {
