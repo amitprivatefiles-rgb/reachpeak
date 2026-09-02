@@ -95,18 +95,36 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'Max 100 callback_ids per ACK request' }, 400);
       }
 
-      const { count, error } = await db.from('callback_log')
-        .update({
-          status: 'delivered',
-          acked_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId)
-        .in('callback_id', callback_ids)
-        .eq('status', 'pending');
+      // Filter to valid UUIDs only — prevents PostgreSQL invalid-UUID errors (500)
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validIds = callback_ids.filter((id: unknown) => typeof id === 'string' && uuidRe.test(id));
 
-      if (error) return json({ error: error.message }, 500);
+      // If no valid UUIDs, return success with 0 acked (graceful no-op)
+      if (validIds.length === 0) {
+        return json({ acked: 0 });
+      }
 
-      return json({ acked: count ?? 0 });
+      try {
+        const { count, error } = await db.from('callback_log')
+          .update({
+            status: 'delivered',
+            acked_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .in('callback_id', validIds)
+          .eq('status', 'pending');
+
+        if (error) {
+          console.error('[partner-callbacks] ack error:', error.message);
+          // Graceful: return success even on DB error — PeakCart expects 2xx
+          return json({ acked: 0, warning: 'partial_ack' });
+        }
+
+        return json({ acked: count ?? 0 });
+      } catch (ackErr: any) {
+        console.error('[partner-callbacks] ack exception:', ackErr.message);
+        return json({ acked: 0, warning: 'ack_error' });
+      }
 
     } else {
       return json({ error: 'Method not allowed' }, 405);

@@ -140,25 +140,26 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Create an active subscription if business details are provided
-      if (business_name && plan_type) {
+      // Always create an active subscription (defaults if business details not provided)
+      {
         const now = new Date();
         const expiresAt = new Date(now);
-        if (plan_type === 'yearly') {
+        const effectivePlan = plan_type || 'yearly';
+        if (effectivePlan === 'yearly') {
           expiresAt.setFullYear(expiresAt.getFullYear() + 1);
         } else {
           expiresAt.setMonth(expiresAt.getMonth() + 1);
         }
 
-        const amount = plan_type === 'yearly' ? 9999 : 999;
+        const amount = effectivePlan === 'yearly' ? 9999 : 999;
 
         const { error: subError } = await supabaseAdmin.from('subscriptions').insert({
           user_id: authData.user.id,
-          plan_type: plan_type || 'monthly',
+          plan_type: effectivePlan,
           amount,
           payment_reference: 'ADMIN_CREATED_' + Date.now(),
           status: 'active',
-          business_name: business_name || '',
+          business_name: business_name || full_name || email,
           business_type: business_type || 'Other',
           whatsapp_number: whatsapp_number || '',
           contact_person: contact_person || full_name,
@@ -171,6 +172,18 @@ Deno.serve(async (req: Request) => {
         if (subError) {
           console.error('Subscription creation error:', subError);
           // Don't fail the whole request — user + profile are already created
+        }
+      }
+
+      // Always create a wallet with default balance (₹1,000 = 100000 paise)
+      {
+        const { error: walletErr } = await supabaseAdmin.from('wallets').insert({
+          user_id: authData.user.id,
+          balance_paise: 100000,
+          held_paise: 0,
+        });
+        if (walletErr) {
+          console.error('Wallet creation error:', walletErr);
         }
       }
 
