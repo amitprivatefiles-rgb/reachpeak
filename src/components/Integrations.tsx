@@ -60,7 +60,7 @@ type Source = 'peakcart' | 'shopify' | 'woocommerce' | 'api';
 const SOURCES: Source[] = ['peakcart', 'shopify', 'woocommerce', 'api'];
 
 const INGEST_URL =
-  'https://api.reachpeakapi.in/functions/v1/ingest-event';
+  'https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/ingest-event';
 
 const PAGE_SIZE = 20;
 
@@ -531,6 +531,34 @@ export function Integrations() {
             Manage API keys and monitor incoming events from your connected stores.
           </p>
         </div>
+
+        {/* --- Connect to ChatGPT --- */}
+        <section className="rounded-xl border border-emerald-800/40 bg-gray-900 p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Zap className="h-5 w-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Connect to ChatGPT</h2>
+          </div>
+          <p className="mb-4 text-sm text-gray-400">
+            Let a ChatGPT custom GPT send WhatsApp messages and templates through your ReachPeak account.
+            Requires ChatGPT Plus, Team, or Enterprise (custom GPTs support Actions).
+          </p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Action schema URL</p>
+          <div className="mb-5 overflow-x-auto rounded-lg border border-gray-800 bg-gray-950 p-3">
+            <code className="whitespace-nowrap text-xs text-emerald-300">
+              https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/whatsapp-assistant/openapi.json
+            </code>
+          </div>
+          <ol className="space-y-2 text-sm text-gray-300">
+            <li><span className="font-semibold text-white">1.</span> Create an API key below and copy it.</li>
+            <li><span className="font-semibold text-white">2.</span> In ChatGPT: <span className="text-gray-400">My GPTs -&gt; Create a GPT -&gt; Configure -&gt; Create new action</span>.</li>
+            <li><span className="font-semibold text-white">3.</span> Choose <span className="text-gray-400">Import from URL</span> and paste the schema URL above.</li>
+            <li><span className="font-semibold text-white">4.</span> Set <span className="text-gray-400">Authentication = API Key, Auth Type = Bearer</span>, and paste your <span className="text-emerald-300">rpk_live_</span> key.</li>
+            <li><span className="font-semibold text-white">5.</span> Save. Then tell your GPT things like <span className="italic text-gray-400">"list my WhatsApp templates"</span> or <span className="italic text-gray-400">"send template order_confirmed to 9198... with variables ..."</span>.</li>
+          </ol>
+          <p className="mt-4 text-xs text-gray-500">
+            Business-initiated messages must use an approved template; free text only delivers within 24 hours of the customer messaging you. Each send uses your wallet balance.
+          </p>
+        </section>
 
         {/* ─── Section 1 — API Key Management ─────────────────────────── */}
         <section className="rounded-xl border border-gray-800 bg-gray-900 p-6">
