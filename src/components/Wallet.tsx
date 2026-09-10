@@ -1,12 +1,20 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { Wallet as WalletIcon, Plus, Loader2, ArrowDownCircle, ArrowUpCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Wallet as WalletIcon, Plus, Loader2, ArrowDownCircle, ArrowUpCircle, Clock, AlertTriangle, RefreshCw, Gift, ShieldCheck, Sparkles, Check, Zap, Lock, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-const RUPEE = (paise: number) => '₹' + (Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// 1 token = ₹1 = 100 paise. Balance/pricing are stored in paise.
+const TOKENS = (paise: number) => (Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const RUPEE = (paise: number) => '₹' + (Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const PRESETS = [1000, 2000, 5000, 10000];
-const LOW_BALANCE_PAISE = 20000; // ₹200 → show low-balance banner
+const LOW_BALANCE_PAISE = 20000; // ₹200 → low-balance banner
+
+// First-recharge welcome offer (mirrors wallet-webhook logic exactly)
+const OFFERS = [
+  { pay: 10000, tokens: 12000, bonus: 2000, pct: 20, tag: 'Popular' },
+  { pay: 20000, tokens: 30000, bonus: 10000, pct: 50, tag: 'Best value' },
+];
 
 function loadRazorpay(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -20,12 +28,19 @@ function loadRazorpay(): Promise<boolean> {
 }
 
 const TYPE_META: Record<string, { label: string; color: string; sign: string; icon: any }> = {
-  credit:  { label: 'Recharge',      color: '#10b981', sign: '+', icon: ArrowUpCircle },
-  adjust:  { label: 'Admin credit',  color: '#10b981', sign: '+', icon: ArrowUpCircle },
-  debit:   { label: 'Message sent',  color: '#ef4444', sign: '−', icon: ArrowDownCircle },
-  hold:    { label: 'Reserved',      color: '#f59e0b', sign: '−', icon: Clock },
-  release: { label: 'Refund',        color: '#3b82f6', sign: '+', icon: RefreshCw },
+  credit:  { label: 'Tokens added',   color: '#10b981', sign: '+', icon: ArrowUpCircle },
+  adjust:  { label: 'Admin credit',   color: '#10b981', sign: '+', icon: ArrowUpCircle },
+  debit:   { label: 'Message sent',   color: '#ef4444', sign: '−', icon: ArrowDownCircle },
+  hold:    { label: 'Reserved',       color: '#f59e0b', sign: '−', icon: Clock },
+  release: { label: 'Released',        color: '#3b82f6', sign: '+', icon: RefreshCw },
 };
+
+function txLabel(t: any) {
+  const src = t?.meta?.source;
+  if (src === 'recharge_bonus') return { label: 'Welcome bonus 🎁', color: '#a855f7', sign: '+', icon: Gift };
+  if (src === 'recharge') return { label: 'Tokens purchased', color: '#10b981', sign: '+', icon: ArrowUpCircle };
+  return TYPE_META[t.type] || TYPE_META.debit;
+}
 
 export function Wallet() {
   const { user } = useAuth();
@@ -52,7 +67,6 @@ export function Wallet() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Live balance updates (webhook credit lands server-side → realtime pushes it here)
   useEffect(() => {
     if (!user) return;
     const ch = supabase.channel('wallet-' + user.id)
@@ -62,15 +76,16 @@ export function Wallet() {
     return () => { supabase.removeChannel(ch); };
   }, [user, loadAll]);
 
-  const recharge = async () => {
+  const recharge = async (overrideAmount?: number) => {
+    const amt = overrideAmount ?? amount;
     setMsg(null);
-    if (amount < 1000) { setMsg({ kind: 'err', text: 'Minimum recharge is ₹1000.' }); return; }
+    if (amt < 1000) { setMsg({ kind: 'err', text: 'Minimum recharge is ₹1,000.' }); return; }
     setPaying(true);
     try {
       const ok = await loadRazorpay();
       if (!ok) throw new Error('Could not load payment gateway. Check your connection.');
 
-      const { data, error } = await supabase.functions.invoke('create-recharge-order', { body: { amount } });
+      const { data, error } = await supabase.functions.invoke('create-recharge-order', { body: { amount: amt } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -79,13 +94,12 @@ export function Wallet() {
         order_id: data.order_id,
         amount: data.amount_paise,
         currency: data.currency || 'INR',
-        name: 'ReachPeak Wallet',
-        description: `Wallet recharge · ${RUPEE(data.amount_paise)}`,
+        name: 'ReachPeak',
+        description: `${TOKENS(data.amount_paise)} tokens · WhatsApp messaging`,
         prefill: data.prefill || {},
         theme: { color: '#E04632' },
         handler: () => {
-          setMsg({ kind: 'info', text: 'Payment received — crediting your wallet…' });
-          // The wallet-webhook credits server-side; realtime will refresh the balance.
+          setMsg({ kind: 'info', text: 'Payment received — adding tokens to your wallet…' });
           setTimeout(loadAll, 2500);
           setTimeout(loadAll, 6000);
         },
@@ -107,57 +121,107 @@ export function Wallet() {
   const balance = wallet?.balance_paise ?? 0;
   const held = wallet?.held_paise ?? 0;
   const low = balance < LOW_BALANCE_PAISE;
+  const hasRecharged = txns.some((t: any) => t.type === 'credit' && (t.meta?.source === 'recharge' || t.meta?.source === 'recharge_bonus'));
+  const offerEligible = !hasRecharged;
+
+  const card = { padding: 20, borderRadius: 14, background: '#0f172a', border: '1px solid #1e293b' };
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div style={{ maxWidth: 900 }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#E04632,#c83b27)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <WalletIcon size={20} color="white" />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Wallet</h2>
-          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Prepaid balance — each WhatsApp message deducts a small per-message fee.</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Tokens & Wallet</h2>
+          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Tokens power your WhatsApp Business messaging · 1 token = ₹1</p>
         </div>
       </div>
 
       {low && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '12px 16px', borderRadius: 10, marginBottom: 16, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24', fontSize: 14 }}>
-          <AlertTriangle size={18} /> Your balance is low. Recharge to keep sending WhatsApp messages without interruption.
+          <AlertTriangle size={18} /> Your token balance is low. Top up to keep your WhatsApp messages sending without interruption.
         </div>
       )}
 
-      {/* Balance + recharge */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16, marginBottom: 24 }}>
-        <div style={{ padding: 20, borderRadius: 14, background: '#0f172a', border: '1px solid #1e293b' }}>
-          <p style={{ margin: 0, fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available balance</p>
-          <p style={{ margin: '8px 0 0', fontSize: 34, fontWeight: 800, color: low ? '#fbbf24' : '#10b981' }}>{RUPEE(balance)}</p>
-          {held > 0 && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#f59e0b' }}>{RUPEE(held)} reserved for in-flight messages</p>}
+      {/* Balance card */}
+      <div style={{ position: 'relative', overflow: 'hidden', padding: 24, borderRadius: 16, marginBottom: 16, background: 'linear-gradient(135deg,#131c30,#0b1220)', border: '1px solid #24304a' }}>
+        <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle,rgba(224,70,50,0.18),transparent 70%)' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 12, color: '#8290a8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Available balance</p>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 8 }}>
+              <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, color: low ? '#fbbf24' : '#f1f5f9' }}>{TOKENS(balance)}</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#8290a8' }}>tokens</span>
+            </div>
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#64748b' }}>≈ {RUPEE(balance)} of messaging{held > 0 ? ` · ${TOKENS(held)} tokens reserved for in-flight messages` : ''}</p>
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)' }}>
+            <ShieldCheck size={15} color="#10b981" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>Tokens never expire</span>
+          </div>
         </div>
+      </div>
 
-        <div style={{ padding: 20, borderRadius: 14, background: '#0f172a', border: '1px solid #1e293b' }}>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recharge</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-            {PRESETS.map(v => (
-              <button key={v} onClick={() => setAmount(v)} style={{
-                padding: '8px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
-                border: `1px solid ${amount === v ? '#E04632' : '#334155'}`,
-                background: amount === v ? 'rgba(224,70,50,0.12)' : '#0b1220',
-                color: amount === v ? '#E04632' : '#94a3b8',
-              }}>₹{v.toLocaleString('en-IN')}</button>
+      {/* Welcome offer (first recharge only) */}
+      {offerEligible && (
+        <div style={{ padding: 20, borderRadius: 16, marginBottom: 16, background: 'linear-gradient(135deg,rgba(168,85,247,0.10),rgba(224,70,50,0.08))', border: '1px solid rgba(168,85,247,0.35)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Gift size={18} color="#c084fc" />
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>Welcome offer — first recharge only</h3>
+          </div>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#94a3b8' }}>Get bonus tokens on your very first top-up. Applied automatically the moment your payment succeeds.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>
+            {OFFERS.map((o) => (
+              <button key={o.pay} onClick={() => recharge(o.pay)} disabled={paying} style={{
+                textAlign: 'left', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1,
+                position: 'relative', padding: 18, borderRadius: 14, background: '#0b1220',
+                border: `1px solid ${o.pct === 50 ? 'rgba(168,85,247,0.55)' : '#2a3752'}`,
+              }}>
+                <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: o.pct === 50 ? '#e9d5ff' : '#93c5fd', background: o.pct === 50 ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.15)' }}>{o.tag}</span>
+                <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>Pay {RUPEE(o.pay * 100)}</p>
+                <p style={{ margin: '6px 0 2px', fontSize: 30, fontWeight: 800, color: '#f1f5f9' }}>{o.tokens.toLocaleString('en-IN')} <span style={{ fontSize: 15, color: '#8290a8', fontWeight: 600 }}>tokens</span></p>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, padding: '3px 9px', borderRadius: 999, background: 'rgba(16,185,129,0.12)' }}>
+                  <Sparkles size={13} color="#10b981" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>+{o.bonus.toLocaleString('en-IN')} bonus ({o.pct}% extra)</span>
+                </div>
+                <p style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 700, color: '#E04632', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {paying ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={13} />} Recharge & claim
+                </p>
+              </button>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="number" min={1000} step={500} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value)))}
-              style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14 }} />
-            <button onClick={recharge} disabled={paying} style={{
-              padding: '10px 18px', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 6,
-              background: 'linear-gradient(135deg,#E04632,#c83b27)', color: 'white', fontWeight: 700, fontSize: 14, cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.6 : 1,
-            }}>
-              {paying ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={16} />} Recharge
-            </button>
-          </div>
-          <p style={{ margin: '8px 0 0', fontSize: 11, color: '#64748b' }}>Minimum ₹1000. Secure payment via Razorpay.</p>
         </div>
+      )}
+
+      {/* Recharge (any amount) */}
+      <div style={{ ...card, marginBottom: 16 }}>
+        <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{offerEligible ? 'Or top up any amount' : 'Add tokens'}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {PRESETS.map(v => (
+            <button key={v} onClick={() => setAmount(v)} style={{
+              padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
+              border: `1px solid ${amount === v ? '#E04632' : '#334155'}`,
+              background: amount === v ? 'rgba(224,70,50,0.12)' : '#0b1220',
+              color: amount === v ? '#E04632' : '#94a3b8',
+            }}>{v.toLocaleString('en-IN')} tokens</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#64748b' }}>₹</span>
+            <input type="number" min={1000} step={500} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value)))}
+              style={{ width: '100%', padding: '10px 12px 10px 26px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14, boxSizing: 'border-box' }} />
+          </div>
+          <button onClick={() => recharge()} disabled={paying} style={{
+            padding: '10px 20px', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            background: 'linear-gradient(135deg,#E04632,#c83b27)', color: 'white', fontWeight: 700, fontSize: 14, cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.6 : 1,
+          }}>
+            {paying ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={16} />} Get {TOKENS(amount * 100)} tokens
+          </button>
+        </div>
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#64748b' }}>Minimum ₹1,000 · 1 token = ₹1 · GST invoice issued for every payment.</p>
       </div>
 
       {msg && (
@@ -167,15 +231,36 @@ export function Wallet() {
           color: msg.kind === 'err' ? '#ef4444' : msg.kind === 'ok' ? '#10b981' : '#93c5fd' }}>{msg.text}</div>
       )}
 
-      {/* Pricing */}
+      {/* Trust strip */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+        {[
+          { icon: Lock, text: 'Secure checkout by Razorpay' },
+          { icon: ShieldCheck, text: 'PCI-DSS compliant payments' },
+          { icon: Check, text: 'Official WhatsApp Business Platform' },
+        ].map((b, i) => (
+          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 10, background: '#0f172a', border: '1px solid #1e293b', fontSize: 12.5, color: '#94a3b8' }}>
+            <b.icon size={15} color="#10b981" /> {b.text}
+          </div>
+        ))}
+      </div>
+
+      {/* Honest disclosure */}
+      <div style={{ display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 10, marginBottom: 24, background: '#0b1220', border: '1px solid #1e293b' }}>
+        <Info size={16} color="#64748b" style={{ flexShrink: 0, marginTop: 1 }} />
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: '#8290a8' }}>
+          Messages are delivered through Meta's official WhatsApp Business Platform, which charges per conversation. ReachPeak converts that usage into tokens and bills you for it. Payments are processed securely by Razorpay; <strong style={{ color: '#94a3b8' }}>ReachPeak is the merchant of record</strong> and issues your GST invoice.
+        </p>
+      </div>
+
+      {/* Per-message pricing */}
       {pricing.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: '0 0 10px' }}>Per-message pricing</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: '0 0 10px' }}>What each message costs</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {pricing.map(p => (
+            {pricing.map((p: any) => (
               <div key={p.category} style={{ padding: '8px 14px', borderRadius: 8, background: '#0f172a', border: '1px solid #1e293b', fontSize: 13 }}>
                 <span style={{ color: '#94a3b8', textTransform: 'capitalize' }}>{p.category}</span>
-                <span style={{ color: '#f1f5f9', fontWeight: 700, marginLeft: 8 }}>{RUPEE(p.price_paise)}</span>
+                <span style={{ color: '#f1f5f9', fontWeight: 700, marginLeft: 8 }}>{p.price_paise === 0 ? 'Free' : `${TOKENS(p.price_paise)} tokens`}</span>
               </div>
             ))}
           </div>
@@ -186,8 +271,8 @@ export function Wallet() {
       <h3 style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: '0 0 10px' }}>Transaction history</h3>
       <div style={{ borderRadius: 12, border: '1px solid #1e293b', overflow: 'hidden' }}>
         {txns.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 14 }}>No transactions yet.</div>}
-        {txns.map(t => {
-          const m = TYPE_META[t.type] || TYPE_META.debit;
+        {txns.map((t: any) => {
+          const m = txLabel(t);
           const Icon = m.icon;
           return (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid #0f172a', background: '#0b1220' }}>
@@ -197,8 +282,8 @@ export function Wallet() {
                 <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>{new Date(t.created_at).toLocaleString('en-IN')}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: m.color }}>{m.sign}{RUPEE(t.amount_paise)}</p>
-                <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>bal {RUPEE(t.balance_after)}</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: m.color }}>{m.sign}{TOKENS(t.amount_paise)} <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>tokens</span></p>
+                <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>bal {TOKENS(t.balance_after)}</p>
               </div>
             </div>
           );
