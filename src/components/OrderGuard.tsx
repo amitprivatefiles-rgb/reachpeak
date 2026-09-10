@@ -303,34 +303,21 @@ export function OrderGuard() {
 
       {activeTab === 'orders' && (
         <>
-          {/* Orders Table */}
-          <div className="rp-scroll-x" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e6e8ec', marginBottom: '24px' }}>
-            <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e6e8ec' }}>
-                  {['Order ID', 'Contact', 'Value', 'COD', 'Score', 'Action', 'Confirm', 'Payment', 'Status', 'Time'].map(h => (
-                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', color: '#64748b', fontWeight: 500, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {orders.length === 0 && (
-                  <tr>
-                    <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>
-                      No scored orders yet. Orders will appear once OrderGuard is enabled and events are received.
-                    </td>
-                  </tr>
-                )}
-                {orders.map(o => (
-                  <OrderTableRow
-                    key={o.id}
-                    order={o}
-                    expanded={expandedOrder === o.id}
-                    onToggle={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+          {/* Orders — responsive cards (no horizontal scroll) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+            {orders.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b', background: '#ffffff', border: '1px solid #e6e8ec', borderRadius: '16px' }}>
+                No scored orders yet. Orders appear here once OrderGuard is enabled and events are received.
+              </div>
+            )}
+            {orders.map(o => (
+              <OrderCard
+                key={o.id}
+                order={o}
+                expanded={expandedOrder === o.id}
+                onToggle={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+              />
+            ))}
           </div>
 
           {/* Pincode Heat List */}
@@ -510,158 +497,103 @@ function StatCard({ icon, label, value, color, subtitle }: { icon: React.ReactNo
   );
 }
 
-function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expanded: boolean; onToggle: () => void }) {
+function OrderCard({ order, expanded, onToggle }: { order: OrderRow; expanded: boolean; onToggle: () => void }) {
   const bandStyle = order.risk_band ? BAND_COLORS[order.risk_band] : null;
-
-  // Call + location (Shopify orders carry the full shipping address; only pincode is typed above)
   const telHref = order.contact_phone ? `tel:${String(order.contact_phone).replace(/[^0-9+]/g, '')}` : null;
-  const addr = [order.address_line, order.address_city, order.address_state, order.address_pincode]
-    .filter(Boolean).join(', ');
-  const mapsUrl = addr
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
-    : null;
+  const addr = [order.address_line, order.address_city, order.address_state, order.address_pincode].filter(Boolean).join(', ');
+  const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
   const iconBtn = (color: string) => ({
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: '28px', height: '28px', borderRadius: '6px', flexShrink: 0,
-    background: `${color}20`, color, border: `1px solid ${color}40`, textDecoration: 'none',
+    width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
+    background: `${color}18`, color, border: `1px solid ${color}33`, textDecoration: 'none',
   });
+  const chip = (label: string, node: any) => (
+    <div style={{ background: '#f8fafc', border: '1px solid #eef0f3', borderRadius: '10px', padding: '8px 10px', minWidth: 0 }}>
+      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '3px' }}>{label}</div>
+      <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node}</div>
+    </div>
+  );
+  const statusColor = STATUS_COLORS[order.status] ?? '#6b7280';
 
   return (
-    <>
-      <tr onClick={onToggle} style={{ borderBottom: '1px solid #e6e8ec22', cursor: 'pointer', transition: 'background 0.15s' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#e6e8ec44')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-        <td style={{ padding: '10px 14px', color: '#1f2937', fontFamily: 'monospace', fontSize: '12px' }}>
-          {order.external_order_id}
-          {expanded ? <ChevronUp size={12} style={{ marginLeft: '6px', color: '#64748b' }} /> : <ChevronDown size={12} style={{ marginLeft: '6px', color: '#64748b' }} />}
-        </td>
-        <td style={{ padding: '10px 14px', fontSize: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#64748b' }}>{order.contact_phone || '—'}</span>
-            {telHref && (
-              <a href={telHref} className="rp-tap" onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}>
-                <Phone size={14} />
-              </a>
-            )}
-            {mapsUrl && (
-              <a href={mapsUrl} className="rp-tap" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="View customer location on map" style={iconBtn('#3b82f6')}>
-                <MapPin size={14} />
-              </a>
-            )}
+    <div onClick={onToggle} style={{ background: '#ffffff', border: `1px solid ${expanded ? '#cbd5e1' : '#e6e8ec'}`, borderRadius: '16px', padding: '14px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(15,23,42,0.04), 0 6px 18px rgba(15,23,42,0.04)' }}>
+      {/* header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'monospace', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>
+            {order.external_order_id}
+            {expanded ? <ChevronUp size={13} color="#94a3b8" /> : <ChevronDown size={13} color="#94a3b8" />}
           </div>
-        </td>
-        <td style={{ padding: '10px 14px', color: '#1f2937' }}>₹{Number(order.total ?? 0).toLocaleString()}</td>
-        <td style={{ padding: '10px 14px' }}>
-          {order.is_cod ? (
-            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>COD</span>
-          ) : (
-            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Paid</span>
+          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{new Date(order.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {order.is_cod
+            ? <span style={{ padding: '3px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: 'rgba(245,158,11,0.15)', color: '#d97706' }}>COD</span>
+            : <span style={{ padding: '3px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: 'rgba(16,185,129,0.15)', color: '#059669' }}>Paid</span>}
+          {order.risk_score !== null && bandStyle && (
+            <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: bandStyle.bg, color: bandStyle.text, border: `1px solid ${bandStyle.border}40` }}>{order.risk_score}</span>
           )}
-        </td>
-        <td style={{ padding: '10px 14px' }}>
-          {order.risk_score !== null && bandStyle ? (
-            <span style={{
-              padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 700,
-              background: bandStyle.bg, color: bandStyle.text, border: `1px solid ${bandStyle.border}40`,
-            }}>
-              {order.risk_score}
-            </span>
-          ) : '—'}
-        </td>
-        <td style={{ padding: '10px 14px', color: '#64748b', fontSize: '12px' }}>
-          {order.routed_action ? ACTION_LABELS[order.routed_action] || order.routed_action : '—'}
-        </td>
-        <td style={{ padding: '10px 14px' }}>
-          {order.confirm_status ? (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px',
-              color: order.confirm_status === 'confirmed' ? '#10b981' :
-                     order.confirm_status === 'declined' ? '#ef4444' :
-                     order.confirm_status === 'no_response' ? '#f59e0b' : '#64748b',
-            }}>
-              {order.confirm_status === 'confirmed' && <CheckCircle size={12} />}
-              {order.confirm_status === 'declined' && <XCircle size={12} />}
-              {order.confirm_status === 'no_response' && <Clock size={12} />}
-              {order.confirm_status === 'pending' && <Loader2 size={12} />}
-              {CONFIRM_LABELS[order.confirm_status] || order.confirm_status}
-            </span>
-          ) : '—'}
-        </td>
-        <td style={{ padding: '10px 14px' }}>
-          {order.converted_to_prepaid ? (
-            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}>✅ Prepaid</span>
-          ) : order.payment_link_id ? (
-            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 500, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>Link sent</span>
-          ) : '—'}
-        </td>
-        <td style={{ padding: '10px 14px' }}>
-          <span style={{
-            padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 500,
-            background: `${STATUS_COLORS[order.status] ?? '#6b7280'}20`,
-            color: STATUS_COLORS[order.status] ?? '#6b7280',
-          }}>
-            {order.status}
+        </div>
+      </div>
+
+      {/* contact + actions */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '12px' }}>
+        <span style={{ color: '#334155', fontSize: '14px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{order.contact_phone || '—'}</span>
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          {telHref && <a href={telHref} className="rp-tap" onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}><Phone size={16} /></a>}
+          {mapsUrl && <a href={mapsUrl} className="rp-tap" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="View location" style={iconBtn('#3b82f6')}><MapPin size={16} /></a>}
+        </div>
+      </div>
+
+      {/* detail chips */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginTop: '12px' }}>
+        {chip('Value', `₹${Number(order.total ?? 0).toLocaleString('en-IN')}`)}
+        {chip('Status', <span style={{ color: statusColor, textTransform: 'capitalize' }}>{order.status.replace(/_/g, ' ')}</span>)}
+        {order.confirm_status && chip('Confirm', (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: order.confirm_status === 'confirmed' ? '#059669' : order.confirm_status === 'declined' ? '#dc2626' : order.confirm_status === 'no_response' ? '#d97706' : '#64748b' }}>
+            {order.confirm_status === 'confirmed' && <CheckCircle size={13} />}
+            {order.confirm_status === 'declined' && <XCircle size={13} />}
+            {order.confirm_status === 'no_response' && <Clock size={13} />}
+            {order.confirm_status === 'pending' && <Loader2 size={13} />}
+            {CONFIRM_LABELS[order.confirm_status] || order.confirm_status}
           </span>
-        </td>
-        <td style={{ padding: '10px 14px', color: '#64748b', fontSize: '12px' }}>
-          {new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-        </td>
-      </tr>
-      {/* Expanded: factor breakdown + timeline */}
+        ))}
+        {order.routed_action && order.routed_action !== 'none' && chip('Action', ACTION_LABELS[order.routed_action] || order.routed_action)}
+        {order.converted_to_prepaid ? chip('Payment', <span style={{ color: '#8b5cf6' }}>Prepaid</span>) : order.payment_link_id ? chip('Payment', <span style={{ color: '#3b82f6' }}>Link sent</span>) : null}
+      </div>
+
+      {/* expanded: factors + timeline */}
       {expanded && (
-        <tr>
-          <td colSpan={10} style={{ padding: '0 14px 16px 14px', background: '#ffffff' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px', background: '#e6e8ec', borderRadius: '8px' }}>
-              {/* Risk Factors */}
-              <div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1f2937', fontWeight: 600 }}>
-                  <Shield size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                  Risk Factors (base 30)
-                </h4>
-                {(order.risk_factors ?? []).map((f, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #d1d5db', fontSize: '12px' }}>
-                    <span style={{ color: '#334155' }}>{f.factor}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#64748b', maxWidth: '200px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{f.detail}</span>
-                      <span style={{ fontWeight: 700, fontFamily: 'monospace', color: f.points > 0 ? '#ef4444' : '#10b981', minWidth: '40px', textAlign: 'right' }}>
-                        {f.points > 0 ? '+' : ''}{f.points}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-                <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
-                  Final: {order.risk_score} → <span style={{ color: bandStyle?.text ?? '#64748b' }}>{order.risk_band?.toUpperCase()}</span>
-                </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px', marginTop: '14px', padding: '14px', background: '#f8fafc', borderRadius: '12px' }} onClick={e => e.stopPropagation()}>
+          <div>
+            <h4 style={{ margin: '0 0 8px', fontSize: '13px', color: '#0f172a', fontWeight: 700 }}><Shield size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Risk factors</h4>
+            {(order.risk_factors ?? []).map((f, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', padding: '4px 0', borderBottom: '1px solid #eef0f3', fontSize: '12px' }}>
+                <span style={{ color: '#334155' }}>{f.factor}</span>
+                <span style={{ fontWeight: 700, fontFamily: 'monospace', color: f.points > 0 ? '#dc2626' : '#059669' }}>{f.points > 0 ? '+' : ''}{f.points}</span>
               </div>
-              {/* Timeline */}
-              <div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1f2937', fontWeight: 600 }}>
-                  <Clock size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                  Lifecycle
-                </h4>
-                {[
-                  { label: 'Created', ts: order.created_at },
-                  { label: 'Confirmed', ts: order.confirmed_at },
-                  { label: 'Shipped', ts: order.shipped_at },
-                  { label: 'Delivered', ts: order.delivered_at },
-                  { label: 'Closed', ts: order.closed_at },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '12px' }}>
-                    <span style={{ color: item.ts ? '#334155' : '#475569' }}>{item.label}</span>
-                    <span style={{ color: item.ts ? '#64748b' : '#d1d5db', fontFamily: 'monospace' }}>
-                      {item.ts ? new Date(item.ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
-                    </span>
-                  </div>
-                ))}
-                <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-                  Source: <span style={{ color: '#64748b' }}>{order.source}</span> · Pincode: <span style={{ color: '#64748b' }}>{order.address_pincode || '—'}</span>
-                </div>
+            ))}
+            <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Final: {order.risk_score} → <span style={{ color: bandStyle?.text ?? '#64748b' }}>{order.risk_band?.toUpperCase()}</span></div>
+          </div>
+          <div>
+            <h4 style={{ margin: '0 0 8px', fontSize: '13px', color: '#0f172a', fontWeight: 700 }}><Clock size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Lifecycle</h4>
+            {[
+              { label: 'Created', ts: order.created_at },
+              { label: 'Confirmed', ts: order.confirmed_at },
+              { label: 'Shipped', ts: order.shipped_at },
+              { label: 'Delivered', ts: order.delivered_at },
+              { label: 'Closed', ts: order.closed_at },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '12px' }}>
+                <span style={{ color: item.ts ? '#334155' : '#cbd5e1' }}>{item.label}</span>
+                <span style={{ color: item.ts ? '#64748b' : '#cbd5e1', fontFamily: 'monospace' }}>{item.ts ? new Date(item.ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
               </div>
-            </div>
-          </td>
-        </tr>
+            ))}
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>Source: {order.source} · Pincode: {order.address_pincode || '—'}</div>
+          </div>
+        </div>
       )}
-    </>
+    </div>
   );
 }
 
