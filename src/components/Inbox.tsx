@@ -585,7 +585,7 @@ export function Inbox() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex bg-transparent rounded-xl overflow-hidden border border-gray-200">
+    <div className="h-full flex bg-transparent overflow-hidden">
       {/* Hidden file input */}
       <input
         type="file"
