@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   MessageSquare, Send, Paperclip, FileText, Image, Video, Search,
   Clock, Check, CheckCheck, AlertCircle, X, Loader2, Smile, ArrowLeft,
-  Phone, User, File, ChevronDown, CreditCard,
+  Phone, User, File, ChevronDown, CreditCard, Trash2, MapPin,
 } from 'lucide-react';
 
 interface Conversation {
@@ -50,6 +50,7 @@ export function Inbox() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+  const [activeAddr, setActiveAddr] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -203,12 +204,42 @@ export function Inbox() {
     return () => { supabase.removeChannel(messagesChannel); };
   }, [activeConversation, user, fetchMessages]);
 
+  // Look up the customer's latest order address (for the Location button)
+  useEffect(() => {
+    if (!activeConversation || !user) { setActiveAddr(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('orders')
+        .select('address_line, address_city, address_state, address_pincode')
+        .eq('user_id', user.id)
+        .eq('contact_phone', activeConversation.contact_phone)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const o = data && data[0];
+      const addr = o ? [o.address_line, o.address_city, o.address_state, o.address_pincode].filter(Boolean).join(', ') : '';
+      if (!cancelled) setActiveAddr(addr || null);
+    })();
+    return () => { cancelled = true; };
+  }, [activeConversation, user]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   // Open a conversation
+  const deleteConversation = async (conv: Conversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete chat with ${conv.contact_name || conv.contact_phone}? This removes all its messages.`)) return;
+    await supabase.from('messages').delete().eq('conversation_id', conv.id);
+    await supabase.from('messages').delete().or(`wa_from.eq.${conv.contact_phone},wa_to.eq.${conv.contact_phone}`);
+    const { error } = await supabase.from('conversations').delete().eq('id', conv.id);
+    if (error) { alert('Delete failed: ' + error.message); return; }
+    setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+    setFilteredConversations((prev) => prev.filter((c) => c.id !== conv.id));
+    if (activeConversation?.id === conv.id) setActiveConversation(null);
+  };
+
   const openConversation = (conv: Conversation) => {
     setActiveConversation(conv);
     setShowMobileChat(true);
@@ -640,6 +671,9 @@ export function Inbox() {
                     )}
                   </div>
                 </div>
+                <button onClick={(e) => deleteConversation(conv, e)} className="p-1.5 text-gray-600 hover:text-red-400 transition flex-shrink-0" title="Delete chat">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))
           )}
@@ -674,8 +708,26 @@ export function Inbox() {
                 </div>
               </div>
 
-              {/* 24h Window Indicator */}
+              {/* Actions + 24h Window Indicator */}
               <div className="flex items-center gap-2">
+                <a
+                  href={`tel:${activeConversation.contact_phone.replace(/[^0-9+]/g, '')}`}
+                  title="Call customer"
+                  className="p-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition"
+                >
+                  <Phone className="w-4 h-4" />
+                </a>
+                {activeAddr && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeAddr)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`View location: ${activeAddr}`}
+                    className="p-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition"
+                  >
+                    <MapPin className="w-4 h-4" />
+                  </a>
+                )}
                 {isWindowOpen(activeConversation) ? (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
