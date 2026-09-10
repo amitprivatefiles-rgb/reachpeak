@@ -208,7 +208,8 @@ export function FailedRetry() {
             )}
           </div>
 
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
             <thead className="bg-gray-800 border-b border-gray-700">
               <tr>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Phone Number</th>
@@ -300,6 +301,7 @@ export function FailedRetry() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
 

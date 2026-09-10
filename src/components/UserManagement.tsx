@@ -184,8 +184,8 @@ export function UserManagement() {
       </div>
 
       {activeTab === 'users' ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-800 border-b border-gray-700">
               <tr>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">User</th>
@@ -236,8 +236,8 @@ export function UserManagement() {
               </button>
             ))}
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-gray-800 border-b border-gray-700">
                 <tr>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Business</th>
