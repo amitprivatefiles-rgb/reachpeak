@@ -246,7 +246,7 @@ export function OrderGuard() {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="rp-page" style={{ maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -304,8 +304,8 @@ export function OrderGuard() {
       {activeTab === 'orders' && (
         <>
           {/* Orders Table */}
-          <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden', marginBottom: '24px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <div className="rp-scroll-x" style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', marginBottom: '24px' }}>
+            <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1e293b' }}>
                   {['Order ID', 'Contact', 'Value', 'COD', 'Score', 'Action', 'Confirm', 'Payment', 'Status', 'Time'].map(h => (
@@ -335,13 +335,13 @@ export function OrderGuard() {
 
           {/* Pincode Heat List */}
           {pincodeStats.length > 0 && (
-            <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', padding: '20px' }}>
+            <div className="rp-scroll-x" style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <MapPin size={18} color="#f59e0b" />
                 <h3 style={{ margin: 0, fontSize: '16px', color: '#f1f5f9', fontWeight: 600 }}>High-RTO Pincodes</h3>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>(min 5 orders)</span>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #1e293b' }}>
                     {['Pincode', 'Orders', 'Delivered', 'RTO', 'RTO %'].map(h => (
@@ -446,7 +446,7 @@ export function OrderGuard() {
             {/* Journey pickers */}
             <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
               <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Linked Journeys</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <JourneyPicker label="COD Confirm Journey" journeys={journeys}
                   value={settings.cod_confirm_journey_id}
                   onChange={v => setSettings(s => ({ ...s, cod_confirm_journey_id: v }))} />
@@ -522,7 +522,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
     : null;
   const iconBtn = (color: string) => ({
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: '24px', height: '24px', borderRadius: '6px', flexShrink: 0,
+    width: '28px', height: '28px', borderRadius: '6px', flexShrink: 0,
     background: `${color}20`, color, border: `1px solid ${color}40`, textDecoration: 'none',
   });
 
@@ -539,13 +539,13 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ color: '#94a3b8' }}>{order.contact_phone || '—'}</span>
             {telHref && (
-              <a href={telHref} onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}>
-                <Phone size={12} />
+              <a href={telHref} className="rp-tap" onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}>
+                <Phone size={14} />
               </a>
             )}
             {mapsUrl && (
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="View customer location on map" style={iconBtn('#3b82f6')}>
-                <MapPin size={12} />
+              <a href={mapsUrl} className="rp-tap" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="View customer location on map" style={iconBtn('#3b82f6')}>
+                <MapPin size={14} />
               </a>
             )}
           </div>

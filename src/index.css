@@ -130,6 +130,15 @@ html {
   }
 }
 
+/* ─── Mobile responsiveness helpers (used by inline-styled pages) ─── */
+.rp-page { padding: 24px; }
+.rp-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 640px) {
+  .rp-page { padding: 12px !important; }
+  /* comfortable tap targets for small icon buttons on touch screens */
+  .rp-tap { min-width: 40px !important; min-height: 40px !important; }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
