@@ -5,6 +5,7 @@ import {
   MessageSquare, Send, Paperclip, FileText, Image, Video, Search,
   Clock, Check, CheckCheck, AlertCircle, X, Loader2, Smile, ArrowLeft,
   Phone, User, File, ChevronDown, CreditCard, Trash2, MapPin,
+  Reply, ExternalLink,
 } from 'lucide-react';
 
 interface Conversation {
@@ -420,21 +421,55 @@ export function Inbox() {
       return <p className="text-sm whitespace-pre-wrap break-words">{body || content?.body || ''}</p>;
     }
 
-    // Template
+    // Template — render the real message: header image, filled-in body text, and buttons
     if (type === 'template') {
       const tplName = msg.template_name || content?.template?.name || 'template';
+      const sendComps: any[] = content?.template?.components || [];
+      const compType = (c: any) => (c?.type || '').toLowerCase();
+      // Send-time values
+      const bodyParams: string[] = (sendComps.find((c) => compType(c) === 'body')?.parameters || [])
+        .map((p: any) => p?.text ?? '');
+      const headerParam = (sendComps.find((c) => compType(c) === 'header')?.parameters || [])[0];
+      const headerImg = headerParam?.image?.link || null;
+      // Template definition (for the body skeleton + button labels)
+      const def = templates.find((t) => t.name === tplName);
+      const defComps: any[] = def?.components || [];
+      const defType = (c: any) => (c?.type || '').toUpperCase();
+      let bodyText: string = def?.body_text
+        || defComps.find((c) => defType(c) === 'BODY')?.text
+        || '';
+      if (bodyText) {
+        bodyText = bodyText.replace(/\{\{(\d+)\}\}/g, (_m: string, n: string) => bodyParams[parseInt(n, 10) - 1] ?? `{{${n}}}`);
+      } else if (bodyParams.length) {
+        bodyText = bodyParams.join(' ');
+      }
+      const footerText: string = defComps.find((c) => defType(c) === 'FOOTER')?.text || '';
+      const buttons: any[] = defComps.find((c) => defType(c) === 'BUTTONS')?.buttons || [];
       return (
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <FileText className="w-3 h-3" />
-            <span>Template: {tplName}</span>
+        <div className="space-y-1.5">
+          {headerImg && (
+            <img src={headerImg} alt="" className="max-w-[260px] w-full rounded-lg" />
+          )}
+          {bodyText && <p className="text-sm whitespace-pre-wrap break-words">{bodyText}</p>}
+          {footerText && <p className="text-[11px] opacity-60 whitespace-pre-wrap break-words">{footerText}</p>}
+          {buttons.length > 0 && (
+            <div className="mt-1 -mx-3.5 -mb-2 border-t border-current/15 divide-y divide-current/10">
+              {buttons.map((b: any, i: number) => (
+                <div key={i} className="flex items-center justify-center gap-1.5 text-sm font-medium py-2 px-2">
+                  {(b.type || '').toUpperCase() === 'URL'
+                    ? <ExternalLink className="w-3.5 h-3.5" />
+                    : (b.type || '').toUpperCase() === 'PHONE_NUMBER'
+                    ? <Phone className="w-3.5 h-3.5" />
+                    : <Reply className="w-3.5 h-3.5" />}
+                  <span>{b.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-1 text-[10px] opacity-50 pt-0.5">
+            <FileText className="w-2.5 h-2.5" />
+            <span>{tplName}</span>
           </div>
-          {content?.template?.components?.map((comp: any, i: number) => {
-            if (comp.type === 'body') {
-              return <p key={i} className="text-sm">{comp.text}</p>;
-            }
-            return null;
-          })}
         </div>
       );
     }
