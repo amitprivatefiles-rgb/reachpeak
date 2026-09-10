@@ -212,61 +212,60 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
         return (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">Create a custom app in Shopify</h2>
-              <p className="text-gray-400">Follow these steps in your Shopify admin panel</p>
+              <h2 className="text-2xl font-bold text-white mb-2">Open your Shopify webhook settings</h2>
+              <p className="text-gray-400">No app to install — you add webhooks directly in your store settings</p>
             </div>
 
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 max-w-lg mx-auto">
               <ol className="space-y-4 text-gray-300">
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-sm">1</span>
-                  <span>Go to your Shopify admin dashboard</span>
+                  <span>In your Shopify admin, go to <strong>Settings</strong> → <strong>Notifications</strong></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-sm">2</span>
-                  <span>Navigate to <strong>Settings</strong> → <strong>Apps and sales channels</strong> → <strong>Develop apps</strong></span>
+                  <span>Scroll to the bottom and open the <strong>Webhooks</strong> section</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-sm">3</span>
-                  <span>Click <strong>Create an app</strong> and name it "ReachPeak"</span>
+                  <span>You'll add one webhook per event on the next step</span>
                 </li>
               </ol>
 
               <div className="mt-6 pt-6 border-t border-gray-700">
-                <a 
-                  href={`https://${fullDomain}/admin/settings/apps/development`}
+                <a
+                  href={`https://${fullDomain}/admin/settings/notifications`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center w-full py-2.5 px-4 bg-gray-900 hover:bg-gray-950 text-white rounded-lg border border-gray-700 transition-colors"
                 >
-                  <span>Open Shopify App Settings</span>
+                  <span>Open Shopify Notification Settings</span>
                   <ExternalLink className="w-4 h-4 ml-2 text-gray-400" />
                 </a>
               </div>
             </div>
-            
-            <p className="text-center text-sm text-gray-500">After creating the app, click Next</p>
+
+            <p className="text-center text-sm text-gray-500">Shopify retired legacy "custom apps" in Jan 2026 — this webhook method is the current, simpler way and needs no app.</p>
           </div>
         );
 
       case 3:
-        const webhookUrl = 'https://api.reachpeakapi.in/functions/v1/shopify-webhook';
+        const webhookUrl = 'https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/shopify-webhook';
         const topics = [
-          'orders/create', 'orders/paid', 'orders/cancelled', 'orders/fulfilled',
-          'fulfillments/create', 'fulfillments/update', 'refunds/create',
-          'checkouts/create', 'checkouts/update'
+          'Order creation', 'Order payment', 'Order cancellation',
+          'Order fulfillment', 'Fulfillment update', 'Refund creation'
         ];
         
         return (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">Set up webhooks</h2>
-              <p className="text-gray-400">Configure your app to send events to ReachPeak</p>
+              <h2 className="text-2xl font-bold text-white mb-2">Create the webhooks</h2>
+              <p className="text-gray-400">In the Webhooks section, click "Create webhook" once per event below</p>
             </div>
 
             <div className="max-w-xl mx-auto space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">1. Webhook Endpoint URL</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">1. Webhook URL — paste this into every webhook</label>
                 <div className="flex gap-2">
                   <code className="flex-1 block p-3 bg-gray-900 border border-gray-700 rounded-lg text-emerald-400 text-sm overflow-x-auto whitespace-nowrap">
                     {webhookUrl}
@@ -282,33 +281,22 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">2. Required API Scopes</label>
-                <div className="p-3 bg-gray-900 border border-gray-700 rounded-lg">
-                  <code className="text-emerald-400 text-sm">read_orders, read_checkouts, read_customers, read_fulfillments</code>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">3. Webhook Topics to Subscribe</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">2. Create a webhook for each of these events</label>
                 <div className="grid grid-cols-2 gap-2">
                   {topics.map(topic => (
-                    <div key={topic} className="flex items-center justify-between p-2 bg-gray-900 border border-gray-700 rounded-lg">
+                    <div key={topic} className="flex items-center p-2 bg-gray-900 border border-gray-700 rounded-lg">
+                      <Check className="w-4 h-4 text-emerald-500 mr-2 flex-shrink-0" />
                       <code className="text-sm text-gray-300">{topic}</code>
-                      <button 
-                        onClick={() => handleCopy(topic, `topic-${topic}`)}
-                        className="text-gray-500 hover:text-white transition-colors"
-                      >
-                        {copiedId === `topic-${topic}` ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
                     </div>
                   ))}
                 </div>
+                <p className="mt-2 text-xs text-gray-500">Also want abandoned-cart recovery? Add <strong>Checkout creation</strong> &amp; <strong>Checkout update</strong> too.</p>
               </div>
 
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                 <p className="text-sm text-blue-400 flex items-start">
                   <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                  <span>Important: Set webhook format to <strong>JSON</strong> and API version to <strong>2024-01</strong> or later.</span>
+                  <span>For every webhook, set Format to <strong>JSON</strong> and Webhook API version to the <strong>latest</strong>.</span>
                 </p>
               </div>
             </div>
@@ -323,7 +311,7 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
                 <Key className="w-6 h-6 text-emerald-500" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Paste your webhook signing secret</h2>
-              <p className="text-gray-400">In your custom app, go to API credentials → Webhook subscriptions</p>
+              <p className="text-gray-400">At the very bottom of the Webhooks section, Shopify shows the secret it signs every webhook with — copy it</p>
             </div>
 
             <div className="max-w-md mx-auto mt-8">
@@ -333,7 +321,7 @@ export default function ShopifyConnect({ onClose, onConnected }: ShopifyConnectP
                   type={showSecret ? "text" : "password"}
                   value={signingSecret}
                   onChange={(e) => setSigningSecret(e.target.value)}
-                  placeholder="shpss_..."
+                  placeholder="Paste the webhook signing secret"
                   className="block w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
                 <button
