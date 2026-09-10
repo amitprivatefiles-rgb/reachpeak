@@ -8,6 +8,7 @@ import {
   Package,
   TrendingUp,
   MapPin,
+  Phone,
   ChevronDown,
   ChevronUp,
   RefreshCw,
@@ -113,6 +114,14 @@ const ACTION_LABELS: Record<string, string> = {
   cod_confirm: 'COD Confirm',
   prepay_nudge: 'Prepay Nudge',
   hold: 'Hold Order',
+};
+
+// Customer's WhatsApp button reply → shown in the Confirm column
+const CONFIRM_LABELS: Record<string, string> = {
+  confirmed: 'Confirmed',
+  declined: 'Cancelled',
+  no_response: 'No reply',
+  pending: 'Awaiting reply',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -504,6 +513,19 @@ function StatCard({ icon, label, value, color, subtitle }: { icon: React.ReactNo
 function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expanded: boolean; onToggle: () => void }) {
   const bandStyle = order.risk_band ? BAND_COLORS[order.risk_band] : null;
 
+  // Call + location (Shopify orders carry the full shipping address; only pincode is typed above)
+  const telHref = order.contact_phone ? `tel:${String(order.contact_phone).replace(/[^0-9+]/g, '')}` : null;
+  const addr = [order.address_line, order.address_city, order.address_state, order.address_pincode]
+    .filter(Boolean).join(', ');
+  const mapsUrl = addr
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
+    : null;
+  const iconBtn = (color: string) => ({
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: '24px', height: '24px', borderRadius: '6px', flexShrink: 0,
+    background: `${color}20`, color, border: `1px solid ${color}40`, textDecoration: 'none',
+  });
+
   return (
     <>
       <tr onClick={onToggle} style={{ borderBottom: '1px solid #1e293b22', cursor: 'pointer', transition: 'background 0.15s' }}
@@ -513,7 +535,21 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
           {order.external_order_id}
           {expanded ? <ChevronUp size={12} style={{ marginLeft: '6px', color: '#64748b' }} /> : <ChevronDown size={12} style={{ marginLeft: '6px', color: '#64748b' }} />}
         </td>
-        <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>{order.contact_phone || '—'}</td>
+        <td style={{ padding: '10px 14px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#94a3b8' }}>{order.contact_phone || '—'}</span>
+            {telHref && (
+              <a href={telHref} onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}>
+                <Phone size={12} />
+              </a>
+            )}
+            {mapsUrl && (
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="View customer location on map" style={iconBtn('#3b82f6')}>
+                <MapPin size={12} />
+              </a>
+            )}
+          </div>
+        </td>
         <td style={{ padding: '10px 14px', color: '#e2e8f0' }}>₹{Number(order.total ?? 0).toLocaleString()}</td>
         <td style={{ padding: '10px 14px' }}>
           {order.is_cod ? (
@@ -547,7 +583,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
               {order.confirm_status === 'declined' && <XCircle size={12} />}
               {order.confirm_status === 'no_response' && <Clock size={12} />}
               {order.confirm_status === 'pending' && <Loader2 size={12} />}
-              {order.confirm_status}
+              {CONFIRM_LABELS[order.confirm_status] || order.confirm_status}
             </span>
           ) : '—'}
         </td>
