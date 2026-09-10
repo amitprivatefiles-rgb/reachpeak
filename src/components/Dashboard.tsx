@@ -317,14 +317,14 @@ export function Dashboard() {
     color: string;
     subtitle?: string;
   }) => (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 hover:border-gray-700 transition">
+    <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 hover:border-gray-200 transition">
       <div className="flex items-start justify-between mb-3 sm:mb-4">
         <div className={`w-10 h-10 sm:w-12 sm:h-12 ${color} rounded-lg flex items-center justify-center`}>
           <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
       </div>
-      <h3 className="text-gray-400 text-xs sm:text-sm font-medium mb-1">{title}</h3>
-      <p className="text-white text-2xl sm:text-3xl font-bold">{value}</p>
+      <h3 className="text-gray-500 text-xs sm:text-sm font-medium mb-1">{title}</h3>
+      <p className="text-gray-900 text-2xl sm:text-3xl font-bold">{value}</p>
       {subtitle && <p className="text-gray-500 text-xs mt-2">{subtitle}</p>}
     </div>
   );
@@ -334,7 +334,7 @@ export function Dashboard() {
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-          <p className="text-gray-400 text-sm">Loading dashboard...</p>
+          <p className="text-gray-500 text-sm">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -343,16 +343,16 @@ export function Dashboard() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {subscription && subscription.status === 'active' && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand/20 rounded-lg flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-brand" />
             </div>
             <div>
-              <p className="text-white text-sm font-medium">
+              <p className="text-gray-900 text-sm font-medium">
                 Current Plan: <span className="capitalize text-brand">{subscription.plan_type}</span>
               </p>
-              <p className="text-gray-400 text-xs">
+              <p className="text-gray-500 text-xs">
                 {subscription.expires_at
                   ? `Expires: ${new Date(subscription.expires_at).toLocaleDateString()}`
                   : 'Active'}
@@ -365,52 +365,52 @@ export function Dashboard() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Dashboard</h1>
-          <p className="text-gray-400 text-sm sm:text-base">Welcome back! Here's your campaign overview</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-500 text-sm sm:text-base">Welcome back! Here's your campaign overview</p>
         </div>
         <button
           onClick={fetchData}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition w-full sm:w-auto"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition w-full sm:w-auto"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <Calendar className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white">Date Range Filter</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Date Range Filter</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Start Date</label>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">End Date</label>
+            <label className="block text-sm font-medium text-gray-600 mb-2">End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={clearDateFilters}
-              className="w-full px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition"
+              className="w-full px-4 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
-        <p className="text-gray-400 text-xs mt-3">
+        <p className="text-gray-500 text-xs mt-3">
           {startDate && endDate
             ? `Showing data from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
             : endDate
@@ -426,7 +426,7 @@ export function Dashboard() {
               <Megaphone className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <p className="text-white text-sm font-medium">
+              <p className="text-gray-900 text-sm font-medium">
                 {pendingApprovals} campaign{pendingApprovals > 1 ? 's' : ''} pending approval
               </p>
               <p className="text-amber-400/70 text-xs">Check Campaign Approvals in the sidebar</p>
@@ -492,16 +492,16 @@ export function Dashboard() {
           title="Completed Campaigns"
           value={metrics?.completed_campaigns || 0}
           icon={CheckCircle}
-          color="bg-gray-600"
+          color="bg-gray-300"
         />
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">All Campaigns</h2>
-        <p className="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-6">Complete overview of all campaigns with real-time metrics from the messages table</p>
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">All Campaigns</h2>
+        <p className="text-gray-500 text-xs sm:text-sm mb-4 sm:mb-6">Complete overview of all campaigns with real-time metrics from the messages table</p>
         {campaigns.length === 0 ? (
-          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
-            <p className="text-gray-400">No campaigns found for the selected date range.</p>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center">
+            <p className="text-gray-500">No campaigns found for the selected date range.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -510,14 +510,14 @@ export function Dashboard() {
               return (
                 <div
                   key={campaign.id}
-                  className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 sm:p-6 hover:border-gray-600 transition"
+                  className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-6 hover:border-gray-300 transition"
                 >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4">
                   <div className="flex items-start gap-3">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       campaign.status === 'Running' || campaign.status === 'Sending' ? 'bg-green-500' :
                       campaign.status === 'Paused' ? 'bg-amber-500' :
-                      'bg-gray-500'
+                      'bg-gray-400'
                     }`}>
                       {campaign.status === 'Running' ? (
                         <Play className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -530,13 +530,13 @@ export function Dashboard() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-white text-base sm:text-lg font-semibold break-words">{campaign.name}</h3>
+                      <h3 className="text-gray-900 text-base sm:text-lg font-semibold break-words">{campaign.name}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                           campaign.status === 'Running' ? 'bg-green-500/20 text-green-400' :
                           campaign.status === 'Sending' ? 'bg-blue-500/20 text-blue-400' :
                           campaign.status === 'Paused' ? 'bg-amber-500/20 text-amber-400' :
-                          'bg-gray-500/20 text-gray-400'
+                          'bg-gray-200 text-gray-500'
                         }`}>
                           {campaign.status}
                         </span>
@@ -547,23 +547,23 @@ export function Dashboard() {
                           Version {campaign.message_version}
                         </span>
                         {campaign.is_locked && (
-                          <span className="text-gray-400 text-xs">🔒 Locked</span>
+                          <span className="text-gray-500 text-xs">🔒 Locked</span>
                         )}
                       </div>
                     </div>
 
                     {campaign.message_template && (
-                      <div className="mt-2 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                      <div className="mt-2 p-3 bg-white rounded-lg border border-gray-200">
                         <div className="flex items-center gap-2 mb-1">
                           <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-xs font-medium text-gray-300">Message</span>
+                          <span className="text-xs font-medium text-gray-600">Message</span>
                         </div>
-                        <p className="text-sm text-gray-400 line-clamp-3 whitespace-pre-wrap">{campaign.message_template}</p>
+                        <p className="text-sm text-gray-500 line-clamp-3 whitespace-pre-wrap">{campaign.message_template}</p>
                       </div>
                     )}
 
                     {campaign.file_name && campaign.file_url && (
-                      <div className="mt-2 bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+                      <div className="mt-2 bg-white rounded-lg border border-gray-200 overflow-hidden">
                         {['jpg','jpeg','png','gif','webp'].includes(campaign.file_name.split('.').pop()?.toLowerCase() || '') ? (
                           <img src={campaign.file_url} alt={campaign.file_name} className="w-full h-40 object-cover" />
                         ) : ['mp4','webm','mov'].includes(campaign.file_name.split('.').pop()?.toLowerCase() || '') ? (
@@ -571,7 +571,7 @@ export function Dashboard() {
                         ) : (
                           <div className="flex items-center gap-2 p-3">
                             <Download className="w-4 h-4 text-blue-400" />
-                            <span className="text-sm text-white">{campaign.file_name}</span>
+                            <span className="text-sm text-gray-900">{campaign.file_name}</span>
                           </div>
                         )}
                       </div>
@@ -594,46 +594,46 @@ export function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mb-4">
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Total</p>
-                    <p className="text-white text-sm sm:text-lg font-bold">
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Total</p>
+                    <p className="text-gray-900 text-sm sm:text-lg font-bold">
                       {(cm.total_messages || campaign.total_numbers || 0).toLocaleString()}
                     </p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Sent</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Sent</p>
                     <p className="text-green-400 text-sm sm:text-lg font-bold">{cm.messages_sent.toLocaleString()}</p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Delivered</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Delivered</p>
                     <p className="text-cyan-400 text-sm sm:text-lg font-bold">{cm.messages_delivered.toLocaleString()}</p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Failed</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Failed</p>
                     <p className="text-red-400 text-sm sm:text-lg font-bold">{cm.messages_failed.toLocaleString()}</p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Delivery Rate</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Delivery Rate</p>
                     <p className="text-green-400 text-sm sm:text-lg font-bold">{cm.delivery_rate?.toFixed(1) || '0.0'}%</p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Pending</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Pending</p>
                     <p className="text-amber-400 text-sm sm:text-lg font-bold">{cm.messages_pending.toLocaleString()}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-4">
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Priority Level</p>
-                    <p className="text-white text-sm">{campaign.priority}</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Priority Level</p>
+                    <p className="text-gray-900 text-sm">{campaign.priority}</p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
-                    <p className="text-gray-400 text-xs mb-1">Message Version</p>
-                    <p className="text-white text-sm">Version {campaign.message_version}</p>
+                  <div className="bg-white rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-500 text-xs mb-1">Message Version</p>
+                    <p className="text-gray-900 text-sm">Version {campaign.message_version}</p>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-gray-400 pt-3 border-t border-gray-700">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-gray-500 pt-3 border-t border-gray-200">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                     <div>
                       <span className="font-medium">Started:</span> {campaign.start_time ? new Date(campaign.start_time).toLocaleString() : 'Not started'}
