@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
+import { InstallPrompt } from './components/InstallPrompt';
 
 /* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
 const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
@@ -258,6 +259,7 @@ export default function App() {
       <AuthProvider>
         <SubscriptionProvider>
           <AppRoutes />
+          <InstallPrompt />
         </SubscriptionProvider>
       </AuthProvider>
     </BrowserRouter>
