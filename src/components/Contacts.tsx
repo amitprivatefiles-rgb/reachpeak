@@ -648,7 +648,7 @@ export function Contacts() {
   if (initialLoad && loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-gray-500">
           <Loader2 className="w-5 h-5 animate-spin" />
           Loading contacts...
         </div>
@@ -663,8 +663,8 @@ export function Contacts() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Contacts</h1>
-          <p className="text-gray-400">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Contacts</h1>
+          <p className="text-gray-500">
             Manage your contact database
             {unassignedCount > 0 && (
               <span className="ml-2 px-2 py-1 text-xs bg-amber-500/20 text-amber-400 rounded">
@@ -687,11 +687,11 @@ export function Contacts() {
             </button>
           )}
           <button onClick={() => setShowTagModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">
             <Tag className="w-4 h-4" /> Tags
           </button>
           <button onClick={exportContacts}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">
             <Download className="w-4 h-4" /> Export
           </button>
           <button onClick={() => { setAddMode('single'); setShowAddModal(true); }}
@@ -702,7 +702,7 @@ export function Contacts() {
       </div>
 
       {/* Filters */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="relative md:col-span-2 flex gap-2">
             <div className="relative flex-1">
@@ -710,7 +710,7 @@ export function Contacts() {
               <input type="text" placeholder="Search by phone or name..." value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <button onClick={applySearchNow}
               className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition text-sm font-medium whitespace-nowrap">
@@ -718,19 +718,19 @@ export function Contacts() {
             </button>
           </div>
           <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
             <option value="">All Sources</option>
             {['Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp', 'Manual'].map(s => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
           <select value={filterCampaign} onChange={(e) => setFilterCampaign(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
             <option value="">All Campaigns</option>
             {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
             <option value="">All Tags</option>
             {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -770,53 +770,53 @@ export function Contacts() {
       )}
 
       {/* Table with inline loading overlay */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden relative">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden relative">
         {/* Loading overlay — dims the table but keeps it visible and interactive */}
         {loading && !initialLoad && (
-          <div className="absolute inset-0 bg-gray-900/60 z-10 flex items-center justify-center">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg border border-gray-200">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-              <span className="text-sm text-gray-300">Updating...</span>
+              <span className="text-sm text-gray-600">Updating...</span>
             </div>
           </div>
         )}
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-800 border-b border-gray-700">
+            <thead className="bg-gray-100 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-4 text-left">
                   <input type="checkbox"
                     checked={headerCheckboxChecked}
                     ref={(el) => { if (el) el.indeterminate = headerCheckboxIndeterminate; }}
                     onChange={toggleSelectAllOnPage}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500" />
+                    className="w-4 h-4 rounded border-gray-300 bg-gray-200 text-emerald-500 focus:ring-emerald-500" />
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Phone</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Name</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Source</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Tags</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Lead</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-gray-300">Status</th>
-                <th className="text-right px-4 py-4 text-sm font-medium text-gray-300">Actions</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Phone</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Name</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Source</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Tags</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Lead</th>
+                <th className="text-left px-4 py-4 text-sm font-medium text-gray-600">Status</th>
+                <th className="text-right px-4 py-4 text-sm font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-gray-200">
               {contacts.map((contact) => (
-                <tr key={contact.id} className={`hover:bg-gray-800/50 transition ${selectedContacts.has(contact.id) ? 'bg-emerald-500/5' : ''}`}>
+                <tr key={contact.id} className={`hover:bg-gray-50 transition ${selectedContacts.has(contact.id) ? 'bg-emerald-500/5' : ''}`}>
                   <td className="px-4 py-3">
                     <input type="checkbox" checked={selectedContacts.has(contact.id)}
                       onChange={() => toggleSelectContact(contact.id)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500" />
+                      className="w-4 h-4 rounded border-gray-300 bg-gray-200 text-emerald-500 focus:ring-emerald-500" />
                   </td>
-                  <td className="px-4 py-3 text-white font-mono text-sm">{contact.phone_number}</td>
-                  <td className="px-4 py-3 text-gray-300 text-sm">{contact.name || '-'}</td>
+                  <td className="px-4 py-3 text-gray-900 font-mono text-sm">{contact.phone_number}</td>
+                  <td className="px-4 py-3 text-gray-600 text-sm">{contact.name || '-'}</td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400">{contact.source}</span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {(contactTags[contact.id] || []).map(tag => (
-                        <span key={tag.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                        <span key={tag.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-gray-900"
                           style={{ backgroundColor: tag.color + '33', color: tag.color, border: `1px solid ${tag.color}55` }}>
                           {tag.name}
                           <button onClick={(e) => { e.stopPropagation(); removeTag(contact.id, tag.id); }}
@@ -824,7 +824,7 @@ export function Contacts() {
                         </span>
                       ))}
                       <button onClick={() => { setAssignTagContactId(contact.id); setShowAssignTagModal(true); }}
-                        className="px-1.5 py-0.5 rounded text-xs bg-gray-700 text-gray-400 hover:bg-gray-600 transition">
+                        className="px-1.5 py-0.5 rounded text-xs bg-gray-200 text-gray-500 hover:bg-gray-300 transition">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
@@ -833,7 +833,7 @@ export function Contacts() {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       contact.lead_type === 'Hot' ? 'bg-red-500/20 text-red-400' :
                       contact.lead_type === 'Warm' ? 'bg-amber-500/20 text-amber-400' :
-                      'bg-gray-500/20 text-gray-400'}`}>
+                      'bg-gray-200 text-gray-500'}`}>
                       {contact.lead_type}
                     </span>
                   </td>
@@ -867,11 +867,11 @@ export function Contacts() {
           </table>
         </div>
         {contacts.length === 0 && !loading && (
-          <div className="p-12 text-center"><p className="text-gray-400">No contacts found</p></div>
+          <div className="p-12 text-center"><p className="text-gray-500">No contacts found</p></div>
         )}
 
         {/* Pagination — always visible */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 flex-wrap gap-3">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <p className="text-sm text-gray-500">
               Showing {totalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()}
@@ -881,7 +881,7 @@ export function Contacts() {
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="px-2 py-1 bg-gray-100 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -895,14 +895,14 @@ export function Contacts() {
               <button
                 onClick={() => handlePageChange(1)}
                 disabled={currentPage === 1}
-                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 First
               </button>
               <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 Previous
               </button>
@@ -921,7 +921,7 @@ export function Contacts() {
                   typeof p === 'number' ? (
                     <button key={idx} onClick={() => handlePageChange(p)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                        currentPage === p ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                        currentPage === p ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900'
                       }`}>{p}</button>
                   ) : (
                     <span key={idx} className="px-2 text-gray-600">…</span>
@@ -931,14 +931,14 @@ export function Contacts() {
               <button
                 onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 Next
               </button>
               <button
                 onClick={() => handlePageChange(totalPages)}
                 disabled={currentPage >= totalPages}
-                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700"
+                className="px-2 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 Last
               </button>
@@ -950,18 +950,18 @@ export function Contacts() {
       {/* ====== ADD CONTACTS MODAL ====== */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Add Contacts</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-2xl font-bold text-gray-900">Add Contacts</h2>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
             </div>
 
             {/* Mode tabs */}
-            <div className="flex bg-gray-800 rounded-lg p-1 mb-6">
+            <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
               {([['single', 'Single', Plus], ['bulk', 'Bulk Paste', Users], ['csv', 'CSV/Excel', Upload]] as const).map(([mode, label, Icon]) => (
                 <button key={mode} onClick={() => setAddMode(mode)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition ${
-                    addMode === mode ? 'bg-emerald-500 text-white' : 'text-gray-400 hover:text-white'}`}>
+                    addMode === mode ? 'bg-emerald-500 text-white' : 'text-gray-500 hover:text-gray-900'}`}>
                   <Icon className="w-4 h-4" /> {label}
                 </button>
               ))}
@@ -971,42 +971,42 @@ export function Contacts() {
             {addMode === 'single' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number *</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Phone Number *</label>
                   <input type="tel" placeholder="9876543210" value={singleForm.phone_number}
                     onChange={e => setSingleForm({ ...singleForm, phone_number: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Name</label>
                   <input type="text" placeholder="John Doe" value={singleForm.name}
                     onChange={e => setSingleForm({ ...singleForm, name: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">City</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">City</label>
                     <input type="text" value={singleForm.city}
                       onChange={e => setSingleForm({ ...singleForm, city: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                      className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">State</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">State</label>
                     <input type="text" value={singleForm.state}
                       onChange={e => setSingleForm({ ...singleForm, state: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                      className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Source</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Source</label>
                   <select value={singleForm.source} onChange={e => setSingleForm({ ...singleForm, source: e.target.value as any })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     {['Manual', 'Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Auto-assign Tag (Optional)</label>
                   <select value={addTagId} onChange={e => setAddTagId(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500">
                     <option value="">No tag</option>
                     {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
@@ -1022,27 +1022,27 @@ export function Contacts() {
             {addMode === 'bulk' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
                     Paste phone numbers (one per line, optionally with name after comma)
                   </label>
                   <textarea rows={8} placeholder={"9876543210, John Doe\n8765432109, Jane\n7654321098"} value={bulkText}
                     onChange={e => setBulkText(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   <p className="text-gray-500 text-xs mt-1">
                     {bulkText.split('\n').filter(l => l.trim()).length} lines detected
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Source</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Source</label>
                   <select value={bulkSource} onChange={e => setBulkSource(e.target.value as any)}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     {['Manual', 'Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Auto-assign Tag (Optional)</label>
                   <select value={addTagId} onChange={e => setAddTagId(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500">
                     <option value="">No tag</option>
                     {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
@@ -1058,32 +1058,32 @@ export function Contacts() {
             {addMode === 'csv' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Source</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Source</label>
                   <select value={uploadData.source} onChange={e => setUploadData({ ...uploadData, source: e.target.value as any })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     {['Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp', 'Manual'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Campaign (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Campaign (Optional)</label>
                   <select value={uploadData.campaign_id} onChange={e => setUploadData({ ...uploadData, campaign_id: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     <option value="">None</option>
                     {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Auto-assign Tag (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Auto-assign Tag (Optional)</label>
                   <select value={uploadData.tag_id} onChange={e => setUploadData({ ...uploadData, tag_id: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500">
                     <option value="">No tag</option>
                     {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">File</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">File</label>
                   <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-emerald-500 file:text-white file:cursor-pointer hover:file:bg-emerald-600" />
+                    className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-emerald-500 file:text-white file:cursor-pointer hover:file:bg-emerald-600" />
                   {selectedFile && <p className="text-emerald-400 text-sm mt-1">Selected: {selectedFile.name}</p>}
                   <p className="text-gray-500 text-xs mt-1">CSV should include: phone, name, city, state columns</p>
                 </div>
@@ -1100,10 +1100,10 @@ export function Contacts() {
       {/* ====== TAG MANAGEMENT MODAL ====== */}
       {showTagModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-md">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Manage Tags</h2>
-              <button onClick={() => setShowTagModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-xl font-bold text-gray-900">Manage Tags</h2>
+              <button onClick={() => setShowTagModal(false)} className="text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
             </div>
 
             {/* Create new tag */}
@@ -1111,7 +1111,7 @@ export function Contacts() {
               <input type="text" placeholder="Tag name..." value={newTagName}
                 onChange={e => setNewTagName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && createTag()}
-                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                className="flex-1 px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
               <div className="flex gap-1 items-center">
                 {TAG_COLORS.slice(0, 5).map(c => (
                   <button key={c} onClick={() => setNewTagColor(c)}
@@ -1128,10 +1128,10 @@ export function Contacts() {
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {tags.length === 0 && <p className="text-gray-500 text-sm text-center py-4">No tags yet. Create your first tag above.</p>}
               {tags.map(tag => (
-                <div key={tag.id} className="flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg">
+                <div key={tag.id} className="flex items-center justify-between px-3 py-2 bg-gray-100 rounded-lg">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                    <span className="text-white text-sm">{tag.name}</span>
+                    <span className="text-gray-900 text-sm">{tag.name}</span>
                   </div>
                   <button onClick={() => deleteTag(tag.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
                 </div>
@@ -1144,10 +1144,10 @@ export function Contacts() {
       {/* ====== ASSIGN TAG TO SINGLE CONTACT ====== */}
       {showAssignTagModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Assign Tag</h2>
-              <button onClick={() => setShowAssignTagModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-gray-900">Assign Tag</h2>
+              <button onClick={() => setShowAssignTagModal(false)} className="text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-2">
               {tags.length === 0 && <p className="text-gray-500 text-sm">No tags. Create tags first from the Tags button.</p>}
@@ -1157,7 +1157,7 @@ export function Contacts() {
                   <button key={tag.id} onClick={() => { if (!alreadyAssigned) { assignTag(assignTagContactId, tag.id); setShowAssignTagModal(false); } }}
                     disabled={alreadyAssigned}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
-                      alreadyAssigned ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-700'}`}>
+                      alreadyAssigned ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}>
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
                     {tag.name} {alreadyAssigned && <span className="text-xs text-gray-600 ml-auto">assigned</span>}
                   </button>
@@ -1171,15 +1171,15 @@ export function Contacts() {
       {/* ====== BULK TAG MODAL ====== */}
       {showBulkTagModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Tag {selectAllMatching ? totalCount.toLocaleString() : selectedContacts.size} contacts</h2>
-              <button onClick={() => setShowBulkTagModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-gray-900">Tag {selectAllMatching ? totalCount.toLocaleString() : selectedContacts.size} contacts</h2>
+              <button onClick={() => setShowBulkTagModal(false)} className="text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-2">
               {tags.map(tag => (
                 <button key={tag.id} onClick={() => bulkAssignTag(tag.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg text-white text-sm hover:bg-gray-700 transition">
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-gray-900 text-sm hover:bg-gray-200 transition">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
                   {tag.name}
                 </button>
@@ -1192,17 +1192,17 @@ export function Contacts() {
       {/* ====== BULK ASSIGN CAMPAIGN MODAL ====== */}
       {showBulkAssignModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold text-white mb-2">Assign Unassigned Contacts</h2>
-            <p className="text-gray-400 mb-6">Assign all {unassignedCount.toLocaleString()} unassigned contacts to a campaign</p>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Assign Unassigned Contacts</h2>
+            <p className="text-gray-500 mb-6">Assign all {unassignedCount.toLocaleString()} unassigned contacts to a campaign</p>
             <select value={bulkAssignCampaignId} onChange={e => setBulkAssignCampaignId(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
               <option value="">Select a campaign...</option>
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div className="flex gap-3">
               <button onClick={() => setShowBulkAssignModal(false)} disabled={bulkAssigning}
-                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">Cancel</button>
               <button onClick={bulkAssignToCampaign} disabled={!bulkAssignCampaignId || bulkAssigning}
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition disabled:opacity-50">
                 {bulkAssigning ? 'Assigning...' : 'Assign All'}
@@ -1215,56 +1215,56 @@ export function Contacts() {
       {/* ====== EDIT CONTACT MODAL ====== */}
       {showEditModal && editingContact && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Edit Contact</h2>
-              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-2xl font-bold text-gray-900">Edit Contact</h2>
+              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Phone Number</label>
                 <input type="text" value={editingContact.phone_number}
                   onChange={e => setEditingContact({ ...editingContact, phone_number: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Name</label>
                 <input type="text" value={editingContact.name || ''}
                   onChange={e => setEditingContact({ ...editingContact, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">City</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">City</label>
                 <input type="text" value={editingContact.city || ''}
                   onChange={e => setEditingContact({ ...editingContact, city: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">State</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">State</label>
                 <input type="text" value={editingContact.state || ''}
                   onChange={e => setEditingContact({ ...editingContact, state: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Source</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Source</label>
                 <select value={editingContact.source}
                   onChange={e => setEditingContact({ ...editingContact, source: e.target.value as any })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {['Excel', 'Facebook', 'Instagram', 'Website', 'WhatsApp', 'Manual'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Lead Type</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Lead Type</label>
                 <select value={editingContact.lead_type}
                   onChange={e => setEditingContact({ ...editingContact, lead_type: e.target.value as any })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {['Hot', 'Warm', 'Cold'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }}
-                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">Cancel</button>
               <button onClick={updateContact}
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">Save Changes</button>
             </div>

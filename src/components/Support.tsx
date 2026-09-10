@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase';
 const SUPPORT_PHONE_DISPLAY = '+91 85830 21893';
 const SUPPORT_PHONE_WA = '918583021893';
 const brand = '#E04632';
-const card = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 14, padding: 20 };
-const input = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14, boxSizing: 'border-box' as const };
+const card = { background: '#ffffff', border: '1px solid #e6e8ec', borderRadius: 14, padding: 20 };
+const input = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#0f172a', color: '#1f2937', fontSize: 14, boxSizing: 'border-box' as const };
 
 const STATUS_META: Record<string, { color: string; label: string }> = {
   open: { color: '#3b82f6', label: 'Open' },
@@ -87,7 +87,7 @@ export function Support() {
           <LifeBuoy size={20} color="white" />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Support</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Support</h2>
           <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Raise a ticket or request a callback — we're here to help.</p>
         </div>
       </div>
@@ -108,7 +108,7 @@ export function Support() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {[['ticket', 'Create ticket', Ticket], ['callback', 'Request callback', Phone]].map(([id, label, Icon]: any) => (
           <button key={id} onClick={() => setTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-            border: `1px solid ${tab === id ? brand : '#334155'}`, background: tab === id ? 'rgba(224,70,50,0.12)' : '#0b1220', color: tab === id ? brand : '#94a3b8' }}>
+            border: `1px solid ${tab === id ? brand : '#d1d5db'}`, background: tab === id ? 'rgba(224,70,50,0.12)' : '#0f172a', color: tab === id ? brand : '#64748b' }}>
             <Icon size={15} /> {label}
           </button>
         ))}
@@ -119,7 +119,7 @@ export function Support() {
         <div style={card}>
           {tab === 'ticket' ? (
             <>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', margin: '0 0 14px' }}>New support ticket</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 14px' }}>New support ticket</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <input style={input} placeholder="Subject" value={subject} onChange={e => setSubject(e.target.value)} />
                 <select style={input} value={category} onChange={e => setCategory(e.target.value)}>
@@ -139,7 +139,7 @@ export function Support() {
             </>
           ) : (
             <>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', margin: '0 0 14px' }}>Request a callback</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 14px' }}>Request a callback</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <input style={input} placeholder="Your name" value={cbName} onChange={e => setCbName(e.target.value)} />
                 <input style={input} placeholder="Phone number (with country code)" value={cbPhone} onChange={e => setCbPhone(e.target.value)} />
@@ -155,7 +155,7 @@ export function Support() {
 
         {/* History */}
         <div style={card}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', margin: '0 0 14px' }}>{tab === 'ticket' ? 'My tickets' : 'My callback requests'}</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 14px' }}>{tab === 'ticket' ? 'My tickets' : 'My callback requests'}</h3>
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: brand }} /></div>
           ) : tab === 'ticket' ? (
@@ -164,12 +164,12 @@ export function Support() {
               {tickets.map(t => {
                 const sm = STATUS_META[t.status] || STATUS_META.open;
                 return (
-                  <div key={t.id} style={{ padding: 12, borderRadius: 10, background: '#0b1220', border: '1px solid #1e293b' }}>
+                  <div key={t.id} style={{ padding: 12, borderRadius: 10, background: '#0f172a', border: '1px solid #e6e8ec' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <p style={{ margin: 0, fontSize: 13.5, color: '#e2e8f0', fontWeight: 600 }}>{t.subject}</p>
+                      <p style={{ margin: 0, fontSize: 13.5, color: '#1f2937', fontWeight: 600 }}>{t.subject}</p>
                       <span style={{ fontSize: 11, fontWeight: 700, color: sm.color, whiteSpace: 'nowrap' }}>{sm.label}</span>
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>{t.message?.slice(0, 120)}{t.message?.length > 120 ? '…' : ''}</p>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{t.message?.slice(0, 120)}{t.message?.length > 120 ? '…' : ''}</p>
                     <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{t.category} · {new Date(t.created_at).toLocaleString('en-IN')}</p>
                   </div>
                 );
@@ -181,12 +181,12 @@ export function Support() {
               {callbacks.map(c => {
                 const sm = STATUS_META[c.status] || STATUS_META.requested;
                 return (
-                  <div key={c.id} style={{ padding: 12, borderRadius: 10, background: '#0b1220', border: '1px solid #1e293b' }}>
+                  <div key={c.id} style={{ padding: 12, borderRadius: 10, background: '#0f172a', border: '1px solid #e6e8ec' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <p style={{ margin: 0, fontSize: 13.5, color: '#e2e8f0', fontWeight: 600 }}>{c.phone}</p>
+                      <p style={{ margin: 0, fontSize: 13.5, color: '#1f2937', fontWeight: 600 }}>{c.phone}</p>
                       <span style={{ fontSize: 11, fontWeight: 700, color: sm.color }}>{sm.label}</span>
                     </div>
-                    {c.reason && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#94a3b8' }}>{c.reason}</p>}
+                    {c.reason && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>{c.reason}</p>}
                     <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{new Date(c.created_at).toLocaleString('en-IN')}</p>
                   </div>
                 );

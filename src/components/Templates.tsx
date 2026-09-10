@@ -294,13 +294,13 @@ export function Templates() {
         );
       case 'deleted':
         return (
-          <span className="flex items-center space-x-1 px-2 py-0.5 bg-gray-500/20 text-gray-400 border border-gray-500/30 rounded-full text-xs font-medium">
+          <span className="flex items-center space-x-1 px-2 py-0.5 bg-gray-200 text-gray-500 border border-gray-500/30 rounded-full text-xs font-medium">
             <Trash2 className="h-3 w-3" /><span>Deleted</span>
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 bg-gray-500/20 text-gray-400 border border-gray-500/30 rounded-full text-xs font-medium">
+          <span className="px-2 py-0.5 bg-gray-200 text-gray-500 border border-gray-500/30 rounded-full text-xs font-medium">
             {status}
           </span>
         );
@@ -328,22 +328,22 @@ export function Templates() {
     );
 
     return (
-      <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
-        <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Live Preview</p>
+      <div className="bg-white rounded-xl p-4 border border-gray-200">
+        <p className="text-gray-500 text-xs uppercase tracking-wide mb-3">Live Preview</p>
         <div className="bg-[#005c4b] rounded-lg p-3 max-w-xs ml-auto">
           {builder.headerType === 'text' && previewHeader && (
-            <p className="text-white font-semibold text-sm mb-1">{previewHeader}</p>
+            <p className="text-gray-900 font-semibold text-sm mb-1">{previewHeader}</p>
           )}
           {['image', 'video', 'document'].includes(builder.headerType) && (
-            <div className="bg-gray-700/50 rounded p-3 mb-2 text-center text-gray-400 text-xs">
+            <div className="bg-gray-100 rounded p-3 mb-2 text-center text-gray-500 text-xs">
               [{builder.headerType.toUpperCase()} HEADER]
             </div>
           )}
           {previewBody && (
-            <p className="text-white text-sm whitespace-pre-wrap">{previewBody}</p>
+            <p className="text-gray-900 text-sm whitespace-pre-wrap">{previewBody}</p>
           )}
           {builder.footer && (
-            <p className="text-gray-300/60 text-xs mt-2">{builder.footer}</p>
+            <p className="text-gray-600/60 text-xs mt-2">{builder.footer}</p>
           )}
           {builder.buttons.length > 0 && (
             <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
@@ -355,7 +355,7 @@ export function Templates() {
             </div>
           )}
           {!previewBody && !previewHeader && (
-            <p className="text-gray-300/40 text-sm italic">Start typing to preview...</p>
+            <p className="text-gray-600/40 text-sm italic">Start typing to preview...</p>
           )}
         </div>
         <p className="text-gray-500 text-xs mt-2 text-right">WhatsApp-style preview</p>
@@ -376,14 +376,14 @@ export function Templates() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Message Templates</h1>
-          <p className="text-gray-400 text-sm mt-1">{templates.length} templates</p>
+          <h1 className="text-2xl font-bold text-gray-900">Message Templates</h1>
+          <p className="text-gray-500 text-sm mt-1">{templates.length} templates</p>
         </div>
         <div className="flex items-center space-x-3">
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 rounded-lg font-medium transition-colors border border-gray-600"
+            className="flex items-center space-x-2 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-600 rounded-lg font-medium transition-colors border border-gray-300"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             <span>{syncing ? 'Syncing...' : 'Sync from Meta'}</span>
@@ -416,7 +416,7 @@ export function Templates() {
       {/* Template List */}
       <div className="space-y-3">
         {templates.map((t) => (
-          <div key={t.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div key={t.id} className="bg-gray-100 rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-5 flex items-center justify-between">
               <div className="flex items-center space-x-4 flex-1">
                 <div className="p-2 bg-indigo-500/20 rounded-lg">
@@ -424,10 +424,10 @@ export function Templates() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-0.5">
-                    <h3 className="text-white font-semibold truncate">{t.name}</h3>
+                    <h3 className="text-gray-900 font-semibold truncate">{t.name}</h3>
                     {statusBadge(t.status)}
                   </div>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-gray-500 text-sm">
                     {categoryLabel(t.category)} • {t.language}
                     {t.rejected_reason && (
                       <span className="text-red-400 ml-2" title={t.rejected_reason}>
@@ -441,7 +441,7 @@ export function Templates() {
               <div className="flex items-center space-x-2 ml-4">
                 <button
                   onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
-                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
                   title="View details"
                 >
                   {expandedId === t.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -449,7 +449,7 @@ export function Templates() {
                 <button
                   onClick={() => handleDelete(t.id, t.name)}
                   disabled={deletingId === t.id}
-                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-200 rounded-lg transition-colors"
                   title="Delete"
                 >
                   {deletingId === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -459,35 +459,35 @@ export function Templates() {
 
             {/* Expanded detail */}
             {expandedId === t.id && (
-              <div className="px-5 pb-5 pt-0 border-t border-gray-700">
+              <div className="px-5 pb-5 pt-0 border-t border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
                     {t.header && (
                       <div className="mb-3">
-                        <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Header</p>
-                        <p className="text-gray-200 text-sm">
+                        <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Header</p>
+                        <p className="text-gray-700 text-sm">
                           [{t.header.format}] {t.header.text || '(media)'}
                         </p>
                       </div>
                     )}
                     {t.body_text && (
                       <div className="mb-3">
-                        <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Body</p>
-                        <p className="text-gray-200 text-sm whitespace-pre-wrap">{t.body_text}</p>
+                        <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Body</p>
+                        <p className="text-gray-700 text-sm whitespace-pre-wrap">{t.body_text}</p>
                       </div>
                     )}
                     {t.footer && (
                       <div className="mb-3">
-                        <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Footer</p>
-                        <p className="text-gray-300 text-sm">{t.footer}</p>
+                        <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Footer</p>
+                        <p className="text-gray-600 text-sm">{t.footer}</p>
                       </div>
                     )}
                     {t.buttons && t.buttons.length > 0 && (
                       <div>
-                        <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Buttons</p>
+                        <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Buttons</p>
                         <div className="space-y-1">
                           {t.buttons.map((btn: any, i: number) => (
-                            <p key={i} className="text-gray-200 text-sm">
+                            <p key={i} className="text-gray-700 text-sm">
                               [{btn.type}] {btn.text} {btn.url ? `→ ${btn.url}` : ''} {btn.phone_number ? `→ ${btn.phone_number}` : ''}
                             </p>
                           ))}
@@ -495,9 +495,9 @@ export function Templates() {
                       </div>
                     )}
                   </div>
-                  <div className="bg-gray-900 rounded-lg p-4">
-                    <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Raw Components</p>
-                    <pre className="text-gray-300 text-xs overflow-x-auto max-h-48">
+                  <div className="bg-white rounded-lg p-4">
+                    <p className="text-gray-500 text-xs uppercase tracking-wide mb-2">Raw Components</p>
+                    <pre className="text-gray-600 text-xs overflow-x-auto max-h-48">
                       {JSON.stringify(t.components || [], null, 2)}
                     </pre>
                   </div>
@@ -508,9 +508,9 @@ export function Templates() {
         ))}
 
         {templates.length === 0 && (
-          <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700">
+          <div className="text-center py-12 bg-gray-100 rounded-xl border border-gray-200">
             <FileText className="h-12 w-12 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400 text-lg">No templates yet</p>
+            <p className="text-gray-500 text-lg">No templates yet</p>
             <p className="text-gray-500 text-sm mt-1">Create one or sync from Meta</p>
           </div>
         )}
@@ -519,11 +519,11 @@ export function Templates() {
       {/* ─── Builder Modal ─── */}
       {showBuilder && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-          <div className="bg-gray-800 rounded-xl w-full max-w-5xl my-8 border border-gray-700">
+          <div className="bg-gray-100 rounded-xl w-full max-w-5xl my-8 border border-gray-200">
             {/* Header */}
-            <div className="p-6 border-b border-gray-700 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">New Template</h2>
-              <button onClick={() => setShowBuilder(false)} className="text-gray-400 hover:text-white">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">New Template</h2>
+              <button onClick={() => setShowBuilder(false)} className="text-gray-500 hover:text-gray-900">
                 <X className="h-6 w-6" />
               </button>
             </div>
@@ -535,7 +535,7 @@ export function Templates() {
                   {/* Name + Language + Category */}
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-gray-300 text-sm font-medium mb-1">
+                      <label className="block text-gray-600 text-sm font-medium mb-1">
                         Name <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -543,27 +543,27 @@ export function Templates() {
                         value={builder.name}
                         onChange={(e) => setBuilder({ ...builder, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
                         placeholder="e.g. order_confirmation"
-                        className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm"
+                        className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm"
                         required
                       />
                       <p className="text-gray-500 text-xs mt-0.5">Lowercase, underscores only</p>
                     </div>
                     <div>
-                      <label className="block text-gray-300 text-sm font-medium mb-1">Language</label>
+                      <label className="block text-gray-600 text-sm font-medium mb-1">Language</label>
                       <select
                         value={builder.language}
                         onChange={(e) => setBuilder({ ...builder, language: e.target.value })}
-                        className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 outline-none text-sm"
+                        className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 outline-none text-sm"
                       >
                         {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-gray-300 text-sm font-medium mb-1">Category</label>
+                      <label className="block text-gray-600 text-sm font-medium mb-1">Category</label>
                       <select
                         value={builder.category}
                         onChange={(e) => setBuilder({ ...builder, category: e.target.value as any })}
-                        className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 outline-none text-sm"
+                        className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 outline-none text-sm"
                       >
                         <option value="marketing">Marketing</option>
                         <option value="utility">Utility</option>
@@ -574,7 +574,7 @@ export function Templates() {
 
                   {/* Header */}
                   <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Header (optional)</label>
+                    <label className="block text-gray-600 text-sm font-medium mb-2">Header (optional)</label>
                     <div className="flex items-center space-x-3 mb-2">
                       {(['none', 'text', 'image', 'video', 'document'] as const).map((ht) => (
                         <label key={ht} className="flex items-center space-x-1 cursor-pointer">
@@ -586,7 +586,7 @@ export function Templates() {
                             onChange={() => setBuilder({ ...builder, headerType: ht, headerText: '', headerMediaUrl: '' })}
                             className="text-green-500 focus:ring-green-500"
                           />
-                          <span className="text-gray-300 text-sm capitalize">{ht}</span>
+                          <span className="text-gray-600 text-sm capitalize">{ht}</span>
                         </label>
                       ))}
                     </div>
@@ -597,7 +597,7 @@ export function Templates() {
                         onChange={(e) => setBuilder({ ...builder, headerText: e.target.value })}
                         placeholder="Header text (max 60 chars, supports {{1}})"
                         maxLength={60}
-                        className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 outline-none text-sm"
+                        className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 outline-none text-sm"
                       />
                     )}
                     {['image', 'video', 'document'].includes(builder.headerType) && (
@@ -606,14 +606,14 @@ export function Templates() {
                         value={builder.headerMediaUrl}
                         onChange={(e) => setBuilder({ ...builder, headerMediaUrl: e.target.value })}
                         placeholder="Paste public URL for example media asset"
-                        className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 outline-none text-sm"
+                        className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 outline-none text-sm"
                       />
                     )}
                   </div>
 
                   {/* Body */}
                   <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-1">
+                    <label className="block text-gray-600 text-sm font-medium mb-1">
                       Body <span className="text-red-400">*</span>
                     </label>
                     <textarea
@@ -622,7 +622,7 @@ export function Templates() {
                       placeholder="Hello {{1}}, your order {{2}} is ready for pickup!"
                       rows={5}
                       maxLength={1024}
-                      className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm resize-none"
+                      className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm resize-none"
                       required
                     />
                     <div className="flex items-center justify-between text-xs mt-1">
@@ -633,21 +633,21 @@ export function Templates() {
 
                   {/* Footer */}
                   <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-1">Footer (optional)</label>
+                    <label className="block text-gray-600 text-sm font-medium mb-1">Footer (optional)</label>
                     <input
                       type="text"
                       value={builder.footer}
                       onChange={(e) => setBuilder({ ...builder, footer: e.target.value })}
                       placeholder="e.g. Powered by ReachPeak"
                       maxLength={60}
-                      className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 border border-gray-600 focus:border-green-500 outline-none text-sm"
+                      className="w-full bg-gray-200 text-gray-900 rounded-lg px-3 py-2.5 border border-gray-300 focus:border-green-500 outline-none text-sm"
                     />
                   </div>
 
                   {/* Buttons */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-gray-300 text-sm font-medium">Buttons (optional)</label>
+                      <label className="block text-gray-600 text-sm font-medium">Buttons (optional)</label>
                       <button
                         type="button"
                         onClick={addButton}
@@ -662,7 +662,7 @@ export function Templates() {
                         <select
                           value={btn.type}
                           onChange={(e) => updateButton(i, { type: e.target.value as ButtonType })}
-                          className="bg-gray-700 text-white rounded-lg px-2 py-2 border border-gray-600 text-sm w-36"
+                          className="bg-gray-200 text-gray-900 rounded-lg px-2 py-2 border border-gray-300 text-sm w-36"
                         >
                           <option value="QUICK_REPLY">Quick Reply</option>
                           <option value="URL">URL</option>
@@ -673,7 +673,7 @@ export function Templates() {
                           value={btn.text}
                           onChange={(e) => updateButton(i, { text: e.target.value })}
                           placeholder="Button text"
-                          className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 text-sm"
+                          className="flex-1 bg-gray-200 text-gray-900 rounded-lg px-3 py-2 border border-gray-300 text-sm"
                         />
                         {btn.type === 'URL' && (
                           <input
@@ -681,7 +681,7 @@ export function Templates() {
                             value={btn.url || ''}
                             onChange={(e) => updateButton(i, { url: e.target.value })}
                             placeholder="https://..."
-                            className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 text-sm"
+                            className="flex-1 bg-gray-200 text-gray-900 rounded-lg px-3 py-2 border border-gray-300 text-sm"
                           />
                         )}
                         {btn.type === 'PHONE_NUMBER' && (
@@ -690,7 +690,7 @@ export function Templates() {
                             value={btn.phone_number || ''}
                             onChange={(e) => updateButton(i, { phone_number: e.target.value })}
                             placeholder="+91..."
-                            className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 text-sm"
+                            className="flex-1 bg-gray-200 text-gray-900 rounded-lg px-3 py-2 border border-gray-300 text-sm"
                           />
                         )}
                         <button type="button" onClick={() => removeButton(i)} className="text-red-400 hover:text-red-300 p-2">
@@ -702,8 +702,8 @@ export function Templates() {
 
                   {/* Example values for variables */}
                   {allVariables.length > 0 && (
-                    <div className="bg-gray-700/50 rounded-lg p-4">
-                      <p className="text-gray-300 text-sm font-medium mb-2">
+                    <div className="bg-gray-100 rounded-lg p-4">
+                      <p className="text-gray-600 text-sm font-medium mb-2">
                         Example Values (required by Meta for review)
                       </p>
                       <div className="grid grid-cols-2 gap-3">
@@ -712,7 +712,7 @@ export function Templates() {
                           const key = `${section}_${v}`;
                           return (
                             <div key={key}>
-                              <label className="text-gray-400 text-xs">{section} {v}</label>
+                              <label className="text-gray-500 text-xs">{section} {v}</label>
                               <input
                                 type="text"
                                 value={builder.exampleValues[key] || ''}
@@ -721,7 +721,7 @@ export function Templates() {
                                   exampleValues: { ...builder.exampleValues, [key]: e.target.value },
                                 })}
                                 placeholder={`Example for ${v}`}
-                                className="w-full bg-gray-600 text-white rounded px-3 py-1.5 border border-gray-500 text-sm mt-0.5"
+                                className="w-full bg-gray-300 text-gray-900 rounded px-3 py-1.5 border border-gray-500 text-sm mt-0.5"
                               />
                             </div>
                           );
@@ -740,11 +740,11 @@ export function Templates() {
               </div>
 
               {/* Submit footer */}
-              <div className="p-6 border-t border-gray-700 flex justify-end space-x-3">
+              <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setShowBuilder(false)}
-                  className="px-4 py-2.5 text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="px-4 py-2.5 text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>

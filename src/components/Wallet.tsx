@@ -125,7 +125,7 @@ export function Wallet() {
   const hasRecharged = txns.some((t: any) => t.type === 'credit' && (t.meta?.source === 'recharge' || t.meta?.source === 'recharge_bonus'));
   const offerEligible = !hasRecharged;
 
-  const card = { padding: 20, borderRadius: 14, background: '#0f172a', border: '1px solid #1e293b' };
+  const card = { padding: 20, borderRadius: 14, background: '#ffffff', border: '1px solid #e6e8ec' };
 
   return (
     <div style={{ maxWidth: 900 }}>
@@ -135,7 +135,7 @@ export function Wallet() {
           <WalletIcon size={20} color="white" />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Tokens & Wallet</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Tokens & Wallet</h2>
           <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Tokens power your WhatsApp Business messaging · 1 token = ₹1</p>
         </div>
       </div>
@@ -147,14 +147,14 @@ export function Wallet() {
       )}
 
       {/* Balance card */}
-      <div style={{ position: 'relative', overflow: 'hidden', padding: 24, borderRadius: 16, marginBottom: 16, background: 'linear-gradient(135deg,#131c30,#0b1220)', border: '1px solid #24304a' }}>
+      <div style={{ position: 'relative', overflow: 'hidden', padding: 24, borderRadius: 16, marginBottom: 16, background: 'linear-gradient(135deg,#ffffff,#0f172a)', border: '1px solid #e6e8ec' }}>
         <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle,rgba(224,70,50,0.18),transparent 70%)' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <p style={{ margin: 0, fontSize: 12, color: '#8290a8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Available balance</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Available balance</p>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 8 }}>
-              <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, color: low ? '#fbbf24' : '#f1f5f9' }}>{TOKENS(balance)}</span>
-              <span style={{ fontSize: 16, fontWeight: 600, color: '#8290a8' }}>tokens</span>
+              <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, color: low ? '#fbbf24' : '#0f172a' }}>{TOKENS(balance)}</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#64748b' }}>tokens</span>
             </div>
             <p style={{ margin: '8px 0 0', fontSize: 13, color: '#64748b' }}>≈ {RUPEE(balance)} of messaging{held > 0 ? ` · ${TOKENS(held)} tokens reserved for in-flight messages` : ''}</p>
           </div>
@@ -170,19 +170,19 @@ export function Wallet() {
         <div style={{ padding: 20, borderRadius: 16, marginBottom: 16, background: 'linear-gradient(135deg,rgba(168,85,247,0.10),rgba(224,70,50,0.08))', border: '1px solid rgba(168,85,247,0.35)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <Gift size={18} color="#c084fc" />
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>Welcome offer — first recharge only</h3>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Welcome offer — first recharge only</h3>
           </div>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#94a3b8' }}>Get bonus tokens on your very first top-up. Applied automatically the moment your payment succeeds.</p>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b' }}>Get bonus tokens on your very first top-up. Applied automatically the moment your payment succeeds.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>
             {OFFERS.map((o) => (
               <button key={o.pay} onClick={() => recharge(o.pay)} disabled={paying} style={{
                 textAlign: 'left', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1,
-                position: 'relative', padding: 18, borderRadius: 14, background: '#0b1220',
+                position: 'relative', padding: 18, borderRadius: 14, background: '#0f172a',
                 border: `1px solid ${o.pct === 50 ? 'rgba(168,85,247,0.55)' : '#2a3752'}`,
               }}>
                 <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: o.pct === 50 ? '#e9d5ff' : '#93c5fd', background: o.pct === 50 ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.15)' }}>{o.tag}</span>
-                <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>Pay {RUPEE(o.pay * 100)}</p>
-                <p style={{ margin: '6px 0 2px', fontSize: 30, fontWeight: 800, color: '#f1f5f9' }}>{o.tokens.toLocaleString('en-IN')} <span style={{ fontSize: 15, color: '#8290a8', fontWeight: 600 }}>tokens</span></p>
+                <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Pay {RUPEE(o.pay * 100)}</p>
+                <p style={{ margin: '6px 0 2px', fontSize: 30, fontWeight: 800, color: '#0f172a' }}>{o.tokens.toLocaleString('en-IN')} <span style={{ fontSize: 15, color: '#64748b', fontWeight: 600 }}>tokens</span></p>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, padding: '3px 9px', borderRadius: 999, background: 'rgba(16,185,129,0.12)' }}>
                   <Sparkles size={13} color="#10b981" />
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>+{o.bonus.toLocaleString('en-IN')} bonus ({o.pct}% extra)</span>
@@ -198,14 +198,14 @@ export function Wallet() {
 
       {/* Recharge (any amount) */}
       <div style={{ ...card, marginBottom: 16 }}>
-        <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{offerEligible ? 'Or top up any amount' : 'Add tokens'}</p>
+        <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{offerEligible ? 'Or top up any amount' : 'Add tokens'}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {PRESETS.map(v => (
             <button key={v} onClick={() => setAmount(v)} style={{
               padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
-              border: `1px solid ${amount === v ? '#E04632' : '#334155'}`,
-              background: amount === v ? 'rgba(224,70,50,0.12)' : '#0b1220',
-              color: amount === v ? '#E04632' : '#94a3b8',
+              border: `1px solid ${amount === v ? '#E04632' : '#d1d5db'}`,
+              background: amount === v ? 'rgba(224,70,50,0.12)' : '#0f172a',
+              color: amount === v ? '#E04632' : '#64748b',
             }}>{v.toLocaleString('en-IN')} tokens</button>
           ))}
         </div>
@@ -213,7 +213,7 @@ export function Wallet() {
           <div style={{ position: 'relative', flex: 1 }}>
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#64748b' }}>₹</span>
             <input type="number" min={MIN_RUPEES} step={500} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value)))}
-              style={{ width: '100%', padding: '10px 12px 10px 26px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14, boxSizing: 'border-box' }} />
+              style={{ width: '100%', padding: '10px 12px 10px 26px', borderRadius: 8, border: '1px solid #d1d5db', background: '#0f172a', color: '#1f2937', fontSize: 14, boxSizing: 'border-box' }} />
           </div>
           <button onClick={() => recharge()} disabled={paying} style={{
             padding: '10px 20px', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
@@ -239,29 +239,29 @@ export function Wallet() {
           { icon: ShieldCheck, text: 'PCI-DSS compliant payments' },
           { icon: Check, text: 'Official WhatsApp Business Platform' },
         ].map((b, i) => (
-          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 10, background: '#0f172a', border: '1px solid #1e293b', fontSize: 12.5, color: '#94a3b8' }}>
+          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 10, background: '#ffffff', border: '1px solid #e6e8ec', fontSize: 12.5, color: '#64748b' }}>
             <b.icon size={15} color="#10b981" /> {b.text}
           </div>
         ))}
       </div>
 
       {/* Honest disclosure */}
-      <div style={{ display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 10, marginBottom: 24, background: '#0b1220', border: '1px solid #1e293b' }}>
+      <div style={{ display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 10, marginBottom: 24, background: '#0f172a', border: '1px solid #e6e8ec' }}>
         <Info size={16} color="#64748b" style={{ flexShrink: 0, marginTop: 1 }} />
-        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: '#8290a8' }}>
-          Messages are delivered through Meta's official WhatsApp Business Platform, which charges per conversation. ReachPeak converts that usage into tokens and bills you for it. Payments are processed securely by Razorpay; <strong style={{ color: '#94a3b8' }}>ReachPeak is the merchant of record</strong> and issues your GST invoice.
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: '#64748b' }}>
+          Messages are delivered through Meta's official WhatsApp Business Platform, which charges per conversation. ReachPeak converts that usage into tokens and bills you for it. Payments are processed securely by Razorpay; <strong style={{ color: '#64748b' }}>ReachPeak is the merchant of record</strong> and issues your GST invoice.
         </p>
       </div>
 
       {/* Per-message pricing */}
       {pricing.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: '0 0 10px' }}>What each message costs</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#64748b', margin: '0 0 10px' }}>What each message costs</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {pricing.map((p: any) => (
-              <div key={p.category} style={{ padding: '8px 14px', borderRadius: 8, background: '#0f172a', border: '1px solid #1e293b', fontSize: 13 }}>
-                <span style={{ color: '#94a3b8', textTransform: 'capitalize' }}>{p.category}</span>
-                <span style={{ color: '#f1f5f9', fontWeight: 700, marginLeft: 8 }}>{p.price_paise === 0 ? 'Free' : `${TOKENS(p.price_paise)} tokens`}</span>
+              <div key={p.category} style={{ padding: '8px 14px', borderRadius: 8, background: '#ffffff', border: '1px solid #e6e8ec', fontSize: 13 }}>
+                <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.category}</span>
+                <span style={{ color: '#0f172a', fontWeight: 700, marginLeft: 8 }}>{p.price_paise === 0 ? 'Free' : `${TOKENS(p.price_paise)} tokens`}</span>
               </div>
             ))}
           </div>
@@ -269,17 +269,17 @@ export function Wallet() {
       )}
 
       {/* History */}
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: '0 0 10px' }}>Transaction history</h3>
-      <div style={{ borderRadius: 12, border: '1px solid #1e293b', overflow: 'hidden' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, color: '#64748b', margin: '0 0 10px' }}>Transaction history</h3>
+      <div style={{ borderRadius: 12, border: '1px solid #e6e8ec', overflow: 'hidden' }}>
         {txns.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 14 }}>No transactions yet.</div>}
         {txns.map((t: any) => {
           const m = txLabel(t);
           const Icon = m.icon;
           return (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid #0f172a', background: '#0b1220' }}>
+            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid #ffffff', background: '#0f172a' }}>
               <Icon size={18} color={m.color} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 14, color: '#e2e8f0' }}>{m.label}{t.meta?.category ? ` · ${t.meta.category}` : ''}</p>
+                <p style={{ margin: 0, fontSize: 14, color: '#1f2937' }}>{m.label}{t.meta?.category ? ` · ${t.meta.category}` : ''}</p>
                 <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>{new Date(t.created_at).toLocaleString('en-IN')}</p>
               </div>
               <div style={{ textAlign: 'right' }}>

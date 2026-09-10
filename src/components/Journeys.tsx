@@ -89,7 +89,7 @@ const PRESET_COLORS: Record<string, { bg: string; text: string; border: string }
   order_notifications: { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
   cod_confirm: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
   welcome: { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
-  custom: { bg: 'bg-gray-500/15', text: 'text-gray-400', border: 'border-gray-500/30' },
+  custom: { bg: 'bg-gray-400/15', text: 'text-gray-500', border: 'border-gray-500/30' },
 };
 
 const PRESET_ICONS: Record<string, any> = {
@@ -105,14 +105,14 @@ const PRESET_ICON_BG: Record<string, string> = {
   order_notifications: 'bg-blue-500',
   cod_confirm: 'bg-purple-500',
   welcome: 'bg-green-500',
-  custom: 'bg-gray-500',
+  custom: 'bg-gray-400',
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot?: string }> = {
   active: { bg: 'bg-green-500/15', text: 'text-green-400', dot: 'bg-green-400' },
   waiting_delay: { bg: 'bg-yellow-500/15', text: 'text-yellow-400' },
   waiting_reply: { bg: 'bg-blue-500/15', text: 'text-blue-400' },
-  completed: { bg: 'bg-gray-500/15', text: 'text-gray-400' },
+  completed: { bg: 'bg-gray-400/15', text: 'text-gray-500' },
   exited_goal: { bg: 'bg-emerald-500/15', text: 'text-emerald-400' },
   cancelled: { bg: 'bg-red-500/15', text: 'text-red-400' },
   error: { bg: 'bg-red-500/15', text: 'text-red-400' },
@@ -303,7 +303,7 @@ export function Journeys() {
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-          <p className="text-gray-400 text-sm">Loading journeys...</p>
+          <p className="text-gray-500 text-sm">Loading journeys...</p>
         </div>
       </div>
     );
@@ -314,18 +314,18 @@ export function Journeys() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 flex items-center gap-3">
             <Zap className="w-7 h-7 text-emerald-400" />
             Journeys
           </h1>
-          <p className="text-gray-400 text-sm sm:text-base">
+          <p className="text-gray-500 text-sm sm:text-base">
             Automate WhatsApp messaging with event-triggered workflows
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={fetchJourneys}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -392,12 +392,12 @@ function JourneyList({
 }) {
   if (journeys.length === 0) {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-16 text-center">
-        <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-16 text-center">
+        <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <Zap className="w-8 h-8 text-gray-600" />
         </div>
-        <h3 className="text-white text-lg font-semibold mb-2">No journeys yet</h3>
-        <p className="text-gray-400 text-sm max-w-md mx-auto">
+        <h3 className="text-gray-900 text-lg font-semibold mb-2">No journeys yet</h3>
+        <p className="text-gray-500 text-sm max-w-md mx-auto">
           Create your first automation to send messages automatically when store events happen — like abandoned carts, new orders, or new customers.
         </p>
       </div>
@@ -416,7 +416,7 @@ function JourneyList({
         return (
           <div
             key={journey.id}
-            className="bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition group cursor-pointer"
+            className="bg-white border border-gray-200 rounded-xl hover:border-gray-200 transition group cursor-pointer"
             onClick={() => onSelect(journey.id)}
           >
             <div className="p-5">
@@ -424,10 +424,10 @@ function JourneyList({
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <PresetIcon className="w-5 h-5 text-white" />
+                    <PresetIcon className="w-5 h-5 text-gray-900" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-white font-semibold text-base truncate group-hover:text-emerald-400 transition">
+                    <h3 className="text-gray-900 font-semibold text-base truncate group-hover:text-emerald-400 transition">
                       {journey.name}
                     </h3>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -446,7 +446,7 @@ function JourneyList({
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggle(journey); }}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-                    journey.is_active ? 'bg-emerald-600' : 'bg-gray-700'
+                    journey.is_active ? 'bg-emerald-600' : 'bg-gray-200'
                   }`}
                 >
                   <span
@@ -469,7 +469,7 @@ function JourneyList({
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="h-2 w-2 rounded-full bg-gray-600" />
+                    <span className="h-2 w-2 rounded-full bg-gray-300" />
                     Paused
                   </span>
                 )}
@@ -479,21 +479,21 @@ function JourneyList({
 
               {/* Stats row */}
               <div className="grid grid-cols-4 gap-2">
-                <div className="bg-gray-800/60 rounded-lg p-2 text-center">
+                <div className="bg-gray-50 rounded-lg p-2 text-center">
                   <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Started</p>
-                  <p className="text-white text-sm font-bold">{stats.total}</p>
+                  <p className="text-gray-900 text-sm font-bold">{stats.total}</p>
                 </div>
-                <div className="bg-gray-800/60 rounded-lg p-2 text-center">
+                <div className="bg-gray-50 rounded-lg p-2 text-center">
                   <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Active</p>
                   <p className="text-green-400 text-sm font-bold">{stats.active + stats.waiting_delay + stats.waiting_reply}</p>
                 </div>
-                <div className="bg-gray-800/60 rounded-lg p-2 text-center">
+                <div className="bg-gray-50 rounded-lg p-2 text-center">
                   <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">
                     {isAbandoned ? 'Recovered' : 'Goal'}
                   </p>
                   <p className="text-emerald-400 text-sm font-bold">{stats.exited_goal}</p>
                 </div>
-                <div className="bg-gray-800/60 rounded-lg p-2 text-center">
+                <div className="bg-gray-50 rounded-lg p-2 text-center">
                   <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Errors</p>
                   <p className="text-red-400 text-sm font-bold">{stats.error}</p>
                 </div>
@@ -501,7 +501,7 @@ function JourneyList({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-800 px-5 py-3 flex items-center justify-between">
+            <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between">
               <span className="text-gray-500 text-xs">
                 Created {new Date(journey.created_at).toLocaleDateString()}
               </span>
@@ -591,21 +591,21 @@ function JourneyDetail({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition"
           >
             <ChevronRight className="w-5 h-5 rotate-180" />
           </button>
           <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center`}>
-            <PresetIcon className="w-5 h-5 text-white" />
+            <PresetIcon className="w-5 h-5 text-gray-900" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">{journey.name}</h2>
+            <h2 className="text-xl font-bold text-gray-900">{journey.name}</h2>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${presetColor.bg} ${presetColor.text}`}>
                 {journey.preset.replace(/_/g, ' ')}
               </span>
               <span className="text-gray-500 text-xs">
-                Trigger: <span className="text-gray-300">{journey.trigger_event}</span>
+                Trigger: <span className="text-gray-600">{journey.trigger_event}</span>
               </span>
             </div>
           </div>
@@ -650,7 +650,7 @@ function JourneyDetail({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition">
+            <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 transition">
               Cancel
             </button>
             <button
@@ -666,7 +666,7 @@ function JourneyDetail({
       {/* Analytics Strip */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <AnalyticsCard label="Started" value={s.total} icon={Play} color="text-blue-400" bgColor="bg-blue-500" />
-        <AnalyticsCard label="Completed" value={s.completed} icon={CheckCircle} color="text-gray-400" bgColor="bg-gray-500" />
+        <AnalyticsCard label="Completed" value={s.completed} icon={CheckCircle} color="text-gray-500" bgColor="bg-gray-400" />
         <AnalyticsCard
           label={isAbandoned ? 'Recovered Carts' : 'Goal Reached'}
           value={s.exited_goal}
@@ -679,9 +679,9 @@ function JourneyDetail({
       </div>
 
       {/* Journey Steps Visualization */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-          <Settings className="w-4 h-4 text-gray-400" />
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 className="text-gray-900 font-semibold mb-4 flex items-center gap-2">
+          <Settings className="w-4 h-4 text-gray-500" />
           Journey Steps
         </h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -695,7 +695,7 @@ function JourneyDetail({
             ))}
         </div>
         {journey.exit_on_events && journey.exit_on_events.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-800">
+          <div className="mt-4 pt-4 border-t border-gray-200">
             <p className="text-xs text-gray-500 flex items-center gap-1.5">
               <Star className="w-3.5 h-3.5 text-emerald-500" />
               <span>Exits on:</span>
@@ -710,10 +710,10 @@ function JourneyDetail({
       </div>
 
       {/* Executions Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-          <h3 className="text-white font-semibold flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-gray-400" />
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-gray-900 font-semibold flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-gray-500" />
             Recent Executions
             <span className="text-gray-500 text-sm font-normal">({executions.length})</span>
           </h3>
@@ -727,7 +727,7 @@ function JourneyDetail({
             <p className="text-gray-500 text-sm">No executions yet. Activate the journey and wait for trigger events.</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-800">
+          <div className="divide-y divide-gray-200">
             {executions.map((exec) => {
               const statusStyle = getStatusStyle(exec.status);
               const isExpanded = expandedExecId === exec.id;
@@ -735,16 +735,16 @@ function JourneyDetail({
               return (
                 <div key={exec.id}>
                   <div
-                    className="px-5 py-3 flex items-center gap-4 hover:bg-gray-800/40 transition cursor-pointer"
+                    className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 transition cursor-pointer"
                     onClick={() => setExpandedExecId(isExpanded ? null : exec.id)}
                   >
-                    <button className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition">
+                    <button className="flex-shrink-0 text-gray-500 hover:text-gray-600 transition">
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
                     <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-4 items-center">
                       {/* Phone */}
                       <div className="sm:col-span-1">
-                        <p className="text-white text-sm font-medium truncate">{exec.contact_phone}</p>
+                        <p className="text-gray-900 text-sm font-medium truncate">{exec.contact_phone}</p>
                       </div>
                       {/* Status */}
                       <div className="sm:col-span-1">
@@ -766,7 +766,7 @@ function JourneyDetail({
                       </div>
                       {/* Step */}
                       <div className="sm:col-span-1">
-                        <p className="text-gray-400 text-xs">
+                        <p className="text-gray-500 text-xs">
                           Step {exec.current_step + 1}/{journey.steps.length}
                         </p>
                       </div>
@@ -785,8 +785,8 @@ function JourneyDetail({
                   {isExpanded && (
                     <div className="px-5 pb-4 pl-14 space-y-3">
                       {/* Step-by-step progress */}
-                      <div className="bg-gray-800/50 rounded-lg p-4 space-y-2">
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Step Progress</p>
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Step Progress</p>
                         <div className="flex flex-wrap gap-1.5">
                           {journey.steps
                             .filter((st) => st.type !== 'end')
@@ -801,8 +801,8 @@ function JourneyDetail({
                                     isCurrent
                                       ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
                                       : isPast
-                                      ? 'bg-gray-700 text-gray-300'
-                                      : 'bg-gray-800 text-gray-600'
+                                      ? 'bg-gray-200 text-gray-600'
+                                      : 'bg-gray-100 text-gray-600'
                                   }`}
                                 >
                                   {isPast && <CheckCircle className="w-3 h-3 text-green-400" />}
@@ -812,7 +812,7 @@ function JourneyDetail({
                                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
                                     </span>
                                   )}
-                                  {isFuture && <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />}
+                                  {isFuture && <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />}
                                   {step.label || step.type}
                                 </div>
                               );
@@ -872,13 +872,13 @@ function AnalyticsCard({
   bgColor: string;
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition">
+    <div className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-200 transition">
       <div className="flex items-center gap-3 mb-2">
         <div className={`w-8 h-8 ${bgColor} rounded-lg flex items-center justify-center`}>
-          <Icon className="w-4 h-4 text-white" />
+          <Icon className="w-4 h-4 text-gray-900" />
         </div>
       </div>
-      <p className="text-gray-400 text-xs font-medium mb-0.5">{label}</p>
+      <p className="text-gray-500 text-xs font-medium mb-0.5">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{value.toLocaleString()}</p>
     </div>
   );
@@ -931,7 +931,7 @@ function StepBadge({
     );
   }
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-500/10 border border-gray-500/20 rounded-lg text-gray-400 text-xs font-medium">
+    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-400/10 border border-gray-500/20 rounded-lg text-gray-500 text-xs font-medium">
       {step.type}
     </div>
   );
@@ -1094,21 +1094,21 @@ function CreateJourneyModal({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <Plus className="w-4 h-4 text-white" />
+              <Plus className="w-4 h-4 text-gray-900" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-lg">Create Journey</h2>
-              <p className="text-gray-400 text-xs">
+              <h2 className="text-gray-900 font-bold text-lg">Create Journey</h2>
+              <p className="text-gray-500 text-xs">
                 {step === 'pick_preset' ? 'Step 1: Choose a preset' : 'Step 2: Configure your journey'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1136,10 +1136,10 @@ function CreateJourneyModal({
 
         {/* Modal Footer */}
         {step === 'configure' && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 bg-gray-900/50 flex-shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
             <button
               onClick={() => setStep('pick_preset')}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition"
+              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-900 transition"
             >
               ← Back to presets
             </button>
@@ -1179,14 +1179,14 @@ function PresetPicker({ onSelect }: { onSelect: (preset: JourneyPreset) => void 
           <button
             key={preset.key + preset.trigger_event}
             onClick={() => onSelect(preset)}
-            className={`text-left bg-gray-800/60 border ${colors.border} rounded-xl p-5 hover:bg-gray-800 hover:border-gray-600 transition group`}
+            className={`text-left bg-gray-50 border ${colors.border} rounded-xl p-5 hover:bg-gray-100 hover:border-gray-300 transition group`}
           >
             <div className="flex items-start gap-3 mb-3">
               <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                <Icon className="w-5 h-5 text-white" />
+                <Icon className="w-5 h-5 text-gray-900" />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-sm group-hover:text-emerald-400 transition">
+                <h3 className="text-gray-900 font-semibold text-sm group-hover:text-emerald-400 transition">
                   {preset.name}
                 </h3>
                 <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-medium ${colors.bg} ${colors.text}`}>
@@ -1194,7 +1194,7 @@ function PresetPicker({ onSelect }: { onSelect: (preset: JourneyPreset) => void 
                 </span>
               </div>
             </div>
-            <p className="text-gray-400 text-xs leading-relaxed">{preset.description}</p>
+            <p className="text-gray-500 text-xs leading-relaxed">{preset.description}</p>
             <div className="mt-3 flex items-center gap-1 text-emerald-500 text-xs font-medium opacity-0 group-hover:opacity-100 transition">
               Select preset <ArrowRight className="w-3 h-3" />
             </div>
@@ -1253,34 +1253,34 @@ function ConfigureJourney({
         <Zap className={`w-5 h-5 ${colors.text}`} />
         <div>
           <p className={`text-sm font-medium ${colors.text}`}>{preset.name}</p>
-          <p className="text-gray-400 text-xs">{preset.description}</p>
+          <p className="text-gray-500 text-xs">{preset.description}</p>
         </div>
       </div>
 
       {/* Journey Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Journey Name</label>
+        <label className="block text-sm font-medium text-gray-600 mb-2">Journey Name</label>
         <input
           type="text"
           value={journeyName}
           onChange={(e) => setJourneyName(e.target.value)}
-          className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           placeholder="Enter a name for this journey"
         />
       </div>
 
       {/* Step Configs */}
       <div className="space-y-4">
-        <p className="text-sm font-medium text-gray-300">Configure Steps</p>
+        <p className="text-sm font-medium text-gray-600">Configure Steps</p>
 
         {stepConfigs.map((cfg, idx) => (
-          <div key={idx} className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 space-y-3">
+          <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
             {/* Step header */}
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-bold">
+              <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-bold">
                 {idx + 1}
               </span>
-              <span className="text-white text-sm font-medium">{cfg.label || cfg.type}</span>
+              <span className="text-gray-900 text-sm font-medium">{cfg.label || cfg.type}</span>
               {cfg.type === 'wait' && <Clock className="w-4 h-4 text-yellow-400" />}
               {(cfg.type === 'send_template' || cfg.type === 'send_buttons') && <Send className="w-4 h-4 text-emerald-400" />}
             </div>
@@ -1288,13 +1288,13 @@ function ConfigureJourney({
             {/* Wait step */}
             {cfg.type === 'wait' && (
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Wait duration (minutes)</label>
+                <label className="block text-xs text-gray-500 mb-1">Wait duration (minutes)</label>
                 <input
                   type="number"
                   min={1}
                   value={cfg.minutes}
                   onChange={(e) => updateStepConfig(idx, { minutes: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <p className="text-gray-500 text-xs mt-1">
                   = {cfg.minutes >= 1440
@@ -1310,7 +1310,7 @@ function ConfigureJourney({
             {(cfg.type === 'send_template' || cfg.type === 'send_buttons') && (
               <>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">
+                  <label className="block text-xs text-gray-500 mb-1">
                     Template {cfg.type === 'send_buttons' ? '(must have quick-reply buttons)' : ''}
                   </label>
                   <select
@@ -1323,7 +1323,7 @@ function ConfigureJourney({
                       vars.forEach((v) => { nb[v] = cfg.variable_bindings[v] || ''; });
                       updateStepConfig(idx, { template_id: tid, variable_bindings: nb });
                     }}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                    className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                   >
                     <option value="">Select a template…</option>
                     {templates.map((t) => (
@@ -1337,13 +1337,13 @@ function ConfigureJourney({
                 {/* Variable mapping — "what data fills each blank?" */}
                 {cfg.template_id && Object.keys(cfg.variable_bindings).length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-400">What data fills each blank in this template?</p>
+                    <p className="text-xs text-gray-500">What data fills each blank in this template?</p>
                     <div className="space-y-2">
                       {Object.entries(cfg.variable_bindings).map(([key, val]) => {
                         const isCustom = typeof val === 'string' && val.startsWith('literal:');
                         return (
                           <div key={key} className="flex items-center gap-2">
-                            <span className="w-9 h-8 rounded bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-mono flex-shrink-0">
+                            <span className="w-9 h-8 rounded bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-mono flex-shrink-0">
                               {`{{${key}}}`}
                             </span>
                             <select
@@ -1352,7 +1352,7 @@ function ConfigureJourney({
                                 const v = e.target.value === '__custom__' ? 'literal:' : e.target.value;
                                 updateStepConfig(idx, { variable_bindings: { ...cfg.variable_bindings, [key]: v } });
                               }}
-                              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                              className="flex-1 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                             >
                               <option value="">Select data…</option>
                               {allBindingOptions.map((opt) => (
@@ -1366,7 +1366,7 @@ function ConfigureJourney({
                                 value={val.slice(8)}
                                 placeholder="Type fixed text"
                                 onChange={(e) => updateStepConfig(idx, { variable_bindings: { ...cfg.variable_bindings, [key]: 'literal:' + e.target.value } })}
-                                className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                className="flex-1 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               />
                             )}
                           </div>
@@ -1381,7 +1381,7 @@ function ConfigureJourney({
 
             {/* send_buttons on_timeout template */}
             {cfg.type === 'send_buttons' && cfg.timeout_template_id !== undefined && (
-              <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
+              <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                 <p className="text-xs text-yellow-400 font-medium flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
                   On Timeout — Follow-up Template
@@ -1389,7 +1389,7 @@ function ConfigureJourney({
                 <select
                   value={cfg.timeout_template_id}
                   onChange={(e) => updateStepConfig(idx, { timeout_template_id: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                  className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                 >
                   <option value="">Select timeout template…</option>
                   {templates.map((t) => (
@@ -1404,7 +1404,7 @@ function ConfigureJourney({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {Object.entries(cfg.timeout_variable_bindings).map(([key, val]) => (
                       <div key={key} className="flex items-center gap-2">
-                        <span className="w-8 h-7 rounded bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-mono flex-shrink-0">
+                        <span className="w-8 h-7 rounded bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-mono flex-shrink-0">
                           {`{{${key}}}`}
                         </span>
                         <select
@@ -1413,7 +1413,7 @@ function ConfigureJourney({
                             const newBindings = { ...cfg.timeout_variable_bindings, [key]: e.target.value };
                             updateStepConfig(idx, { timeout_variable_bindings: newBindings });
                           }}
-                          className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                          className="flex-1 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                         >
                           <option value="">Select field…</option>
                           {allBindingOptions.map((opt) => (
@@ -1435,7 +1435,7 @@ function ConfigureJourney({
       {/* Trigger Filters (abandoned_cart) */}
       {preset.key === 'abandoned_cart' && (
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-600 mb-2">
             Minimum Cart Total
             <span className="text-gray-500 text-xs ml-2">(optional — only trigger for carts above this value)</span>
           </label>
@@ -1448,22 +1448,22 @@ function ConfigureJourney({
               value={minCartTotal}
               onChange={(e) => setMinCartTotal(e.target.value)}
               placeholder="0.00"
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-9 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
         </div>
       )}
 
       {/* Auto-activate toggle */}
-      <div className="flex items-center justify-between bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-4">
         <div>
-          <p className="text-white text-sm font-medium">Auto-activate</p>
-          <p className="text-gray-400 text-xs">Start processing events immediately after creation</p>
+          <p className="text-gray-900 text-sm font-medium">Auto-activate</p>
+          <p className="text-gray-500 text-xs">Start processing events immediately after creation</p>
         </div>
         <button
           onClick={() => setAutoActivate(!autoActivate)}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            autoActivate ? 'bg-emerald-600' : 'bg-gray-700'
+            autoActivate ? 'bg-emerald-600' : 'bg-gray-200'
           }`}
         >
           <span

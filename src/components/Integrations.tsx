@@ -91,7 +91,7 @@ const sourceBadgeClasses: Record<string, string> = {
   peakcart: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
   shopify: 'bg-green-500/15 text-green-400 border-green-500/30',
   woocommerce: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  api: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
+  api: 'bg-gray-400/15 text-gray-500 border-gray-500/30',
 };
 
 const statusBadgeClasses: Record<string, string> = {
@@ -109,7 +109,7 @@ const eventTypeBadgeClasses: Record<string, string> = {
   customer_created: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
 };
 
-const DEFAULT_EVENT_BADGE = 'bg-gray-500/15 text-gray-400 border-gray-500/30';
+const DEFAULT_EVENT_BADGE = 'bg-gray-400/15 text-gray-500 border-gray-500/30';
 
 // ─── Small reusable bits ─────────────────────────────────────────────────────
 
@@ -135,7 +135,7 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
   return (
     <button
       onClick={handleCopy}
-      className={`inline-flex items-center gap-1 text-gray-400 hover:text-white transition-colors ${className}`}
+      className={`inline-flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors ${className}`}
       title="Copy to clipboard"
     >
       {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
@@ -204,10 +204,10 @@ function CreateKeyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl border border-gray-800 bg-gray-900 p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Create API Key</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <h3 className="text-lg font-semibold text-gray-900">Create API Key</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-900">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -215,7 +215,7 @@ function CreateKeyModal({
         <div className="space-y-4">
           {/* Name */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               Name <span className="text-red-400">*</span>
             </label>
             <input
@@ -223,17 +223,17 @@ function CreateKeyModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. PeakCart Production"
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
           {/* Source */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">Source</label>
+            <label className="mb-1 block text-sm font-medium text-gray-600">Source</label>
             <select
               value={source}
               onChange={(e) => setSource(e.target.value as Source)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             >
               {SOURCES.map((s) => (
                 <option key={s} value={s}>
@@ -245,7 +245,7 @@ function CreateKeyModal({
 
           {/* Callback URL */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               Callback URL <span className="text-gray-500 text-xs">(optional)</span>
             </label>
             <input
@@ -253,13 +253,13 @@ function CreateKeyModal({
               value={callbackUrl}
               onChange={(e) => setCallbackUrl(e.target.value)}
               placeholder="https://your-store.com/webhooks/reachpeak"
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
           {/* Callback Secret */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               Callback Secret <span className="text-gray-500 text-xs">(optional)</span>
             </label>
             <div className="flex gap-2">
@@ -268,12 +268,12 @@ function CreateKeyModal({
                 value={callbackSecret}
                 onChange={(e) => setCallbackSecret(e.target.value)}
                 placeholder="Auto-generate or enter manually"
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="flex-1 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
                 type="button"
                 onClick={generateSecret}
-                className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-medium text-gray-300 hover:border-emerald-500 hover:text-emerald-400 transition-colors"
+                className="rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600 hover:border-emerald-500 hover:text-emerald-400 transition-colors"
               >
                 Generate
               </button>
@@ -285,7 +285,7 @@ function CreateKeyModal({
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={onClose}
-              className="rounded-lg border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
             >
               Cancel
             </button>
@@ -321,27 +321,27 @@ function RevealKeyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl border border-gray-800 bg-gray-900 p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15">
             <Shield className="h-5 w-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">API Key Created</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="text-lg font-semibold text-gray-900">API Key Created</h3>
+            <p className="text-sm text-gray-500">
               Copy this key now — it won't be shown again.
             </p>
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+        <div className="rounded-lg border border-gray-200 bg-gray-100 p-4">
           <div className="flex items-center gap-2">
             <code className="flex-1 break-all text-sm font-mono text-emerald-400">
               {visible ? fullKey : '•'.repeat(fullKey.length)}
             </code>
             <button
               onClick={() => setVisible((v) => !v)}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-500 hover:text-gray-900 transition-colors"
               title={visible ? 'Hide' : 'Reveal'}
             >
               {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -519,41 +519,41 @@ export function Integrations() {
 
   // ── Render ──
   return (
-    <div className="min-h-screen bg-gray-950 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
         {/* ─── Header ─────────────────────────────────────────────────── */}
         <div>
-          <h1 className="flex items-center gap-3 text-2xl font-bold text-white">
+          <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900">
             <Zap className="h-7 w-7 text-emerald-400" />
             Integrations
           </h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm text-gray-500">
             Manage API keys and monitor incoming events from your connected stores.
           </p>
         </div>
 
         {/* --- Connect to ChatGPT --- */}
-        <section className="rounded-xl border border-emerald-800/40 bg-gray-900 p-6">
+        <section className="rounded-xl border border-emerald-800/40 bg-white p-6">
           <div className="mb-4 flex items-center gap-2">
             <Zap className="h-5 w-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Connect to ChatGPT</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Connect to ChatGPT</h2>
           </div>
-          <p className="mb-4 text-sm text-gray-400">
+          <p className="mb-4 text-sm text-gray-500">
             Let a ChatGPT custom GPT send WhatsApp messages and templates through your ReachPeak account.
             Requires ChatGPT Plus, Team, or Enterprise (custom GPTs support Actions).
           </p>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Action schema URL</p>
-          <div className="mb-5 overflow-x-auto rounded-lg border border-gray-800 bg-gray-950 p-3">
+          <div className="mb-5 overflow-x-auto rounded-lg border border-gray-200 bg-transparent p-3">
             <code className="whitespace-nowrap text-xs text-emerald-300">
               https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/whatsapp-assistant/openapi.json
             </code>
           </div>
-          <ol className="space-y-2 text-sm text-gray-300">
-            <li><span className="font-semibold text-white">1.</span> Create an API key below and copy it.</li>
-            <li><span className="font-semibold text-white">2.</span> In ChatGPT: <span className="text-gray-400">My GPTs -&gt; Create a GPT -&gt; Configure -&gt; Create new action</span>.</li>
-            <li><span className="font-semibold text-white">3.</span> Choose <span className="text-gray-400">Import from URL</span> and paste the schema URL above.</li>
-            <li><span className="font-semibold text-white">4.</span> Set <span className="text-gray-400">Authentication = API Key, Auth Type = Bearer</span>, and paste your <span className="text-emerald-300">rpk_live_</span> key.</li>
-            <li><span className="font-semibold text-white">5.</span> Save. Then tell your GPT things like <span className="italic text-gray-400">"list my WhatsApp templates"</span> or <span className="italic text-gray-400">"send template order_confirmed to 9198... with variables ..."</span>.</li>
+          <ol className="space-y-2 text-sm text-gray-600">
+            <li><span className="font-semibold text-gray-900">1.</span> Create an API key below and copy it.</li>
+            <li><span className="font-semibold text-gray-900">2.</span> In ChatGPT: <span className="text-gray-500">My GPTs -&gt; Create a GPT -&gt; Configure -&gt; Create new action</span>.</li>
+            <li><span className="font-semibold text-gray-900">3.</span> Choose <span className="text-gray-500">Import from URL</span> and paste the schema URL above.</li>
+            <li><span className="font-semibold text-gray-900">4.</span> Set <span className="text-gray-500">Authentication = API Key, Auth Type = Bearer</span>, and paste your <span className="text-emerald-300">rpk_live_</span> key.</li>
+            <li><span className="font-semibold text-gray-900">5.</span> Save. Then tell your GPT things like <span className="italic text-gray-500">"list my WhatsApp templates"</span> or <span className="italic text-gray-500">"send template order_confirmed to 9198... with variables ..."</span>.</li>
           </ol>
           <p className="mt-4 text-xs text-gray-500">
             Business-initiated messages must use an approved template; free text only delivers within 24 hours of the customer messaging you. Each send uses your wallet balance.
@@ -561,9 +561,9 @@ export function Integrations() {
         </section>
 
         {/* ─── Section 1 — API Key Management ─────────────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
               <Key className="h-5 w-5 text-emerald-400" />
               API Keys
             </h2>
@@ -591,7 +591,7 @@ export function Integrations() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-gray-800 text-xs uppercase tracking-wider text-gray-500">
+                  <tr className="border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
                     <th className="pb-3 pr-4">Name</th>
                     <th className="pb-3 pr-4">Source</th>
                     <th className="pb-3 pr-4">Key Prefix</th>
@@ -600,10 +600,10 @@ export function Integrations() {
                     <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-gray-200/60">
                   {keys.map((k) => (
                     <tr key={k.id} className="group">
-                      <td className="py-3 pr-4 font-medium text-white">{k.name}</td>
+                      <td className="py-3 pr-4 font-medium text-gray-900">{k.name}</td>
                       <td className="py-3 pr-4">
                         <Badge
                           label={k.source}
@@ -611,18 +611,18 @@ export function Integrations() {
                         />
                       </td>
                       <td className="py-3 pr-4">
-                        <code className="rounded bg-gray-800 px-2 py-0.5 text-xs font-mono text-gray-300">
+                        <code className="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-600">
                           {k.key_prefix}…
                         </code>
                       </td>
-                      <td className="py-3 pr-4 text-gray-400">
+                      <td className="py-3 pr-4 text-gray-500">
                         {k.last_used_at ? relativeTime(k.last_used_at) : '—'}
                       </td>
                       <td className="py-3 pr-4">
                         <button
                           onClick={() => toggleKeyActive(k.id, k.is_active)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            k.is_active ? 'bg-emerald-600' : 'bg-gray-700'
+                            k.is_active ? 'bg-emerald-600' : 'bg-gray-200'
                           }`}
                         >
                           <span
@@ -651,13 +651,13 @@ export function Integrations() {
         </section>
 
         {/* ─── Section 2 — Integration Endpoint Info ──────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
             <ExternalLink className="h-5 w-5 text-emerald-400" />
             Ingest Endpoint
           </h2>
 
-          <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-100 px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <code className="break-all text-sm font-mono text-emerald-400">{INGEST_URL}</code>
               <CopyButton text={INGEST_URL} />
@@ -665,10 +665,10 @@ export function Integrations() {
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-300">Example Request</p>
-            <div className="relative rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <p className="mb-2 text-sm font-medium text-gray-600">Example Request</p>
+            <div className="relative rounded-lg border border-gray-200 bg-gray-100 p-4">
               <CopyButton text={curlExample} className="absolute right-3 top-3" />
-              <pre className="overflow-x-auto text-xs leading-relaxed text-gray-300">
+              <pre className="overflow-x-auto text-xs leading-relaxed text-gray-600">
                 <code>{curlExample}</code>
               </pre>
             </div>
@@ -676,13 +676,13 @@ export function Integrations() {
         </section>
 
         {/* ─── Section 3 — Event Log ──────────────────────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
               <Zap className="h-5 w-5 text-emerald-400" />
               Event Log
               {eventsTotal > 0 && (
-                <span className="ml-1 rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-normal text-gray-400">
+                <span className="ml-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-normal text-gray-500">
                   {eventsTotal}
                 </span>
               )}
@@ -696,7 +696,7 @@ export function Integrations() {
                   setEventTypeFilter(e.target.value);
                   setEventsPage(0);
                 }}
-                className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-300 focus:border-emerald-500 focus:outline-none"
+                className="rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-xs text-gray-600 focus:border-emerald-500 focus:outline-none"
               >
                 <option value="">All event types</option>
                 {distinctEventTypes.map((t) => (
@@ -712,7 +712,7 @@ export function Integrations() {
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                   autoRefresh
                     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                    : 'border-gray-700 text-gray-400 hover:text-white'
+                    : 'border-gray-200 text-gray-500 hover:text-gray-900'
                 }`}
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${autoRefresh ? 'animate-spin' : ''}`} />
@@ -722,7 +722,7 @@ export function Integrations() {
               {/* Manual refresh */}
               <button
                 onClick={fetchEvents}
-                className="rounded-lg border border-gray-700 p-1.5 text-gray-400 hover:text-white transition-colors"
+                className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:text-gray-900 transition-colors"
                 title="Refresh"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -746,7 +746,7 @@ export function Integrations() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-gray-800 text-xs uppercase tracking-wider text-gray-500">
+                    <tr className="border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
                       <th className="pb-3 pr-4 w-8"></th>
                       <th className="pb-3 pr-4">Event Type</th>
                       <th className="pb-3 pr-4">Contact</th>
@@ -755,13 +755,13 @@ export function Integrations() {
                       <th className="pb-3">Time</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800/60">
+                  <tbody className="divide-y divide-gray-200/60">
                     {events.map((ev) => {
                       const isExpanded = expandedEventId === ev.id;
                       return (
                         <Fragment key={ev.id}>
                           <tr
-                            className="cursor-pointer hover:bg-gray-800/40 transition-colors"
+                            className="cursor-pointer hover:bg-gray-50 transition-colors"
                             onClick={() =>
                               setExpandedEventId(isExpanded ? null : ev.id)
                             }
@@ -782,7 +782,7 @@ export function Integrations() {
                               />
                             </td>
                             <td className="py-3 pr-4">
-                              <span className="text-white">{ev.contact_phone}</span>
+                              <span className="text-gray-900">{ev.contact_phone}</span>
                               {ev.contact_name && (
                                 <span className="ml-2 text-gray-500">{ev.contact_name}</span>
                               )}
@@ -801,7 +801,7 @@ export function Integrations() {
                                 }
                               />
                             </td>
-                            <td className="py-3 text-gray-400 whitespace-nowrap">
+                            <td className="py-3 text-gray-500 whitespace-nowrap">
                               {relativeTime(ev.created_at)}
                             </td>
                           </tr>
@@ -810,7 +810,7 @@ export function Integrations() {
                           {isExpanded && (
                             <tr>
                               <td colSpan={6} className="px-4 pb-4 pt-0">
-                                <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+                                <div className="rounded-lg border border-gray-200 bg-gray-100 p-4">
                                   <div className="mb-2 flex items-center justify-between">
                                     <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
                                       Payload
@@ -819,7 +819,7 @@ export function Integrations() {
                                       text={JSON.stringify(ev.payload, null, 2)}
                                     />
                                   </div>
-                                  <pre className="overflow-x-auto text-xs leading-relaxed text-gray-300">
+                                  <pre className="overflow-x-auto text-xs leading-relaxed text-gray-600">
                                     <code>{JSON.stringify(ev.payload, null, 2)}</code>
                                   </pre>
                                   {ev.error_message && (
@@ -830,7 +830,7 @@ export function Integrations() {
                                   {ev.dedupe_key && (
                                     <p className="mt-2 text-xs text-gray-500">
                                       Dedupe key:{' '}
-                                      <code className="rounded bg-gray-900 px-1.5 py-0.5 font-mono text-gray-400">
+                                      <code className="rounded bg-white px-1.5 py-0.5 font-mono text-gray-500">
                                         {ev.dedupe_key}
                                       </code>
                                     </p>
@@ -848,7 +848,7 @@ export function Integrations() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
+                <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
                   <p className="text-xs text-gray-500">
                     Showing {eventsPage * PAGE_SIZE + 1}–
                     {Math.min((eventsPage + 1) * PAGE_SIZE, eventsTotal)} of {eventsTotal}
@@ -857,17 +857,17 @@ export function Integrations() {
                     <button
                       onClick={() => setEventsPage((p) => p - 1)}
                       disabled={!canPrevPage}
-                      className="rounded-lg border border-gray-700 p-1.5 text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:text-gray-900 disabled:opacity-30 transition-colors"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <span className="px-3 text-xs text-gray-400">
+                    <span className="px-3 text-xs text-gray-500">
                       {eventsPage + 1} / {totalPages}
                     </span>
                     <button
                       onClick={() => setEventsPage((p) => p + 1)}
                       disabled={!canNextPage}
-                      className="rounded-lg border border-gray-700 p-1.5 text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:text-gray-900 disabled:opacity-30 transition-colors"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
@@ -879,7 +879,7 @@ export function Integrations() {
         </section>
 
         {/* ─── Shopify Connection Card ─────────────────────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
           {(() => {
             const shopifyKey = keys.find(k => k.source === 'shopify' && k.is_active);
             const isConnected = !!shopifyKey;
@@ -904,7 +904,7 @@ export function Integrations() {
                       <Store className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <h3 className="text-base font-semibold text-white">Shopify Integration</h3>
+                      <h3 className="text-base font-semibold text-gray-900">Shopify Integration</h3>
                       <p className="text-xs text-gray-500">
                         {isConnected ? shopifyKey.shop_domain : 'Connect your Shopify store for automatic order tracking'}
                       </p>
@@ -926,7 +926,7 @@ export function Integrations() {
                     ) : (
                       <button
                         onClick={() => setShowShopifyGuide(!showShopifyGuide)}
-                        className="text-gray-400 hover:text-white transition-colors"
+                        className="text-gray-500 hover:text-gray-900 transition-colors"
                       >
                         <ChevronDown className={`h-4 w-4 transition-transform ${showShopifyGuide ? 'rotate-180' : ''}`} />
                       </button>
@@ -936,17 +936,17 @@ export function Integrations() {
 
                 {/* Connected details */}
                 {isConnected && showShopifyGuide && (
-                  <div className="mt-4 border-t border-gray-800 pt-4 space-y-3">
+                  <div className="mt-4 border-t border-gray-200 pt-4 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-lg bg-gray-800/50 p-3">
+                      <div className="rounded-lg bg-gray-50 p-3">
                         <p className="text-xs text-gray-500 mb-1">Last Event</p>
-                        <p className="text-sm text-white">
+                        <p className="text-sm text-gray-900">
                           {lastEvent ? relativeTime(lastEvent) : 'Never received'}
                         </p>
                       </div>
-                      <div className="rounded-lg bg-gray-800/50 p-3">
+                      <div className="rounded-lg bg-gray-50 p-3">
                         <p className="text-xs text-gray-500 mb-1">Store Domain</p>
-                        <p className="text-sm text-white font-mono">{shopifyKey.shop_domain}</p>
+                        <p className="text-sm text-gray-900 font-mono">{shopifyKey.shop_domain}</p>
                       </div>
                     </div>
 
@@ -955,7 +955,7 @@ export function Integrations() {
                         <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <p className="text-sm text-yellow-400 font-medium">No events received yet</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Place a test order in your Shopify store, or use the &quot;Re-test&quot; button to send a simulated event.</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Place a test order in your Shopify store, or use the &quot;Re-test&quot; button to send a simulated event.</p>
                         </div>
                       </div>
                     )}
@@ -964,7 +964,7 @@ export function Integrations() {
                         <AlertCircle className="h-4 w-4 text-orange-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <p className="text-sm text-orange-400 font-medium">Connection may be stale</p>
-                          <p className="text-xs text-gray-400 mt-0.5">No events received in over 6 hours. Check your Shopify webhook configuration.</p>
+                          <p className="text-xs text-gray-500 mt-0.5">No events received in over 6 hours. Check your Shopify webhook configuration.</p>
                         </div>
                       </div>
                     )}
@@ -972,7 +972,7 @@ export function Integrations() {
                     <div className="flex items-center gap-3 pt-2">
                       <button
                         onClick={() => setShowShopifyWizard(true)}
-                        className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-gray-300 hover:text-white hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                        className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors flex items-center gap-1.5"
                       >
                         <RefreshCw className="h-3 w-3" /> Re-test
                       </button>
@@ -985,7 +985,7 @@ export function Integrations() {
                           }).eq('id', shopifyKey.id);
                           fetchKeys();
                         }}
-                        className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                        className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-gray-200 transition-colors flex items-center gap-1.5"
                       >
                         <Trash2 className="h-3 w-3" /> Disconnect
                       </button>
@@ -1009,7 +1009,7 @@ export function Integrations() {
           />
         )}
         {/* ─── Lifecycle Events Reference ─────────────────────────────── */}
-        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
           <button
             onClick={() => setShowLifecycleDocs(!showLifecycleDocs)}
             className="flex w-full items-center justify-between text-left"
@@ -1019,14 +1019,14 @@ export function Integrations() {
                 <Zap className="h-4 w-4 text-purple-400" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-white">Lifecycle Events Reference</h3>
+                <h3 className="text-base font-semibold text-gray-900">Lifecycle Events Reference</h3>
                 <p className="text-xs text-gray-500">All event types and their payload contracts</p>
               </div>
             </div>
             <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showLifecycleDocs ? 'rotate-180' : ''}`} />
           </button>
           {showLifecycleDocs && (
-            <div className="mt-4 space-y-3 border-t border-gray-800 pt-4 text-xs font-mono">
+            <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 text-xs font-mono">
               {[
                 { type: 'order_created', required: 'order_id', fields: 'total, currency, payment_method, cod(bool), items[], address{line,city,state,pincode}, risk_score(optional), pay_url(optional)' },
                 { type: 'order_confirmed', required: 'order_id', fields: 'reason(optional)' },
@@ -1043,9 +1043,9 @@ export function Integrations() {
                 { type: 'checkout_started', required: 'checkout_token', fields: 'cart_total, currency, checkout_url' },
                 { type: 'customer_created', required: '—', fields: 'email(optional)' },
               ].map(e => (
-                <div key={e.type} className="flex items-start gap-3 rounded-lg bg-gray-800/50 p-3">
+                <div key={e.type} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
                   <code className="text-green-400 whitespace-nowrap min-w-[140px]">{e.type}</code>
-                  <div className="text-gray-400">
+                  <div className="text-gray-500">
                     <span className="text-yellow-400">required:</span> {e.required} · <span className="text-gray-500">{e.fields}</span>
                   </div>
                 </div>

@@ -199,18 +199,18 @@ export function Reports() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Reports</h1>
-        <p className="text-gray-400">Generate and download detailed reports</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Reports</h1>
+        <p className="text-gray-500">Generate and download detailed reports</p>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Report Type</label>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Report Type</label>
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value as any)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="campaign">Campaign Report</option>
               <option value="contact">Contact Report</option>
@@ -219,21 +219,21 @@ export function Reports() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">From Date</label>
+            <label className="block text-sm font-medium text-gray-600 mb-2">From Date</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">To Date</label>
+            <label className="block text-sm font-medium text-gray-600 mb-2">To Date</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div className="flex items-end">
@@ -248,28 +248,28 @@ export function Reports() {
           </div>
         </div>
 
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-white font-semibold mb-4">Report Details</h3>
+        <div className="bg-gray-100 rounded-lg p-6">
+          <h3 className="text-gray-900 font-semibold mb-4">Report Details</h3>
           <div className="space-y-3">
             {reportType === 'campaign' && (
-              <p className="text-gray-300 text-sm">
+              <p className="text-gray-600 text-sm">
                 Campaign report includes all campaign details, metrics, delivery rates, costs, revenue, and ROI.
               </p>
             )}
             {reportType === 'contact' && (
-              <p className="text-gray-300 text-sm">
+              <p className="text-gray-600 text-sm">
                 Contact report includes all contact information, source, location, lead type, message status, and
                 blacklist status. Limited to 10,000 most recent contacts.
               </p>
             )}
             {reportType === 'failed' && (
-              <p className="text-gray-300 text-sm">
+              <p className="text-gray-600 text-sm">
                 Failed messages report includes all failed numbers, failure reasons, attempt counts, and retry
                 status.
               </p>
             )}
             {reportType === 'agent' && (
-              <p className="text-gray-300 text-sm">
+              <p className="text-gray-600 text-sm">
                 Agent performance report includes all agent metrics: campaigns handled, numbers processed,
                 failures, conversions, and follow-ups.
               </p>
@@ -279,28 +279,28 @@ export function Reports() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4">
-            <Filter className="w-6 h-6 text-white" />
+            <Filter className="w-6 h-6 text-gray-900" />
           </div>
-          <h3 className="text-white font-semibold mb-2">Filtered Data</h3>
-          <p className="text-gray-400 text-sm">
+          <h3 className="text-gray-900 font-semibold mb-2">Filtered Data</h3>
+          <p className="text-gray-500 text-sm">
             Use date filters to generate reports for specific time periods
           </p>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center mb-4">
-            <Download className="w-6 h-6 text-white" />
+            <Download className="w-6 h-6 text-gray-900" />
           </div>
-          <h3 className="text-white font-semibold mb-2">CSV Export</h3>
-          <p className="text-gray-400 text-sm">All reports are exported in CSV format for easy analysis</p>
+          <h3 className="text-gray-900 font-semibold mb-2">CSV Export</h3>
+          <p className="text-gray-500 text-sm">All reports are exported in CSV format for easy analysis</p>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="w-12 h-12 bg-violet-500 rounded-lg flex items-center justify-center mb-4">
-            <Calendar className="w-6 h-6 text-white" />
+            <Calendar className="w-6 h-6 text-gray-900" />
           </div>
-          <h3 className="text-white font-semibold mb-2">Real-time Data</h3>
-          <p className="text-gray-400 text-sm">Reports are generated from live database data</p>
+          <h3 className="text-gray-900 font-semibold mb-2">Real-time Data</h3>
+          <p className="text-gray-500 text-sm">Reports are generated from live database data</p>
         </div>
       </div>
     </div>
