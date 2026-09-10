@@ -531,14 +531,14 @@ export function UserCampaigns() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Campaigns</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">My Campaigns</h1>
           <p className="text-gray-500">Create and track your WhatsApp campaigns</p>
         </div>
         <button
           onClick={() => { setShowModal(true); fetchContactMeta(); fetchApprovedTemplates(); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition text-sm font-semibold"
         >
           <Plus className="w-4 h-4" />
           New Campaign
@@ -652,7 +652,7 @@ export function UserCampaigns() {
             <p className="text-gray-500 text-sm mb-6">Create your first campaign to get started</p>
             <button
               onClick={() => setShowModal(true)}
-              className="px-5 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium"
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition text-sm font-semibold"
             >
               Create Campaign
             </button>
@@ -1519,7 +1519,7 @@ export function UserCampaigns() {
                 <button
                   type="submit"
                   disabled={submitting || uploadingFile || contactCount === 0}
-                  className="px-5 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {submitting || uploadingFile ? (
                     <>Processing...</>
