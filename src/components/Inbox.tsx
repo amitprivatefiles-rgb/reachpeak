@@ -399,8 +399,8 @@ export function Inbox() {
   // Status icon for outbound messages
   const StatusIcon = ({ status }: { status: string }) => {
     switch (status) {
-      case 'sent': return <Check className="w-3 h-3 text-gray-400" />;
-      case 'delivered': return <CheckCheck className="w-3 h-3 text-gray-400" />;
+      case 'sent': return <Check className="w-3 h-3 text-gray-500" />;
+      case 'delivered': return <CheckCheck className="w-3 h-3 text-gray-500" />;
       case 'read': return <CheckCheck className="w-3 h-3 text-blue-400" />;
       case 'failed': return <AlertCircle className="w-3 h-3 text-red-400" />;
       case 'queued':
@@ -425,7 +425,7 @@ export function Inbox() {
       const tplName = msg.template_name || content?.template?.name || 'template';
       return (
         <div className="space-y-1">
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <FileText className="w-3 h-3" />
             <span>Template: {tplName}</span>
           </div>
@@ -561,7 +561,7 @@ export function Inbox() {
     }
 
     // Fallback
-    return <p className="text-sm text-gray-400">[{type || 'unknown'} message]</p>;
+    return <p className="text-sm text-gray-500">[{type || 'unknown'} message]</p>;
   };
 
   // Window time remaining
@@ -585,7 +585,7 @@ export function Inbox() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+    <div className="h-[calc(100vh-4rem)] flex bg-transparent rounded-xl overflow-hidden border border-gray-200">
       {/* Hidden file input */}
       <input
         type="file"
@@ -603,18 +603,18 @@ export function Inbox() {
       />
 
       {/* Left Panel — Conversation List */}
-      <div className={`w-full lg:w-[380px] border-r border-gray-800 flex flex-col flex-shrink-0 ${showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
+      <div className={`w-full lg:w-[380px] border-r border-gray-200 flex flex-col flex-shrink-0 ${showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
         {/* Header */}
-        <div className="p-4 border-b border-gray-800">
-          <h2 className="text-xl font-bold text-white mb-3">Inbox</h2>
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">Inbox</h2>
           <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             />
           </div>
         </div>
@@ -624,7 +624,7 @@ export function Inbox() {
           {filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6">
               <MessageSquare className="w-12 h-12 text-gray-600 mb-3" />
-              <p className="text-gray-400 text-sm">No conversations yet</p>
+              <p className="text-gray-500 text-sm">No conversations yet</p>
               <p className="text-gray-500 text-xs mt-1">Messages from contacts will appear here</p>
             </div>
           ) : (
@@ -632,15 +632,15 @@ export function Inbox() {
               <div
                 key={conv.id}
                 onClick={() => openConversation(conv)}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition border-b border-gray-800/50 ${
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition border-b border-gray-200/50 ${
                   activeConversation?.id === conv.id
-                    ? 'bg-gray-800/70'
-                    : 'hover:bg-gray-800/40'
+                    ? 'bg-gray-100/70'
+                    : 'hover:bg-gray-50'
                 }`}
               >
                 {/* Avatar */}
                 <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-semibold text-sm">
+                  <span className="text-gray-900 font-semibold text-sm">
                     {(conv.contact_name || conv.contact_phone).charAt(0).toUpperCase()}
                   </span>
                 </div>
@@ -648,7 +648,7 @@ export function Inbox() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-white text-sm font-medium truncate">
+                    <h3 className="text-gray-900 text-sm font-medium truncate">
                       {conv.contact_name || formatPhoneDisplay(conv.contact_phone)}
                     </h3>
                     <span className={`text-xs flex-shrink-0 ml-2 ${
@@ -658,7 +658,7 @@ export function Inbox() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-gray-400 text-xs truncate flex-1">
+                    <p className="text-gray-500 text-xs truncate flex-1">
                       {conv.last_message_direction === 'outbound' && (
                         <span className="text-gray-500">You: </span>
                       )}
@@ -685,24 +685,24 @@ export function Inbox() {
         {activeConversation ? (
           <>
             {/* Chat Header */}
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { setShowMobileChat(false); setActiveConversation(null); }}
-                  className="lg:hidden p-1 text-gray-400 hover:text-white"
+                  className="lg:hidden p-1 text-gray-500 hover:text-gray-900"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                  <span className="text-white font-semibold text-sm">
+                  <span className="text-gray-900 font-semibold text-sm">
                     {(activeConversation.contact_name || activeConversation.contact_phone).charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-white font-medium text-sm">
+                  <h3 className="text-gray-900 font-medium text-sm">
                     {activeConversation.contact_name || formatPhoneDisplay(activeConversation.contact_phone)}
                   </h3>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-gray-500 text-xs">
                     {activeConversation.contact_phone}
                   </p>
                 </div>
@@ -765,7 +765,7 @@ export function Inbox() {
                       <div className={`max-w-[75%] sm:max-w-[65%] rounded-2xl px-3.5 py-2 ${
                         msg.direction === 'outbound'
                           ? 'bg-emerald-700/80 text-white rounded-br-md'
-                          : 'bg-gray-800 text-white rounded-bl-md'
+                          : 'bg-gray-100 text-gray-900 rounded-bl-md'
                       } ${msg.status === 'failed' ? 'border border-red-500/50' : ''}`}
                       >
                         {renderMessageContent(msg)}
@@ -773,7 +773,7 @@ export function Inbox() {
                         <div className={`flex items-center gap-1 mt-1 ${
                           msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
                         }`}>
-                          <span className="text-[10px] text-gray-300/60">
+                          <span className="text-[10px] text-gray-600/60">
                             {formatMessageTime(msg.created_at)}
                           </span>
                           {msg.direction === 'outbound' && <StatusIcon status={msg.status} />}
@@ -790,7 +790,7 @@ export function Inbox() {
             </div>
 
             {/* Message Input */}
-            <div className="border-t border-gray-800 bg-gray-900/50 p-3">
+            <div className="border-t border-gray-200 bg-white p-3">
               {!isWindowOpen(activeConversation) && (
                 <div className="mb-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -802,10 +802,10 @@ export function Inbox() {
 
               {/* Template Picker */}
               {showTemplates && (
-                <div className="mb-3 max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg p-2 space-y-1">
+                <div className="mb-3 max-h-60 overflow-y-auto bg-gray-100 border border-gray-200 rounded-lg p-2 space-y-1">
                   <div className="flex items-center justify-between px-2 py-1">
-                    <span className="text-xs font-medium text-gray-300">Approved Templates</span>
-                    <button onClick={() => setShowTemplates(false)} className="text-gray-400 hover:text-white">
+                    <span className="text-xs font-medium text-gray-600">Approved Templates</span>
+                    <button onClick={() => setShowTemplates(false)} className="text-gray-500 hover:text-gray-900">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -817,14 +817,14 @@ export function Inbox() {
                         key={tpl.id}
                         onClick={() => sendTemplate(tpl)}
                         disabled={sending}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-700 transition"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 transition"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-white text-sm font-medium">{tpl.name}</span>
+                          <span className="text-gray-900 text-sm font-medium">{tpl.name}</span>
                           <span className="text-gray-500 text-xs">{tpl.language}</span>
                         </div>
                         {tpl.body_text && (
-                          <p className="text-gray-400 text-xs mt-0.5 line-clamp-2">{tpl.body_text}</p>
+                          <p className="text-gray-500 text-xs mt-0.5 line-clamp-2">{tpl.body_text}</p>
                         )}
                       </button>
                     ))
@@ -837,28 +837,28 @@ export function Inbox() {
                 <div className="relative">
                   <button
                     onClick={() => setShowAttachMenu(!showAttachMenu)}
-                    className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition"
+                    className="p-2 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition"
                     disabled={uploading || (!isWindowOpen(activeConversation))}
                   >
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                   </button>
                   {showAttachMenu && (
-                    <div className="absolute bottom-12 left-0 bg-gray-800 border border-gray-700 rounded-lg p-1 shadow-xl z-10 min-w-[140px]">
+                    <div className="absolute bottom-12 left-0 bg-gray-100 border border-gray-200 rounded-lg p-1 shadow-xl z-10 min-w-[140px]">
                       <button
                         onClick={() => { fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.click(); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded"
                       >
                         <Image className="w-4 h-4 text-blue-400" /> Image
                       </button>
                       <button
                         onClick={() => { fileInputRef.current?.setAttribute('accept', 'video/*'); fileInputRef.current?.click(); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded"
                       >
                         <Video className="w-4 h-4 text-purple-400" /> Video
                       </button>
                       <button
                         onClick={() => { fileInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.xls,.xlsx'); fileInputRef.current?.click(); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded"
                       >
                         <File className="w-4 h-4 text-amber-400" /> Document
                       </button>
@@ -872,7 +872,7 @@ export function Inbox() {
                   className={`p-2 rounded-lg transition ${
                     !isWindowOpen(activeConversation)
                       ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <FileText className="w-5 h-5" />
@@ -960,7 +960,7 @@ export function Inbox() {
                   placeholder={isWindowOpen(activeConversation) ? 'Type a message...' : 'Use a template to start'}
                   disabled={!isWindowOpen(activeConversation) || sending}
                   rows={1}
-                  className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2 bg-gray-100 border border-gray-200 rounded-xl text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ maxHeight: '120px' }}
                 />
 
@@ -981,8 +981,8 @@ export function Inbox() {
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mb-4">
               <MessageSquare className="w-10 h-10 text-emerald-400" />
             </div>
-            <h3 className="text-white text-xl font-semibold mb-2">WhatsApp Inbox</h3>
-            <p className="text-gray-400 text-sm max-w-sm">
+            <h3 className="text-gray-900 text-xl font-semibold mb-2">WhatsApp Inbox</h3>
+            <p className="text-gray-500 text-sm max-w-sm">
               Select a conversation to view messages and reply. Only contacts who have messaged you will appear here.
             </p>
           </div>
@@ -991,24 +991,24 @@ export function Inbox() {
       {/* Fill template variables before sending */}
       {tplFill && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setTplFill(null)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-white font-semibold text-lg mb-1">Fill in the template</h3>
-            <p className="text-gray-400 text-sm mb-4">"{tplFill.template.name}" needs these details before it can be sent:</p>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-gray-900 font-semibold text-lg mb-1">Fill in the template</h3>
+            <p className="text-gray-500 text-sm mb-4">"{tplFill.template.name}" needs these details before it can be sent:</p>
             <div className="space-y-3 max-h-72 overflow-y-auto">
               {tplFill.vars.map((v) => (
                 <div key={v}>
-                  <label className="block text-xs text-gray-400 mb-1 font-mono">{`{{${v}}}`}</label>
+                  <label className="block text-xs text-gray-500 mb-1 font-mono">{`{{${v}}}`}</label>
                   <input
                     value={tplFill.values[v] || ''}
                     onChange={(e) => setTplFill({ ...tplFill, values: { ...tplFill.values, [v]: e.target.value } })}
                     placeholder="Enter value"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               ))}
             </div>
             <div className="flex gap-2 justify-end mt-5">
-              <button onClick={() => setTplFill(null)} className="px-4 py-2 text-sm text-gray-300 hover:text-white">Cancel</button>
+              <button onClick={() => setTplFill(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
               <button
                 disabled={sending}
                 onClick={() => sendTemplateNow(tplFill.template, tplFill.vars.map((v) => tplFill.values[v] || ''))}

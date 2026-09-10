@@ -258,14 +258,14 @@ export function OrderGuard() {
             <ShieldAlert size={24} color="white" />
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#f1f5f9' }}>OrderGuard</h1>
-            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Order tracking · Risk scoring · COD protection</p>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#0f172a' }}>OrderGuard</h1>
+            <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Order tracking · Risk scoring · COD protection</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={loadData} style={{
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #334155',
-            background: 'transparent', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: 'transparent', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
           }}>
             <RefreshCw size={14} /> Refresh
           </button>
@@ -284,12 +284,12 @@ export function OrderGuard() {
       </div>
 
       {/* Tab Bar */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '0' }}>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid #e6e8ec', paddingBottom: '0' }}>
         {(['orders', 'settings'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
             padding: '10px 20px', borderRadius: '8px 8px 0 0', border: 'none',
-            background: activeTab === tab ? '#1e293b' : 'transparent',
-            color: activeTab === tab ? '#f1f5f9' : '#64748b',
+            background: activeTab === tab ? '#e6e8ec' : 'transparent',
+            color: activeTab === tab ? '#0f172a' : '#64748b',
             fontWeight: activeTab === tab ? 600 : 400, cursor: 'pointer',
             fontSize: '14px', textTransform: 'capitalize',
             borderBottom: activeTab === tab ? '2px solid #8b5cf6' : '2px solid transparent',
@@ -304,10 +304,10 @@ export function OrderGuard() {
       {activeTab === 'orders' && (
         <>
           {/* Orders Table */}
-          <div className="rp-scroll-x" style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', marginBottom: '24px' }}>
+          <div className="rp-scroll-x" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e6e8ec', marginBottom: '24px' }}>
             <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                <tr style={{ borderBottom: '1px solid #e6e8ec' }}>
                   {['Order ID', 'Contact', 'Value', 'COD', 'Score', 'Action', 'Confirm', 'Payment', 'Status', 'Time'].map(h => (
                     <th key={h} style={{ padding: '12px 14px', textAlign: 'left', color: '#64748b', fontWeight: 500, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                   ))}
@@ -335,15 +335,15 @@ export function OrderGuard() {
 
           {/* Pincode Heat List */}
           {pincodeStats.length > 0 && (
-            <div className="rp-scroll-x" style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', padding: '20px' }}>
+            <div className="rp-scroll-x" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e6e8ec', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <MapPin size={18} color="#f59e0b" />
-                <h3 style={{ margin: 0, fontSize: '16px', color: '#f1f5f9', fontWeight: 600 }}>High-RTO Pincodes</h3>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: 600 }}>High-RTO Pincodes</h3>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>(min 5 orders)</span>
               </div>
               <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                  <tr style={{ borderBottom: '1px solid #e6e8ec' }}>
                     {['Pincode', 'Orders', 'Delivered', 'RTO', 'RTO %'].map(h => (
                       <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: '#64748b', fontWeight: 500, fontSize: '12px' }}>{h}</th>
                     ))}
@@ -353,9 +353,9 @@ export function OrderGuard() {
                   {pincodeStats.map(p => {
                     const rtoRate = p.orders > 0 ? (p.rto / p.orders * 100) : 0;
                     return (
-                      <tr key={p.pincode} style={{ borderBottom: '1px solid #1e293b22' }}>
-                        <td style={{ padding: '10px 14px', color: '#e2e8f0', fontFamily: 'monospace' }}>{p.pincode}</td>
-                        <td style={{ padding: '10px 14px', color: '#94a3b8' }}>{p.orders}</td>
+                      <tr key={p.pincode} style={{ borderBottom: '1px solid #e6e8ec22' }}>
+                        <td style={{ padding: '10px 14px', color: '#1f2937', fontFamily: 'monospace' }}>{p.pincode}</td>
+                        <td style={{ padding: '10px 14px', color: '#64748b' }}>{p.orders}</td>
                         <td style={{ padding: '10px 14px', color: '#10b981' }}>{p.delivered}</td>
                         <td style={{ padding: '10px 14px', color: '#ef4444' }}>{p.rto}</td>
                         <td style={{ padding: '10px 14px' }}>
@@ -378,9 +378,9 @@ export function OrderGuard() {
       )}
 
       {activeTab === 'settings' && (
-        <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', padding: '24px' }}>
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e6e8ec', padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h3 style={{ margin: 0, fontSize: '18px', color: '#f1f5f9', fontWeight: 600 }}>OrderGuard Settings</h3>
+            <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: 600 }}>OrderGuard Settings</h3>
             <button onClick={saveSettings} disabled={saving} style={{
               padding: '8px 20px', borderRadius: '8px', border: 'none',
               background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
@@ -403,11 +403,11 @@ export function OrderGuard() {
             </SettingRow>
 
             {/* Band thresholds */}
-            <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Risk Band Thresholds</h4>
+            <div style={{ borderTop: '1px solid #e6e8ec', paddingTop: '20px' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Risk Band Thresholds</h4>
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: '200px' }}>
-                  <label style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '6px' }}>
                     Low max (0–{settings.low_max} = Low)
                   </label>
                   <input type="range" min={10} max={settings.medium_max - 1} value={settings.low_max}
@@ -416,7 +416,7 @@ export function OrderGuard() {
                   <span style={{ fontSize: '20px', fontWeight: 700, color: '#10b981' }}>{settings.low_max}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: '200px' }}>
-                  <label style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '6px' }}>
                     Medium max ({settings.low_max + 1}–{settings.medium_max} = Medium)
                   </label>
                   <input type="range" min={settings.low_max + 1} max={95} value={settings.medium_max}
@@ -431,8 +431,8 @@ export function OrderGuard() {
             </div>
 
             {/* Action per band */}
-            <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Actions by Band</h4>
+            <div style={{ borderTop: '1px solid #e6e8ec', paddingTop: '20px' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Actions by Band</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <ActionSelect label="Low Risk" value={settings.action_low} color="#10b981"
                   onChange={v => setSettings(s => ({ ...s, action_low: v }))} />
@@ -444,8 +444,8 @@ export function OrderGuard() {
             </div>
 
             {/* Journey pickers */}
-            <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Linked Journeys</h4>
+            <div style={{ borderTop: '1px solid #e6e8ec', paddingTop: '20px' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Linked Journeys</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <JourneyPicker label="COD Confirm Journey" journeys={journeys}
                   value={settings.cod_confirm_journey_id}
@@ -457,7 +457,7 @@ export function OrderGuard() {
             </div>
 
             {/* Hold callback */}
-            <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
+            <div style={{ borderTop: '1px solid #e6e8ec', paddingTop: '20px' }}>
               <SettingRow label="Hold callback" description="When action is 'Hold', POST hold decision to integration callback_url">
                 <ToggleSwitch checked={settings.hold_callback} onChange={v => setSettings(s => ({ ...s, hold_callback: v }))} />
               </SettingRow>
@@ -465,9 +465,9 @@ export function OrderGuard() {
 
             {/* Prepay discount */}
             {(settings.action_medium === 'prepay_nudge' || settings.action_high === 'prepay_nudge') && (
-              <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
-                <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#e2e8f0', fontWeight: 600 }}>Prepay Incentive</h4>
-                <label style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+              <div style={{ borderTop: '1px solid #e6e8ec', paddingTop: '20px' }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Prepay Incentive</h4>
+                <label style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '6px' }}>
                   Discount for switching to prepaid: {settings.prepay_discount_pct}%
                 </label>
                 <input type="range" min={0} max={50} value={settings.prepay_discount_pct}
@@ -492,7 +492,7 @@ export function OrderGuard() {
 function StatCard({ icon, label, value, color, subtitle }: { icon: React.ReactNode; label: string; value: string | number; color: string; subtitle?: string }) {
   return (
     <div style={{
-      background: '#0f172a', borderRadius: '10px', border: '1px solid #1e293b',
+      background: '#ffffff', borderRadius: '10px', border: '1px solid #e6e8ec',
       padding: '16px', display: 'flex', alignItems: 'center', gap: '12px',
     }}>
       <div style={{
@@ -502,7 +502,7 @@ function StatCard({ icon, label, value, color, subtitle }: { icon: React.ReactNo
         {icon}
       </div>
       <div>
-        <div style={{ fontSize: '20px', fontWeight: 700, color: '#f1f5f9' }}>{value}</div>
+        <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>{value}</div>
         <div style={{ fontSize: '12px', color: '#64748b' }}>{label}</div>
         {subtitle && <div style={{ fontSize: '11px', color: '#475569' }}>{subtitle}</div>}
       </div>
@@ -528,16 +528,16 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
 
   return (
     <>
-      <tr onClick={onToggle} style={{ borderBottom: '1px solid #1e293b22', cursor: 'pointer', transition: 'background 0.15s' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#1e293b44')}
+      <tr onClick={onToggle} style={{ borderBottom: '1px solid #e6e8ec22', cursor: 'pointer', transition: 'background 0.15s' }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#e6e8ec44')}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-        <td style={{ padding: '10px 14px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>
+        <td style={{ padding: '10px 14px', color: '#1f2937', fontFamily: 'monospace', fontSize: '12px' }}>
           {order.external_order_id}
           {expanded ? <ChevronUp size={12} style={{ marginLeft: '6px', color: '#64748b' }} /> : <ChevronDown size={12} style={{ marginLeft: '6px', color: '#64748b' }} />}
         </td>
         <td style={{ padding: '10px 14px', fontSize: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#94a3b8' }}>{order.contact_phone || '—'}</span>
+            <span style={{ color: '#64748b' }}>{order.contact_phone || '—'}</span>
             {telHref && (
               <a href={telHref} className="rp-tap" onClick={e => e.stopPropagation()} title="Call customer" style={iconBtn('#10b981')}>
                 <Phone size={14} />
@@ -550,7 +550,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
             )}
           </div>
         </td>
-        <td style={{ padding: '10px 14px', color: '#e2e8f0' }}>₹{Number(order.total ?? 0).toLocaleString()}</td>
+        <td style={{ padding: '10px 14px', color: '#1f2937' }}>₹{Number(order.total ?? 0).toLocaleString()}</td>
         <td style={{ padding: '10px 14px' }}>
           {order.is_cod ? (
             <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>COD</span>
@@ -568,7 +568,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
             </span>
           ) : '—'}
         </td>
-        <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>
+        <td style={{ padding: '10px 14px', color: '#64748b', fontSize: '12px' }}>
           {order.routed_action ? ACTION_LABELS[order.routed_action] || order.routed_action : '—'}
         </td>
         <td style={{ padding: '10px 14px' }}>
@@ -577,7 +577,7 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
               display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px',
               color: order.confirm_status === 'confirmed' ? '#10b981' :
                      order.confirm_status === 'declined' ? '#ef4444' :
-                     order.confirm_status === 'no_response' ? '#f59e0b' : '#94a3b8',
+                     order.confirm_status === 'no_response' ? '#f59e0b' : '#64748b',
             }}>
               {order.confirm_status === 'confirmed' && <CheckCircle size={12} />}
               {order.confirm_status === 'declined' && <XCircle size={12} />}
@@ -610,17 +610,17 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
       {/* Expanded: factor breakdown + timeline */}
       {expanded && (
         <tr>
-          <td colSpan={10} style={{ padding: '0 14px 16px 14px', background: '#0f172a' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px', background: '#1e293b', borderRadius: '8px' }}>
+          <td colSpan={10} style={{ padding: '0 14px 16px 14px', background: '#ffffff' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px', background: '#e6e8ec', borderRadius: '8px' }}>
               {/* Risk Factors */}
               <div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#e2e8f0', fontWeight: 600 }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1f2937', fontWeight: 600 }}>
                   <Shield size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
                   Risk Factors (base 30)
                 </h4>
                 {(order.risk_factors ?? []).map((f, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #334155', fontSize: '12px' }}>
-                    <span style={{ color: '#cbd5e1' }}>{f.factor}</span>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #d1d5db', fontSize: '12px' }}>
+                    <span style={{ color: '#334155' }}>{f.factor}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ color: '#64748b', maxWidth: '200px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{f.detail}</span>
                       <span style={{ fontWeight: 700, fontFamily: 'monospace', color: f.points > 0 ? '#ef4444' : '#10b981', minWidth: '40px', textAlign: 'right' }}>
@@ -629,13 +629,13 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
                     </span>
                   </div>
                 ))}
-                <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#f1f5f9' }}>
-                  Final: {order.risk_score} → <span style={{ color: bandStyle?.text ?? '#94a3b8' }}>{order.risk_band?.toUpperCase()}</span>
+                <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                  Final: {order.risk_score} → <span style={{ color: bandStyle?.text ?? '#64748b' }}>{order.risk_band?.toUpperCase()}</span>
                 </div>
               </div>
               {/* Timeline */}
               <div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#e2e8f0', fontWeight: 600 }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1f2937', fontWeight: 600 }}>
                   <Clock size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
                   Lifecycle
                 </h4>
@@ -647,14 +647,14 @@ function OrderTableRow({ order, expanded, onToggle }: { order: OrderRow; expande
                   { label: 'Closed', ts: order.closed_at },
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '12px' }}>
-                    <span style={{ color: item.ts ? '#cbd5e1' : '#475569' }}>{item.label}</span>
-                    <span style={{ color: item.ts ? '#94a3b8' : '#334155', fontFamily: 'monospace' }}>
+                    <span style={{ color: item.ts ? '#334155' : '#475569' }}>{item.label}</span>
+                    <span style={{ color: item.ts ? '#64748b' : '#d1d5db', fontFamily: 'monospace' }}>
                       {item.ts ? new Date(item.ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </span>
                   </div>
                 ))}
                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-                  Source: <span style={{ color: '#94a3b8' }}>{order.source}</span> · Pincode: <span style={{ color: '#94a3b8' }}>{order.address_pincode || '—'}</span>
+                  Source: <span style={{ color: '#64748b' }}>{order.source}</span> · Pincode: <span style={{ color: '#64748b' }}>{order.address_pincode || '—'}</span>
                 </div>
               </div>
             </div>
@@ -669,7 +669,7 @@ function SettingRow({ label, description, children }: { label: string; descripti
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <div>
-        <div style={{ fontSize: '14px', color: '#e2e8f0', fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>{label}</div>
         <div style={{ fontSize: '12px', color: '#64748b' }}>{description}</div>
       </div>
       {children}
@@ -681,7 +681,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
   return (
     <button onClick={() => onChange(!checked)} style={{
       width: '44px', height: '24px', borderRadius: '12px', border: 'none',
-      background: checked ? '#8b5cf6' : '#334155', cursor: 'pointer',
+      background: checked ? '#8b5cf6' : '#d1d5db', cursor: 'pointer',
       position: 'relative', transition: 'background 0.2s',
     }}>
       <div style={{
@@ -698,8 +698,8 @@ function ActionSelect({ label, value, color, onChange }: { label: string; value:
     <div>
       <label style={{ fontSize: '12px', color, fontWeight: 600, display: 'block', marginBottom: '6px' }}>{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)} style={{
-        width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #334155',
-        background: '#0f172a', color: '#e2e8f0', fontSize: '13px',
+        width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db',
+        background: '#ffffff', color: '#1f2937', fontSize: '13px',
       }}>
         <option value="none">No action</option>
         <option value="cod_confirm">COD Confirm</option>
@@ -713,10 +713,10 @@ function ActionSelect({ label, value, color, onChange }: { label: string; value:
 function JourneyPicker({ label, journeys, value, onChange }: { label: string; journeys: Journey[]; value: string | null; onChange: (v: string | null) => void }) {
   return (
     <div>
-      <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500, display: 'block', marginBottom: '6px' }}>{label}</label>
+      <label style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, display: 'block', marginBottom: '6px' }}>{label}</label>
       <select value={value ?? ''} onChange={e => onChange(e.target.value || null)} style={{
-        width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #334155',
-        background: '#0f172a', color: '#e2e8f0', fontSize: '13px',
+        width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db',
+        background: '#ffffff', color: '#1f2937', fontSize: '13px',
       }}>
         <option value="">— None —</option>
         {journeys.map(j => (

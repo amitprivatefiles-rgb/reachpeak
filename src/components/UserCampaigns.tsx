@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getHeaderFormat } from '../lib/templatePayloadBuilder';
-import { Plus, Upload, Image as ImageIcon, MessageSquare, Download, CheckCircle, XCircle, Send, Eye, X, AlertCircle, ExternalLink, Phone, Edit3, Users, Copy } from 'lucide-react';
+import { Plus, Upload, Image as ImageIcon, MessageSquare, Download, CheckCircle, XCircle, Send, Eye, X, AlertCircle, ExternalLink, Phone, Edit3, Users, Copy, Trash2 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -67,7 +67,7 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; label: string; p
   approved: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Approved' },
   Running: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Running', pulse: true },
   Paused: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Paused' },
-  Completed: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Completed' },
+  Completed: { bg: 'bg-gray-200', text: 'text-gray-500', label: 'Completed' },
   Processing: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Processing' },
   rejected: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Rejected' },
 };
@@ -137,6 +137,15 @@ export function UserCampaigns() {
     const matches = selectedTemplateB.body_text.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches)].sort();
   }, [selectedTemplateB]);
+
+  const deleteCampaign = async (id: string, name: string) => {
+    if (!confirm(`Delete campaign "${name}"? This cannot be undone.`)) return;
+    await supabase.from('campaign_contacts').delete().eq('campaign_id', id);
+    const { error } = await supabase.from('campaigns').delete().eq('id', id);
+    if (error) { addToast('Delete failed: ' + error.message, 'error'); return; }
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    addToast('Campaign deleted', 'success');
+  };
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = crypto.randomUUID();
@@ -359,8 +368,10 @@ export function UserCampaigns() {
         template_language: formData.message_mode === 'template' ? formData.template_language : null,
         variable_mapping: formData.message_mode === 'template' && Object.keys(formData.variable_mapping).length > 0 ? formData.variable_mapping : null,
         message_buttons: formData.message_buttons.length > 0 ? formData.message_buttons : null,
-        status: asDraft ? 'draft' : 'pending_approval',
+        status: asDraft ? 'draft' : 'approved',
         submitted_at: asDraft ? null : new Date().toISOString(),
+        approved_at: asDraft ? null : new Date().toISOString(),
+        approved_by: asDraft ? null : user.id,
         total_numbers: formData.contact_selection === 'manual' ? manualParsed.valid.length : contactCount,
         selected_audience: selectedAudience,
         scheduled_start: formData.scheduled_start ? new Date(formData.scheduled_start).toISOString() : null,
@@ -416,6 +427,12 @@ export function UserCampaigns() {
         setUploadingFile(false);
       }
 
+      // Send immediately — no admin approval required.
+      if (!asDraft && campaignId) {
+        const { error: enqErr } = await supabase.functions.invoke('enqueue-campaign', { body: { campaign_id: campaignId, mode: 'start' } });
+        if (enqErr) throw enqErr;
+      }
+
       // Reset form
       setShowModal(false);
       setEditingDraftId(null);
@@ -429,7 +446,7 @@ export function UserCampaigns() {
         ab_enabled: false, ab_split: 50, variant_b: null, auto_retry_hours: null,
       });
       fetchCampaigns();
-      addToast(asDraft ? 'Campaign saved as draft! 📝' : (editingDraftId ? 'Draft submitted for approval! ✅' : 'Campaign submitted for approval! ✅'), 'success');
+      addToast(asDraft ? 'Campaign saved as draft! 📝' : 'Campaign started! 🚀', 'success');
     } catch (err: any) {
       addToast('Error saving campaign: ' + err.message, 'error');
     } finally {
@@ -468,7 +485,7 @@ export function UserCampaigns() {
   };
 
   const getStatusBadge = (status: string) => {
-    const badge = STATUS_BADGES[status] || { bg: 'bg-gray-500/20', text: 'text-gray-400', label: status };
+    const badge = STATUS_BADGES[status] || { bg: 'bg-gray-200', text: 'text-gray-500', label: status };
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
         {badge.pulse && <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />}
@@ -487,7 +504,7 @@ export function UserCampaigns() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading campaigns...</div>
+        <div className="text-gray-500">Loading campaigns...</div>
       </div>
     );
   }
@@ -516,8 +533,8 @@ export function UserCampaigns() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">My Campaigns</h1>
-          <p className="text-gray-400">Create and track your WhatsApp campaigns</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Campaigns</h1>
+          <p className="text-gray-500">Create and track your WhatsApp campaigns</p>
         </div>
         <button
           onClick={() => { setShowModal(true); fetchContactMeta(); fetchApprovedTemplates(); }}
@@ -534,23 +551,23 @@ export function UserCampaigns() {
           <div
             key={campaign.id}
             onClick={() => setShowDetail(campaign)}
-            className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition cursor-pointer group"
+            className="bg-white border border-gray-200 rounded-xl p-6 hover:border-gray-200 transition cursor-pointer group"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-white group-hover:text-emerald-400 transition">{campaign.name}</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 group-hover:text-emerald-400 transition">{campaign.name}</h3>
                   {getStatusBadge(campaign.status)}
                   <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400">{campaign.type}</span>
                 </div>
 
                 {campaign.message_template && (
-                  <div className="mb-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="flex items-center gap-2 mb-1">
                       <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-xs font-medium text-gray-300">Message</span>
+                      <span className="text-xs font-medium text-gray-600">Message</span>
                     </div>
-                    <p className="text-sm text-gray-400 line-clamp-2">{campaign.message_template}</p>
+                    <p className="text-sm text-gray-500 line-clamp-2">{campaign.message_template}</p>
                   </div>
                 )}
 
@@ -567,19 +584,19 @@ export function UserCampaigns() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                   <div>
-                    <p className="text-gray-400 text-xs mb-1">Total Contacts</p>
-                    <p className="text-white text-lg font-semibold">{(campaign.total_numbers || 0).toLocaleString()}</p>
+                    <p className="text-gray-500 text-xs mb-1">Total Contacts</p>
+                    <p className="text-gray-900 text-lg font-semibold">{(campaign.total_numbers || 0).toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-xs mb-1">Sent</p>
+                    <p className="text-gray-500 text-xs mb-1">Sent</p>
                     <p className="text-emerald-400 text-lg font-semibold">{campaign.messages_sent.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-xs mb-1">Failed</p>
+                    <p className="text-gray-500 text-xs mb-1">Failed</p>
                     <p className="text-red-400 text-lg font-semibold">{campaign.messages_failed.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-xs mb-1">Delivery Rate</p>
+                    <p className="text-gray-500 text-xs mb-1">Delivery Rate</p>
                     <p className="text-green-400 text-lg font-semibold">
                       {(() => {
                         const total = campaign.messages_sent + campaign.messages_failed;
@@ -592,11 +609,11 @@ export function UserCampaigns() {
                 {/* Progress bar for running campaigns */}
                 {(campaign.status === 'Running' || campaign.status === 'Completed') && campaign.total_numbers > 0 && (
                   <div className="mt-4">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
                       <span>Progress</span>
                       <span>{Math.min(100, ((campaign.messages_sent + campaign.messages_failed) / campaign.total_numbers * 100)).toFixed(1)}%</span>
                     </div>
-                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${campaign.status === 'Completed' ? 'bg-gray-400' : 'bg-emerald-500'}`}
                         style={{ width: `${Math.min(100, (campaign.messages_sent + campaign.messages_failed) / campaign.total_numbers * 100)}%` }}
@@ -612,12 +629,15 @@ export function UserCampaigns() {
                     <Edit3 className="w-3.5 h-3.5" /> Edit & Submit
                   </button>
                 )}
-                <button className="p-2 text-gray-500 hover:text-white transition">
+                <button className="p-2 text-gray-500 hover:text-gray-900 transition">
                   <Eye className="w-5 h-5" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); deleteCampaign(campaign.id, campaign.name); }} className="p-2 text-gray-500 hover:text-red-400 transition" title="Delete campaign">
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-800">
+            <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-200">
               <span>{campaign.status === 'draft' ? 'Created' : 'Submitted'}: {campaign.submitted_at ? new Date(campaign.submitted_at).toLocaleDateString() : new Date(campaign.created_at).toLocaleDateString()}</span>
               {campaign.approved_at && <span>Approved: {new Date(campaign.approved_at).toLocaleDateString()}</span>}
               <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">Version {campaign.message_version}</span>
@@ -626,9 +646,9 @@ export function UserCampaigns() {
         ))}
 
         {campaigns.length === 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
             <Send className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg font-medium mb-2">No campaigns yet</p>
+            <p className="text-gray-500 text-lg font-medium mb-2">No campaigns yet</p>
             <p className="text-gray-500 text-sm mb-6">Create your first campaign to get started</p>
             <button
               onClick={() => setShowModal(true)}
@@ -643,32 +663,32 @@ export function UserCampaigns() {
       {/* Campaign detail modal */}
       {showDetail && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-white">{showDetail.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{showDetail.name}</h2>
                 <div className="flex items-center gap-2 mt-2">
                   {getStatusBadge(showDetail.status)}
                   <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400">{showDetail.type}</span>
                 </div>
               </div>
-              <button onClick={() => setShowDetail(null)} className="p-2 text-gray-400 hover:text-white transition">
+              <button onClick={() => setShowDetail(null)} className="p-2 text-gray-500 hover:text-gray-900 transition">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             {showDetail.message_template && (
-              <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
                   <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-medium text-gray-300">Message Template</span>
+                  <span className="text-sm font-medium text-gray-600">Message Template</span>
                 </div>
-                <p className="text-gray-400 text-sm whitespace-pre-wrap">{showDetail.message_template}</p>
+                <p className="text-gray-500 text-sm whitespace-pre-wrap">{showDetail.message_template}</p>
               </div>
             )}
 
             {showDetail.file_name && showDetail.file_url && (
-              <div className="mb-4 bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="mb-4 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
                 {getFileType(showDetail.file_name) === 'image' ? (
                   <img src={showDetail.file_url} alt={showDetail.file_name} className="w-full h-48 object-cover" />
                 ) : getFileType(showDetail.file_name) === 'video' ? (
@@ -676,7 +696,7 @@ export function UserCampaigns() {
                 ) : (
                   <div className="flex items-center gap-3 p-3">
                     <Download className="w-5 h-5 text-blue-400" />
-                    <p className="text-sm text-white">{showDetail.file_name}</p>
+                    <p className="text-sm text-gray-900">{showDetail.file_name}</p>
                   </div>
                 )}
               </div>
@@ -684,7 +704,7 @@ export function UserCampaigns() {
 
             {/* Message Buttons */}
             {showDetail.message_buttons && Array.isArray(showDetail.message_buttons) && (showDetail.message_buttons as any[]).length > 0 && (
-              <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-xs text-gray-500 mb-2">Message Buttons</p>
                 <div className="flex flex-wrap gap-2">
                   {(showDetail.message_buttons as any[]).map((btn: any, idx: number) => (
@@ -705,12 +725,12 @@ export function UserCampaigns() {
 
             {/* Audience Selection Info */}
             {showDetail.selected_audience && (
-              <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm font-medium text-gray-300">Audience Selection</span>
+                  <span className="text-sm font-medium text-gray-600">Audience Selection</span>
                 </div>
-                <p className="text-sm text-gray-400 capitalize">
+                <p className="text-sm text-gray-500 capitalize">
                   {(showDetail.selected_audience as any).mode === 'all' ? 'All contacts' :
                    (showDetail.selected_audience as any).mode === 'source' ? `Source: ${(showDetail.selected_audience as any).source_filter}` :
                    (showDetail.selected_audience as any).mode === 'campaign' ? `Campaign filter` :
@@ -732,20 +752,20 @@ export function UserCampaigns() {
 
             {/* Stats grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Total Contacts</p>
-                <p className="text-white text-xl font-bold">{(showDetail.total_numbers || 0).toLocaleString()}</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Total Contacts</p>
+                <p className="text-gray-900 text-xl font-bold">{(showDetail.total_numbers || 0).toLocaleString()}</p>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Sent</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Sent</p>
                 <p className="text-emerald-400 text-xl font-bold">{showDetail.messages_sent.toLocaleString()}</p>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Failed</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Failed</p>
                 <p className="text-red-400 text-xl font-bold">{showDetail.messages_failed.toLocaleString()}</p>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Delivery Rate</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Delivery Rate</p>
                 <p className="text-green-400 text-xl font-bold">
                   {(() => {
                     const total = showDetail.messages_sent + showDetail.messages_failed;
@@ -753,8 +773,8 @@ export function UserCampaigns() {
                   })()}%
                 </p>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Failure Rate</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Failure Rate</p>
                 <p className="text-red-400 text-xl font-bold">
                   {(() => {
                     const total = showDetail.messages_sent + showDetail.messages_failed;
@@ -762,20 +782,20 @@ export function UserCampaigns() {
                   })()}%
                 </p>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">Version</p>
-                <p className="text-white text-xl font-bold">{showDetail.message_version}</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500 text-xs mb-1">Version</p>
+                <p className="text-gray-900 text-xl font-bold">{showDetail.message_version}</p>
               </div>
             </div>
 
             {/* Progress bar */}
             {showDetail.total_numbers > 0 && (
               <div className="mb-4">
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
                   <span>Campaign Progress</span>
                   <span>{Math.min(100, ((showDetail.messages_sent + showDetail.messages_failed) / showDetail.total_numbers * 100)).toFixed(1)}%</span>
                 </div>
-                <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(100, (showDetail.messages_sent + showDetail.messages_failed) / showDetail.total_numbers * 100)}%` }}
@@ -785,11 +805,11 @@ export function UserCampaigns() {
             )}
 
             {/* Campaign Contacts */}
-            <div className="mb-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm font-medium text-gray-300">Campaign Contacts ({detailContacts.length.toLocaleString()})</span>
+                  <span className="text-sm font-medium text-gray-600">Campaign Contacts ({detailContacts.length.toLocaleString()})</span>
                 </div>
                 {detailContacts.length > 0 && (
                   <button onClick={() => { const nums = detailContacts.map(c => c.phone_number).join('\n'); copyToClipboard(nums, 'all-nums'); }}
@@ -806,14 +826,14 @@ export function UserCampaigns() {
               ) : (
                 <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
                   {detailContacts.map((c, idx) => (
-                    <div key={idx} className="flex items-center justify-between px-3 py-1.5 bg-gray-900/50 rounded-lg hover:bg-gray-900 transition group">
+                    <div key={idx} className="flex items-center justify-between px-3 py-1.5 bg-white rounded-lg hover:bg-white transition group">
                       <div className="flex items-center gap-3">
                         <span className="text-gray-600 text-xs w-8">{idx + 1}.</span>
-                        <span className="text-white font-mono text-sm">{c.phone_number}</span>
+                        <span className="text-gray-900 font-mono text-sm">{c.phone_number}</span>
                         {c.name && <span className="text-gray-500 text-xs">({c.name})</span>}
                       </div>
                       <button onClick={() => copyToClipboard(c.phone_number, `p-${idx}`)}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition p-1">
+                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-900 transition p-1">
                         {copiedFeedback === `p-${idx}` ? <CheckCircle className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
@@ -822,7 +842,7 @@ export function UserCampaigns() {
               )}
             </div>
 
-            <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-800">
+            <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-200">
               <span>Submitted: {showDetail.submitted_at ? new Date(showDetail.submitted_at).toLocaleString() : new Date(showDetail.created_at).toLocaleString()}</span>
               {showDetail.approved_at && <span>Approved: {new Date(showDetail.approved_at).toLocaleString()}</span>}
               {showDetail.start_time && <span>Started: {new Date(showDetail.start_time).toLocaleString()}</span>}
@@ -835,10 +855,10 @@ export function UserCampaigns() {
       {/* Create campaign modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Submit New Campaign</h2>
-              <button onClick={() => { setShowModal(false); clearFile(); }} className="p-2 text-gray-400 hover:text-white transition">
+              <h2 className="text-2xl font-bold text-gray-900">Submit New Campaign</h2>
+              <button onClick={() => { setShowModal(false); clearFile(); }} className="p-2 text-gray-500 hover:text-gray-900 transition">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -846,25 +866,25 @@ export function UserCampaigns() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Campaign Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Campaign Name *</label>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Campaign Name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="e.g. Diwali Offer 2026"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               {/* Type + Version row */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Campaign Type *</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Campaign Type *</label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Promotion">Promotion</option>
                     <option value="Follow-up">Follow-up</option>
@@ -873,7 +893,7 @@ export function UserCampaigns() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">A/B Testing</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">A/B Testing</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -888,7 +908,7 @@ export function UserCampaigns() {
                     className={`w-full py-2.5 rounded-lg font-medium text-sm transition ${
                       formData.ab_enabled
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'
+                        : 'bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900'
                     }`}
                   >
                     {formData.ab_enabled ? '✅ A/B Test Enabled' : 'Enable A/B Test'}
@@ -898,14 +918,14 @@ export function UserCampaigns() {
 
               {/* Message Mode Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Message Mode</label>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Message Mode</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setFormData({ ...formData, message_mode: 'template' })}
-                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'template' ? 'bg-emerald-500 text-white' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'}`}>
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'template' ? 'bg-emerald-500 text-white' : 'bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900'}`}>
                     📋 Approved Template
                   </button>
                   <button type="button" onClick={() => setFormData({ ...formData, message_mode: 'freetext' })}
-                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'freetext' ? 'bg-emerald-500 text-white' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'}`}>
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition ${formData.message_mode === 'freetext' ? 'bg-emerald-500 text-white' : 'bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900'}`}>
                     ✍️ Free Text
                   </button>
                 </div>
@@ -923,7 +943,7 @@ export function UserCampaigns() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Select Template *</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">Select Template *</label>
                     <select
                       value={formData.template_id}
                       onChange={(e) => {
@@ -937,7 +957,7 @@ export function UserCampaigns() {
                           variable_mapping: {},
                         });
                       }}
-                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       required
                     >
                       <option value="">Select an approved template...</option>
@@ -951,10 +971,10 @@ export function UserCampaigns() {
                   </div>
 
                   {selectedTemplate && (
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       <div className="flex items-center gap-2 mb-3">
-                        <Eye className="w-4 h-4 text-gray-400" />
-                        <p className="text-gray-300 text-sm font-medium">Template Preview</p>
+                        <Eye className="w-4 h-4 text-gray-500" />
+                        <p className="text-gray-600 text-sm font-medium">Template Preview</p>
                       </div>
                       {(() => {
                         const hdrFmt = getHeaderFormat(selectedTemplate.components ?? undefined);
@@ -963,9 +983,9 @@ export function UserCampaigns() {
                           return (
                             <div className="mb-3">
                               {sampleUrl && hdrFmt === 'IMAGE' ? (
-                                <img src={sampleUrl} alt="Header" className="rounded-lg max-h-32 w-auto border border-gray-600" />
+                                <img src={sampleUrl} alt="Header" className="rounded-lg max-h-32 w-auto border border-gray-300" />
                               ) : (
-                                <div className="flex items-center gap-2 text-gray-400 text-xs">
+                                <div className="flex items-center gap-2 text-gray-500 text-xs">
                                   <ImageIcon className="w-4 h-4" />
                                   <span>{hdrFmt} header — {sampleUrl ? 'sample available' : 'no sample'}</span>
                                 </div>
@@ -977,7 +997,7 @@ export function UserCampaigns() {
                         return null;
                       })()}
                       {selectedTemplate.body_text && (
-                        <p className="text-gray-300 text-sm whitespace-pre-wrap mb-2">{selectedTemplate.body_text}</p>
+                        <p className="text-gray-600 text-sm whitespace-pre-wrap mb-2">{selectedTemplate.body_text}</p>
                       )}
                       {(() => {
                         const fc = (selectedTemplate.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'FOOTER');
@@ -989,12 +1009,12 @@ export function UserCampaigns() {
                         return (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {bc.buttons.map((b: any, i: number) => (
-                              <span key={i} className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-xs border border-gray-600">{b.text || b.type}</span>
+                              <span key={i} className="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs border border-gray-300">{b.text || b.type}</span>
                             ))}
                           </div>
                         );
                       })()}
-                      <div className="mt-2 pt-2 border-t border-gray-700">
+                      <div className="mt-2 pt-2 border-t border-gray-200">
                         <p className="text-gray-500 text-xs">
                           {templateVariables.length === 0 ? '✅ No variables — ready to send' : `${templateVariables.length} variable${templateVariables.length > 1 ? 's' : ''} to map`}
                         </p>
@@ -1003,20 +1023,20 @@ export function UserCampaigns() {
                   )}
 
                   {templateVariables.length > 0 && (
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                      <p className="text-gray-300 text-sm font-medium mb-2">Variable Mapping</p>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-gray-600 text-sm font-medium mb-2">Variable Mapping</p>
                       <p className="text-gray-500 text-xs mb-3">Map each template variable to a contact field</p>
                       <div className="grid grid-cols-2 gap-3">
                         {templateVariables.map((v) => {
                           const num = v.replace(/[{}]/g, '');
                           return (
                             <div key={v} className="flex items-center gap-2">
-                              <span className="text-gray-400 text-sm font-mono w-12">{v}</span>
+                              <span className="text-gray-500 text-sm font-mono w-12">{v}</span>
                               <span className="text-gray-500">→</span>
                               <select
                                 value={formData.variable_mapping[num] || ''}
                                 onChange={(e) => setFormData({ ...formData, variable_mapping: { ...formData.variable_mapping, [num]: e.target.value } })}
-                                className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-1.5 border border-gray-600 text-sm"
+                                className="flex-1 bg-gray-200 text-gray-900 rounded-lg px-3 py-1.5 border border-gray-300 text-sm"
                               >
                                 <option value="">Select field...</option>
                                 {CONTACT_FIELDS.map((f) => (
@@ -1035,13 +1055,13 @@ export function UserCampaigns() {
                     if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
                       return (
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Header Media Override (Optional)</label>
+                          <label className="block text-sm font-medium text-gray-600 mb-2">Header Media Override (Optional)</label>
                           <input
                             type="url"
                             value={formData.header_override_url}
                             onChange={(e) => setFormData({ ...formData, header_override_url: e.target.value })}
                             placeholder="https://... (leave empty to use approved sample)"
-                            className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
                         </div>
                       );
@@ -1058,7 +1078,7 @@ export function UserCampaigns() {
                         <div className="h-px flex-1 bg-purple-500/30" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Select Template (B) *</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">Select Template (B) *</label>
                         <select
                           value={formData.variant_b.template_id}
                           onChange={(e) => {
@@ -1074,7 +1094,7 @@ export function UserCampaigns() {
                               },
                             });
                           }}
-                          className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
                           required
                         >
                           <option value="">Select an approved template...</option>
@@ -1085,10 +1105,10 @@ export function UserCampaigns() {
                       </div>
 
                       {selectedTemplateB && (
-                        <div className="bg-gray-800/50 rounded-lg p-4 border border-purple-500/30">
+                        <div className="bg-gray-50 rounded-lg p-4 border border-purple-500/30">
                           <div className="flex items-center gap-2 mb-3">
                             <Eye className="w-4 h-4 text-purple-400" />
-                            <p className="text-gray-300 text-sm font-medium">Variant B Preview</p>
+                            <p className="text-gray-600 text-sm font-medium">Variant B Preview</p>
                           </div>
                           {(() => {
                             const hdrFmt = getHeaderFormat(selectedTemplateB.components ?? undefined);
@@ -1099,7 +1119,7 @@ export function UserCampaigns() {
                                   {sampleUrl && hdrFmt === 'IMAGE' ? (
                                     <img src={sampleUrl} alt="Header B" className="rounded-lg max-h-32 w-auto border border-purple-600" />
                                   ) : (
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs">
+                                    <div className="flex items-center gap-2 text-gray-500 text-xs">
                                       <ImageIcon className="w-4 h-4" />
                                       <span>{hdrFmt} header — {sampleUrl ? 'sample available' : 'no sample'}</span>
                                     </div>
@@ -1110,13 +1130,13 @@ export function UserCampaigns() {
                             return null;
                           })()}
                           {selectedTemplateB.body_text && (
-                            <p className="text-gray-300 text-sm whitespace-pre-wrap mb-2">{selectedTemplateB.body_text}</p>
+                            <p className="text-gray-600 text-sm whitespace-pre-wrap mb-2">{selectedTemplateB.body_text}</p>
                           )}
                           {(() => {
                             const fc = (selectedTemplateB.components ?? []).find((c: any) => String(c.type).toUpperCase() === 'FOOTER');
                             return fc?.text ? <p className="text-gray-500 text-xs italic">{fc.text}</p> : null;
                           })()}
-                          <div className="mt-2 pt-2 border-t border-gray-700">
+                          <div className="mt-2 pt-2 border-t border-gray-200">
                             <p className="text-gray-500 text-xs">
                               {templateVariablesB.length === 0 ? '✅ No variables — ready to send' : `${templateVariablesB.length} variable${templateVariablesB.length > 1 ? 's' : ''} to map`}
                             </p>
@@ -1125,15 +1145,15 @@ export function UserCampaigns() {
                       )}
 
                       {templateVariablesB.length > 0 && (
-                        <div className="bg-gray-800/50 rounded-lg p-4 border border-purple-500/30">
-                          <p className="text-gray-300 text-sm font-medium mb-2">Variable Mapping (B)</p>
+                        <div className="bg-gray-50 rounded-lg p-4 border border-purple-500/30">
+                          <p className="text-gray-600 text-sm font-medium mb-2">Variable Mapping (B)</p>
                           <p className="text-gray-500 text-xs mb-3">Map each template variable to a contact field</p>
                           <div className="grid grid-cols-2 gap-3">
                             {templateVariablesB.map((v) => {
                               const num = v.replace(/[{}]/g, '');
                               return (
                                 <div key={v} className="flex items-center gap-2">
-                                  <span className="text-gray-400 text-sm font-mono w-12">{v}</span>
+                                  <span className="text-gray-500 text-sm font-mono w-12">{v}</span>
                                   <span className="text-gray-500">→</span>
                                   <select
                                     value={formData.variant_b!.variable_mapping[num] || ''}
@@ -1144,7 +1164,7 @@ export function UserCampaigns() {
                                         variable_mapping: { ...formData.variant_b!.variable_mapping, [num]: e.target.value },
                                       },
                                     })}
-                                    className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-1.5 border border-gray-600 text-sm"
+                                    className="flex-1 bg-gray-200 text-gray-900 rounded-lg px-3 py-1.5 border border-gray-300 text-sm"
                                   >
                                     <option value="">Select field...</option>
                                     {CONTACT_FIELDS.map((f) => (
@@ -1163,7 +1183,7 @@ export function UserCampaigns() {
                         if (hdrFmt === 'IMAGE' || hdrFmt === 'VIDEO' || hdrFmt === 'DOCUMENT') {
                           return (
                             <div>
-                              <label className="block text-sm font-medium text-gray-300 mb-2">Header Media Override B (Optional)</label>
+                              <label className="block text-sm font-medium text-gray-600 mb-2">Header Media Override B (Optional)</label>
                               <input
                                 type="url"
                                 value={formData.variant_b!.header_override_url}
@@ -1172,7 +1192,7 @@ export function UserCampaigns() {
                                   variant_b: { ...formData.variant_b!, header_override_url: e.target.value },
                                 })}
                                 placeholder="https://... (leave empty to use approved sample)"
-                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                               />
                             </div>
                           );
@@ -1181,8 +1201,8 @@ export function UserCampaigns() {
                       })()}
 
                       {/* A/B Split Slider */}
-                      <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                        <label className="block text-sm font-medium text-gray-300 mb-3">Traffic Split</label>
+                      <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-600 mb-3">Traffic Split</label>
                         <div className="flex items-center gap-4">
                           <span className="text-emerald-400 text-sm font-semibold w-16 text-right">A: {formData.ab_split}%</span>
                           <div className="flex-1 relative">
@@ -1217,19 +1237,19 @@ export function UserCampaigns() {
                     <p className="text-amber-400 text-xs">⚠️ Free-text messages only deliver to contacts who messaged you in the last 24h. Use an approved template for broadcasts.</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Message Template</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">Message Template</label>
                     <textarea
                       value={formData.message_template}
                       onChange={(e) => setFormData({ ...formData, message_template: e.target.value })}
                       rows={4}
                       placeholder="Enter the message template for this campaign..."
-                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                      className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Template Media (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">Template Media (Optional)</label>
                     {previewUrl ? (
-                      <div className="relative bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                      <div className="relative bg-gray-100 rounded-lg border border-gray-200 overflow-hidden">
                         {selectedFile?.type.startsWith('image/') ? (
                           <img src={previewUrl} alt="Preview" className="w-full h-40 object-cover" />
                         ) : (
@@ -1238,25 +1258,25 @@ export function UserCampaigns() {
                         <button type="button" onClick={clearFile} className="absolute top-2 right-2 px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs">Remove</button>
                       </div>
                     ) : (
-                      <label className="flex flex-col items-center justify-center h-32 px-4 bg-gray-800 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition">
+                      <label className="flex flex-col items-center justify-center h-32 px-4 bg-gray-100 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition">
                         <Upload className="w-6 h-6 text-gray-500 mb-2" />
-                        <span className="text-gray-400 text-sm">Click to upload image or video</span>
+                        <span className="text-gray-500 text-sm">Click to upload image or video</span>
                         <span className="text-gray-600 text-xs mt-1">PNG, JPG, GIF, MP4, WEBM</span>
                         <input type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
                       </label>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Message Buttons (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">Message Buttons (Optional)</label>
                     <p className="text-xs text-gray-500 mb-3">Add interactive buttons like WhatsApp Business. Up to 3 quick reply + 2 action buttons.</p>
                     <div className="space-y-2 mb-3">
                       {formData.message_buttons.map((btn, idx) => (
-                        <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-800 rounded-lg border border-gray-700">
+                        <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-100 rounded-lg border border-gray-200">
                           {btn.type === 'quick_reply' && <MessageSquare className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
                           {btn.type === 'url' && <ExternalLink className="w-4 h-4 text-blue-400 flex-shrink-0" />}
                           {btn.type === 'phone' && <Phone className="w-4 h-4 text-green-400 flex-shrink-0" />}
                           <div className="flex-1 min-w-0">
-                            <p className="text-white text-sm truncate">{btn.text}</p>
+                            <p className="text-gray-900 text-sm truncate">{btn.text}</p>
                             {btn.type === 'url' && <p className="text-xs text-gray-500 truncate">{btn.url}</p>}
                             {btn.type === 'phone' && <p className="text-xs text-gray-500">{btn.phone_number}</p>}
                           </div>
@@ -1304,14 +1324,14 @@ export function UserCampaigns() {
                     )}
                   </div>
                   {(formData.message_template || formData.message_buttons.length > 0) && (
-                    <div className="p-4 bg-[#0b141a] rounded-xl border border-gray-700">
+                    <div className="p-4 bg-[#0b141a] rounded-xl border border-gray-200">
                       <p className="text-xs text-gray-500 mb-2 font-medium">📱 WhatsApp Preview</p>
                       <div className="bg-[#005c4b] rounded-lg p-3 max-w-[280px]">
                         {previewUrl && selectedFile?.type.startsWith('image/') && (
                           <img src={previewUrl} alt="" className="w-full h-32 object-cover rounded-md mb-2" />
                         )}
-                        <p className="text-white text-sm whitespace-pre-wrap">{formData.message_template || 'Your message here...'}</p>
-                        <p className="text-right text-[10px] text-gray-300 mt-1">12:00 PM ✓✓</p>
+                        <p className="text-gray-900 text-sm whitespace-pre-wrap">{formData.message_template || 'Your message here...'}</p>
+                        <p className="text-right text-[10px] text-gray-600 mt-1">12:00 PM ✓✓</p>
                       </div>
                       {formData.message_buttons.length > 0 && (
                         <div className="mt-1 max-w-[280px] space-y-1">
@@ -1333,7 +1353,7 @@ export function UserCampaigns() {
 
               {/* Contact Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Select Contacts *</label>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Select Contacts *</label>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {[
                     { value: 'all', label: 'All Contacts' },
@@ -1349,7 +1369,7 @@ export function UserCampaigns() {
                       className={`py-2 px-3 rounded-lg text-sm font-medium transition ${
                         formData.contact_selection === opt.value
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                          : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'
+                          : 'bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900'
                       }`}
                     >
                       {opt.label}
@@ -1361,7 +1381,7 @@ export function UserCampaigns() {
                   <select
                     value={formData.contact_source_filter}
                     onChange={(e) => setFormData({ ...formData, contact_source_filter: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">Select source...</option>
                     {availableSources.map((s) => (
@@ -1374,7 +1394,7 @@ export function UserCampaigns() {
                   <select
                     value={formData.contact_campaign_filter}
                     onChange={(e) => setFormData({ ...formData, contact_campaign_filter: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">Select campaign...</option>
                     {existingCampaigns.map((c) => (
@@ -1387,7 +1407,7 @@ export function UserCampaigns() {
                   <select
                     value={formData.contact_tag_filter}
                     onChange={(e) => setFormData({ ...formData, contact_tag_filter: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">Select tag...</option>
                     {availableTags.map((t) => (
@@ -1403,7 +1423,7 @@ export function UserCampaigns() {
                       onChange={(e) => setFormData({ ...formData, manual_numbers_raw: e.target.value })}
                       rows={5}
                       placeholder="Paste phone numbers here — one per line, or comma/space separated.\n\nExamples:\n9876543210\n+91 98765 43210\n919876543210"
-                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none font-mono text-sm"
+                      className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none font-mono text-sm"
                     />
                     <div className="flex gap-4 mt-1">
                       <p className="text-emerald-400 text-xs">{manualParsed.valid.length} valid number{manualParsed.valid.length !== 1 ? 's' : ''}</p>
@@ -1414,30 +1434,30 @@ export function UserCampaigns() {
                   </div>
                 )}
 
-                <div className="mt-2 px-3 py-2 bg-gray-800/50 rounded-lg">
-                  <p className="text-sm text-gray-400">
-                    Selected contacts: <span className="text-white font-semibold">{contactCount.toLocaleString()}</span>
+                <div className="mt-2 px-3 py-2 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500">
+                    Selected contacts: <span className="text-gray-900 font-semibold">{contactCount.toLocaleString()}</span>
                   </p>
                 </div>
               </div>
 
               {/* Schedule (optional) */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Schedule (Optional)</label>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Schedule (Optional)</label>
                 <input
                   type="datetime-local"
                   value={formData.scheduled_start}
                   onChange={(e) => setFormData({ ...formData, scheduled_start: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">Leave empty to start as soon as approved</p>
               </div>
 
               {/* Auto-Retry Toggle */}
-              <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-300">Auto-retry failed messages</p>
+                    <p className="text-sm font-medium text-gray-600">Auto-retry failed messages</p>
                     <p className="text-xs text-gray-500 mt-0.5">Automatically retry messages that failed to deliver</p>
                   </div>
                   <button
@@ -1447,7 +1467,7 @@ export function UserCampaigns() {
                       auto_retry_hours: formData.auto_retry_hours !== null ? null : 4,
                     })}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      formData.auto_retry_hours !== null ? 'bg-emerald-500' : 'bg-gray-600'
+                      formData.auto_retry_hours !== null ? 'bg-emerald-500' : 'bg-gray-300'
                     }`}
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -1457,16 +1477,16 @@ export function UserCampaigns() {
                 </div>
                 {formData.auto_retry_hours !== null && (
                   <div className="mt-3 flex items-center gap-3">
-                    <label className="text-sm text-gray-400">Retry after</label>
+                    <label className="text-sm text-gray-500">Retry after</label>
                     <input
                       type="number"
                       min={1}
                       max={72}
                       value={formData.auto_retry_hours}
                       onChange={(e) => setFormData({ ...formData, auto_retry_hours: parseInt(e.target.value) || 4 })}
-                      className="w-20 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-20 px-3 py-1.5 bg-gray-200 border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
-                    <span className="text-sm text-gray-400">hours</span>
+                    <span className="text-sm text-gray-500">hours</span>
                   </div>
                 )}
               </div>
@@ -1474,7 +1494,7 @@ export function UserCampaigns() {
               {/* Info box */}
               <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
                 <p className="text-blue-400 text-sm">
-                  Your campaign will be reviewed by an admin before it starts running. You'll be notified once it's approved or if changes are needed.
+                  Your campaign will start sending immediately after you submit. Please double-check your audience and message before sending.
                 </p>
               </div>
 
@@ -1483,7 +1503,7 @@ export function UserCampaigns() {
                 <button
                   type="button"
                   onClick={() => { setShowModal(false); setEditingDraftId(null); clearFile(); }}
-                  className="px-5 py-2.5 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition font-medium"
+                  className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition font-medium"
                 >
                   Cancel
                 </button>
@@ -1491,7 +1511,7 @@ export function UserCampaigns() {
                   type="button"
                   onClick={(e) => handleSubmit(e as any, true)}
                   disabled={submitting || uploadingFile || !formData.name.trim()}
-                  className="px-5 py-2.5 bg-slate-600 text-white rounded-lg hover:bg-slate-500 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-5 py-2.5 bg-slate-600 text-gray-900 rounded-lg hover:bg-slate-500 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <Edit3 className="w-4 h-4" />
                   Save Draft
@@ -1506,7 +1526,7 @@ export function UserCampaigns() {
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      Submit for Approval
+                      Send Campaign
                     </>
                   )}
                 </button>
