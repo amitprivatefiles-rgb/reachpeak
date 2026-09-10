@@ -2,7 +2,8 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, Menu, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff } from 'lucide-react';
+import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
@@ -19,6 +20,22 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const [pendingCount, setPendingCount] = useState(0);
   const [inboxUnread, setInboxUnread] = useState(0);
   const [waConnected, setWaConnected] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => { isPushEnabled().then(setPushOn).catch(() => {}); }, []);
+
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushOn) { await disablePush(); setPushOn(false); }
+      else {
+        const r = await enablePush();
+        if (r.ok) setPushOn(true);
+        else alert(r.error || 'Could not enable alerts.');
+      }
+    } finally { setPushBusy(false); }
+  };
 
   // Hide the "Connect WhatsApp" setup tab once a number is connected.
   useEffect(() => {
@@ -183,6 +200,16 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               {isAdmin ? 'Admin' : 'User'}
             </span>
           </div>
+          {pushSupported() && (
+            <button
+              onClick={togglePush}
+              disabled={pushBusy}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition text-sm font-medium mb-2 ${pushOn ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              {pushOn ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              {pushBusy ? 'Please wait…' : pushOn ? 'Alerts on' : 'Enable alerts'}
+            </button>
+          )}
           <button
             onClick={handleSignOut}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition text-sm font-medium"
@@ -202,7 +229,11 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               <img src={logoUrl} alt="ReachPeak API" className="w-8 h-8 rounded-lg object-cover" />
               <h1 className="text-white font-bold text-base">ReachPeak API</h1>
             </div>
-            <div className="w-6" />
+            {pushSupported() ? (
+              <button onClick={togglePush} disabled={pushBusy} className={pushOn ? 'text-emerald-400' : 'text-gray-400 hover:text-white'} title={pushOn ? 'Alerts on' : 'Enable alerts'}>
+                {pushOn ? <Bell className="w-6 h-6" /> : <BellOff className="w-6 h-6" />}
+              </button>
+            ) : <div className="w-6" />}
           </div>
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
