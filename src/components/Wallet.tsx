@@ -7,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 // 1 token = ₹1 = 100 paise. Balance/pricing are stored in paise.
 const TOKENS = (paise: number) => (Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const RUPEE = (paise: number) => '₹' + (Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const PRESETS = [1000, 2000, 5000, 10000];
+const PRESETS = [5000, 10000, 20000, 50000];
+const MIN_RUPEES = 5000;
 const LOW_BALANCE_PAISE = 20000; // ₹200 → low-balance banner
 
 // First-recharge welcome offer (mirrors wallet-webhook logic exactly)
@@ -48,7 +49,7 @@ export function Wallet() {
   const [txns, setTxns] = useState<any[]>([]);
   const [pricing, setPricing] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [amount, setAmount] = useState(1000);
+  const [amount, setAmount] = useState(MIN_RUPEES);
   const [paying, setPaying] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
 
@@ -79,7 +80,7 @@ export function Wallet() {
   const recharge = async (overrideAmount?: number) => {
     const amt = overrideAmount ?? amount;
     setMsg(null);
-    if (amt < 1000) { setMsg({ kind: 'err', text: 'Minimum recharge is ₹1,000.' }); return; }
+    if (amt < MIN_RUPEES) { setMsg({ kind: 'err', text: `Minimum recharge is ₹${MIN_RUPEES.toLocaleString('en-IN')}.` }); return; }
     setPaying(true);
     try {
       const ok = await loadRazorpay();
@@ -211,7 +212,7 @@ export function Wallet() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#64748b' }}>₹</span>
-            <input type="number" min={1000} step={500} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value)))}
+            <input type="number" min={MIN_RUPEES} step={500} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value)))}
               style={{ width: '100%', padding: '10px 12px 10px 26px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14, boxSizing: 'border-box' }} />
           </div>
           <button onClick={() => recharge()} disabled={paying} style={{
@@ -221,7 +222,7 @@ export function Wallet() {
             {paying ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={16} />} Get {TOKENS(amount * 100)} tokens
           </button>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#64748b' }}>Minimum ₹1,000 · 1 token = ₹1 · GST invoice issued for every payment.</p>
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#64748b' }}>Minimum ₹{MIN_RUPEES.toLocaleString('en-IN')} · 1 token = ₹1 · GST invoice issued for every payment.</p>
       </div>
 
       {msg && (
