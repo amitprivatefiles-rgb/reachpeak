@@ -44,6 +44,7 @@ import { LeadSources } from './components/LeadSources';
 import { Agents } from './components/Agents';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
+import { Disputes } from './components/Disputes';
 import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
@@ -186,7 +187,7 @@ function AppDashboard() {
       case 'setup': return <OnboardingChoice onComplete={() => setCurrentPage('dashboard')} />;
       case 'support': return isAdmin ? <AdminSupport /> : <Support />;
       case 'provision': return isAdmin ? <AdminProvisionStore /> : <Dashboard />;
-      case 'inbox': return <Inbox />;
+      case 'inbox': return <Inbox onNavigate={setCurrentPage} />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
       case 'templates': return <Templates />;
       case 'approvals': return <CampaignApprovals />;
@@ -199,6 +200,7 @@ function AppDashboard() {
       case 'integrations': return <Integrations />;
       case 'journeys': return <Journeys />;
       case 'orderguard': return <OrderGuard />;
+      case 'disputes': return <Disputes onNavigate={setCurrentPage} />;
       case 'wallet': return <Wallet />;
       case 'ai-broadcast': return <AIBroadcast />;
       case 'billing': return isAdmin ? <AdminBilling /> : <Wallet />;

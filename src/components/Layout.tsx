@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale } from 'lucide-react';
 import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
@@ -90,6 +90,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'reports', label: 'Reports', icon: Activity },
     { id: 'journeys', label: 'Journeys', icon: Zap },
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
+    { id: 'disputes', label: 'Disputes', icon: Scale },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'users', label: 'User Management', icon: Shield },
     { id: 'provision', label: 'Provision Store', icon: Smartphone },
@@ -110,6 +111,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'reports', label: 'Reports', icon: Activity },
     { id: 'journeys', label: 'Journeys', icon: Zap },
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
+    { id: 'disputes', label: 'Disputes', icon: Scale },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'settings', label: 'Settings', icon: Settings },

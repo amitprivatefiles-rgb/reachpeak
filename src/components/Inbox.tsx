@@ -5,7 +5,7 @@ import {
   MessageSquare, Send, Paperclip, FileText, Image, Video, Search,
   Clock, Check, CheckCheck, AlertCircle, X, Loader2, Smile, ArrowLeft,
   Phone, User, File, ChevronDown, CreditCard, Trash2, MapPin,
-  Reply, ExternalLink,
+  Reply, ExternalLink, ShoppingBag,
 } from 'lucide-react';
 
 interface Conversation {
@@ -46,12 +46,15 @@ interface Template {
   components: any;
 }
 
-export function Inbox() {
+export function Inbox({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [activeAddr, setActiveAddr] = useState<string | null>(null);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [showOrders, setShowOrders] = useState(false);
+  const [orderMatches, setOrderMatches] = useState<any[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -161,15 +164,17 @@ export function Inbox() {
       setFilteredConversations(conversations);
     } else {
       const q = searchQuery.toLowerCase();
+      const matchPhones = new Set(orderMatches.map(o => o.contact_phone));
       setFilteredConversations(
         conversations.filter(c =>
           c.contact_phone.includes(q) ||
           c.contact_name?.toLowerCase().includes(q) ||
-          c.last_message_preview?.toLowerCase().includes(q)
+          c.last_message_preview?.toLowerCase().includes(q) ||
+          matchPhones.has(c.contact_phone)
         )
       );
     }
-  }, [searchQuery, conversations]);
+  }, [searchQuery, conversations, orderMatches]);
 
   // Realtime subscriptions
   useEffect(() => {
@@ -205,23 +210,54 @@ export function Inbox() {
     return () => { supabase.removeChannel(messagesChannel); };
   }, [activeConversation, user, fetchMessages]);
 
-  // Look up the customer's latest order address (for the Location button)
+  // Look up the customer's order history (for the orders panel + Location button)
   useEffect(() => {
-    if (!activeConversation || !user) { setActiveAddr(null); return; }
+    if (!activeConversation || !user) { setActiveAddr(null); setActiveOrders([]); setShowOrders(false); return; }
     let cancelled = false;
+    setShowOrders(false);
     (async () => {
       const { data } = await supabase.from('orders')
-        .select('address_line, address_city, address_state, address_pincode')
+        .select('external_order_id, total, currency, status, confirm_status, payment_method, is_cod, created_at, address_line, address_city, address_state, address_pincode, items')
         .eq('user_id', user.id)
         .eq('contact_phone', activeConversation.contact_phone)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(50);
+      if (cancelled) return;
+      setActiveOrders(data || []);
       const o = data && data[0];
       const addr = o ? [o.address_line, o.address_city, o.address_state, o.address_pincode].filter(Boolean).join(', ') : '';
-      if (!cancelled) setActiveAddr(addr || null);
+      setActiveAddr(addr || null);
     })();
     return () => { cancelled = true; };
   }, [activeConversation, user]);
+
+  // Order-ID search — searching an order number surfaces that customer's chat.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || !user || q.length < 2) { setOrderMatches([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('orders')
+        .select('external_order_id, contact_phone, total, status')
+        .eq('user_id', user.id)
+        .ilike('external_order_id', `%${q}%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!cancelled) setOrderMatches(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [searchQuery, user]);
+
+  // Deep-link: open a specific customer's chat (e.g. from the Disputes page).
+  useEffect(() => {
+    if (!conversations.length) return;
+    let phone: string | null = null;
+    try { phone = localStorage.getItem('rp_open_contact'); } catch {}
+    if (!phone) return;
+    try { localStorage.removeItem('rp_open_contact'); } catch {}
+    const conv = conversations.find(c => c.contact_phone === phone || c.contact_phone === '91' + phone);
+    if (conv) { setActiveConversation(conv); setShowMobileChat(true); fetchMessages(conv); }
+  }, [conversations, fetchMessages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -763,6 +799,16 @@ export function Inbox() {
                     <MapPin className="w-4 h-4" />
                   </a>
                 )}
+                <button
+                  onClick={() => setShowOrders(v => !v)}
+                  title="Order history"
+                  className="relative p-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-500 hover:bg-purple-500/20 transition"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  {activeOrders.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center">{activeOrders.length}</span>
+                  )}
+                </button>
                 {isWindowOpen(activeConversation) ? (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -778,6 +824,40 @@ export function Inbox() {
                 )}
               </div>
             </div>
+
+            {/* Order history panel */}
+            {showOrders && (
+              <div className="border-b border-gray-200 bg-gray-50 max-h-64 overflow-y-auto">
+                {activeOrders.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-gray-500 text-center">No orders found for this customer.</div>
+                ) : (
+                  <div className="p-3 space-y-2">
+                    {activeOrders.map((o) => (
+                      <div key={o.external_order_id} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 text-sm">#{o.external_order_id}</span>
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: o.is_cod ? '#fef3c7' : '#dcfce7', color: o.is_cod ? '#b45309' : '#15803d' }}>{o.is_cod ? 'COD' : 'Prepaid'}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 truncate">
+                            {new Date(o.created_at).toLocaleDateString('en-IN')} · ₹{o.total} · {o.status}{o.confirm_status ? ' · ' + o.confirm_status : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            try { localStorage.setItem('rp_new_dispute', JSON.stringify({ phone: activeConversation.contact_phone, name: activeConversation.contact_name, order: o.external_order_id, total: o.total })); } catch {}
+                            onNavigate && onNavigate('disputes');
+                          }}
+                          className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[#E04632] text-[#E04632] hover:bg-red-50 transition"
+                        >
+                          Raise dispute
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(16,185,129,0.02) 0%, transparent 70%)' }}>
