@@ -62,9 +62,11 @@ export function AIBroadcast() {
     audienceTags: [] as string[],
     audienceSource: '',
     manualNumbers: '',
+    manualContacts: [] as {name: string, phone: string}[],
     templateId: '',
     maxTurns: 15
   });
+  const [submitting, setSubmitting] = useState(false);
 
   // DB Data
   const [products, setProducts] = useState<Product[]>([]);
@@ -130,13 +132,20 @@ export function AIBroadcast() {
       
     if (productsData) setProducts(productsData);
 
-    // Load templates
-    const { data: templatesData } = await supabase
-      .from('templates')
-      .select('id, name, body_text, language, status')
-      .eq('status', 'approved');
-      
-    if (templatesData) setTemplates(templatesData);
+    // Load templates — get user's WABA accounts first, then approved templates
+    const { data: waAccounts } = await supabase
+      .from('whatsapp_accounts')
+      .select('id')
+      .eq('user_id', user.id);
+    const waIds = (waAccounts || []).map((a: any) => a.id);
+    if (waIds.length > 0) {
+      const { data: templatesData } = await supabase
+        .from('templates')
+        .select('id, name, body_text, language, status')
+        .eq('status', 'approved')
+        .in('whatsapp_account_id', waIds);
+      if (templatesData) setTemplates(templatesData);
+    }
 
     // Load tags
     const { data: tagsData } = await supabase
@@ -158,17 +167,18 @@ export function AIBroadcast() {
 
   const handleCreateCampaign = async () => {
     try {
+      setSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       // Transform frontend formData to backend expected format
       const productContext = formData.selectedProducts.map((p: any) => ({
-        id: p.product_id,
+        id: p.id,
         name: p.title,
         image_url: p.image_url,
         price: p.price || '',
         description: p.description || '',
-        buy_url: p.buy_url || '',
+        buy_url: p.buyUrl || '',
       }));
 
       const goalMap: Record<string, string> = {
@@ -180,7 +190,11 @@ export function AIBroadcast() {
       const audience: any = { type: formData.audienceType };
       if (formData.audienceType === 'tag') audience.tags = formData.audienceTags;
       if (formData.audienceType === 'source') audience.source = formData.audienceSource;
-      if (formData.audienceType === 'manual') audience.numbers = formData.manualNumbers.split(/[\n,]+/).map((n: string) => n.trim()).filter(Boolean);
+      if (formData.audienceType === 'manual') {
+        // Send contacts with names for the AI to personalize
+        audience.contacts = formData.manualContacts.filter(c => c.phone.trim());
+        audience.phones = audience.contacts.map((c: any) => c.phone.trim());
+      }
 
       const campaign = {
         name: formData.name,
@@ -213,6 +227,8 @@ export function AIBroadcast() {
       }
     } catch (err: any) {
       showToast(err.message, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -234,7 +250,8 @@ export function AIBroadcast() {
         showToast(`Campaign ${action}ed successfully!`);
         loadCampaigns();
       } else {
-        throw new Error(`Failed to ${action} campaign`);
+        const result = await response.json();
+        throw new Error(result.error || `Failed to ${action} campaign`);
       }
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -576,15 +593,58 @@ export function AIBroadcast() {
 
       {formData.audienceType === 'manual' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Numbers</label>
-          <textarea
-            value={formData.manualNumbers}
-            onChange={e => setFormData({...formData, manualNumbers: e.target.value})}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none font-mono"
-            rows={6}
-            placeholder="Enter numbers separated by commas or newlines (e.g. 919876543210, 919876543211)"
-          />
-          <p className="text-xs text-gray-500 mt-2">Include country code (e.g. 91 for India)</p>
+          <label className="block text-sm font-medium text-gray-700 mb-3">Add Contacts</label>
+          {formData.manualContacts.map((contact, index) => (
+            <div key={index} className="flex gap-3 mb-3">
+              <div className="flex-1">
+                <input 
+                  type="text"
+                  value={contact.name}
+                  onChange={e => {
+                    const updated = [...formData.manualContacts];
+                    updated[index].name = e.target.value;
+                    setFormData({...formData, manualContacts: updated});
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none"
+                  placeholder="Customer name"
+                />
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="text"
+                  value={contact.phone}
+                  onChange={e => {
+                    const updated = [...formData.manualContacts];
+                    updated[index].phone = e.target.value;
+                    setFormData({...formData, manualContacts: updated});
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none font-mono"
+                  placeholder="919876543210"
+                />
+              </div>
+              <button 
+                onClick={() => {
+                  const updated = formData.manualContacts.filter((_, i) => i !== index);
+                  setFormData({...formData, manualContacts: updated});
+                }}
+                className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => setFormData({...formData, manualContacts: [...formData.manualContacts, {name: '', phone: ''}]})}
+            className="px-4 py-2 rounded-xl font-medium text-sm text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Contact
+          </button>
+          {formData.manualContacts.length > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              {formData.manualContacts.filter(c => c.phone.trim()).length} contact(s) added. Include country code (91 for India).
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -826,10 +886,14 @@ export function AIBroadcast() {
                 ) : (
                   <button
                     onClick={handleCreateCampaign}
-                    className="px-6 py-2 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-sm transition-all flex items-center gap-2"
+                    disabled={submitting}
+                    className="px-6 py-2 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Send className="w-4 h-4" />
-                    Save & Launch
+                    {submitting ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating...</>
+                    ) : (
+                      <><Send className="w-4 h-4" /> Save & Launch</>
+                    )}
                   </button>
                 )}
               </div>
