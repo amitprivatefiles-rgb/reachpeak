@@ -483,8 +483,8 @@ Deno.serve(async (req: Request) => {
         model: (campaign.ai_model && campaign.ai_model.includes('qwen')) ? campaign.ai_model : DEFAULT_MODEL,
         messages,
         max_tokens: 300,
-        temperature: 0.4,
-        top_p: 0.9,
+        temperature: 0.3,
+        top_p: 0.85,
       }),
     });
 
@@ -537,23 +537,126 @@ Deno.serve(async (req: Request) => {
     // Clean up any stray quotes or markdown formatting
     aiReply = aiReply.replace(/^["']|["']$/g, '').replace(/[*_~`]/g, '').trim();
 
+    // 5.1b POST-GENERATION LANGUAGE ENFORCEMENT
+    // If detected language is English but AI replied in Hindi/Hinglish, attempt regeneration
+    if (detectedLang === 'english' && aiReply) {
+      const hindiCheckWords = /\b(bataiye|batao|bataye|ji|haan|aap|aapke|aapko|aapka|aapki|bohot|bohut|bahut|dekhna|dikhao|dikha|chahiye|chahie|theek|thik|milega|milegi|bilkul|kya|kaise|kaisa|kaisi|kitna|kitne|kitni|lekin|zaroor|shukriya|namaste|hoga|hogi|accha|achha|achhi|pasand|pyara|pyari|wale|wali|wala|yeh raha|yeh rahi|ke liye|mein hai|hai kya|nahi|nhi|taaki|sakun|karein|rahi)\b/i;
+      if (hindiCheckWords.test(aiReply)) {
+        console.warn('Language violation detected: English expected but Hindi/Hinglish reply generated. Regenerating...');
+        // Build clean English-only history (strip Hindi messages from history)
+        const cleanHistory = (history || []).map((m: any) => {
+          if (m.role === 'assistant' && hindiCheckWords.test(m.content)) {
+            // Replace Hindi assistant messages with English equivalents
+            return { role: 'assistant', content: '[Previous message in English]' };
+          }
+          return m;
+        });
+        const retryMessages = [
+          { role: 'system', content: `ABSOLUTE RULE: You MUST reply ONLY in English. Zero Hindi/Hinglish/Urdu words allowed.\nNo "ji", "aap", "bataiye", "haan", "bohot", "dekhna", "chahiye", "kya", "taaki", "sakun" etc.\nReply in warm, natural, professional English. 1-2 sentences max.\nYou are a sales advisor at ${storeName} on WhatsApp.\nIMPORTANT: If the customer said "Yes", they are agreeing to your last suggestion. Respond helpfully in English.` },
+          ...cleanHistory,
+          { role: 'user', content: customer_message + '\n\n(STRICT: Reply in English ONLY. Any Hindi word = failure.)' },
+        ];
+        try {
+          const retryRes = await fetch(GROQ_URL, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${GROQ_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: DEFAULT_MODEL,
+              messages: retryMessages,
+              max_tokens: 200,
+              temperature: 0.15,
+            }),
+          });
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            let retryReply = retryData.choices?.[0]?.message?.content?.trim();
+            if (retryReply) {
+              retryReply = retryReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+              retryReply = retryReply.replace(/^["']|["']$/g, '').replace(/[*_~`]/g, '').trim();
+              if (!hindiCheckWords.test(retryReply) && retryReply.length > 5) {
+                aiReply = retryReply;
+                console.log('Language enforcement: regenerated reply in English successfully');
+              } else {
+                // Final fallback: generate a simple stock English response
+                console.warn('Language enforcement retry also returned Hindi. Using stock English fallback.');
+                const lowerCustomer = customer_message.toLowerCase().trim();
+                if (/^(yes|yeah|yep|sure|ok|okay)$/i.test(lowerCustomer)) {
+                  aiReply = 'Great choice! Let me share the details with you.';
+                } else if (/(price|cost|how much|kitna)/i.test(lowerCustomer)) {
+                  aiReply = 'Let me check the pricing for you.';
+                } else if (/(size|fit)/i.test(lowerCustomer)) {
+                  aiReply = 'Let me check the available sizes for you.';
+                } else {
+                  aiReply = 'Thank you! Let me help you with that.';
+                }
+              }
+            }
+          }
+        } catch (retryErr) {
+          console.error('Language enforcement retry failed:', retryErr);
+        }
+      }
+    }
+
     // 5.2 Smart fallback: If customer asked for a photo/pic/look/dekhna and AI didn't include an image tag
-    const photoKeywords = /(photo|pic|picture|image|dikhao|look|dekhna|kaisa dikhta|kaisa lagta|bhejo photo|bhejo pic)/i;
-    if (!imageUrl && photoKeywords.test(customer_message)) {
+    const photoKeywords = /(photo|pic|picture|image|dikhao|dikha|look|dekhna|dekhni|dekho|kaisa dikhta|kaisa lagta|bhejo photo|bhejo pic|send photo|show me|can i see|share photo|share image|share pic)/i;
+
+    // Context-aware affirmative detection: if last AI message offered/suggested a product and customer said "yes/sure/ok/haan"
+    const affirmatives = /^(yes|yeah|yea|yep|yup|sure|ok|okay|alright|absolutely|definitely|please|haan|ha|haa|hn|han|theek|thik|bilkul|zaroor|ji|ji haan|dikha do|bhej do|send|show|go ahead)\s*[.!?]?$/i;
+    const lastAssistantMsg = (history || []).filter((m: any) => m.role === 'assistant').pop();
+    // Match both explicit photo offers AND product suggestions
+    const aiOfferedPhoto = lastAssistantMsg && /(want to see|dekhna chahenge|photo dikha|dikhaye|bhejun|send.*photo|show.*photo|see.*photo|picture.*share|how about|would you like|we also have|we have the|bhi hai|bhi available|dekhenge|chahenge|try kar)/i.test(lastAssistantMsg.content);
+    const isAffirmativeToPhoto = aiOfferedPhoto && affirmatives.test(customer_message.trim());
+
+    if (!imageUrl && (photoKeywords.test(customer_message) || isAffirmativeToPhoto)) {
       const campaignProducts = campaign.product_context || [];
       const lowerMsg = customer_message.toLowerCase();
 
-      // Check campaign products first
-      const matchedProd = campaignProducts.find((p: any) => {
+      // When it's an affirmative response, try to find the product mentioned in the AI's offer
+      let contextProductName = '';
+      if (isAffirmativeToPhoto && lastAssistantMsg) {
+        const offerText = lastAssistantMsg.content;
+        const allProducts = [...campaignProducts, ...(otherCatalog || [])];
+        for (const p of allProducts) {
+          const pName = (p.name || p.title || '').toLowerCase();
+          if (!pName) continue;
+          // Try matching first few words of product name
+          const namePrefix = pName.split(/\s+/).slice(0, 3).join(' ');
+          if (namePrefix && offerText.toLowerCase().includes(namePrefix)) {
+            contextProductName = pName;
+            break;
+          }
+          // Also try matching individual significant words (4+ chars)
+          const nameWords = pName.split(/\s+/).filter((w: string) => w.length > 3);
+          const matchCount = nameWords.filter((w: string) => offerText.toLowerCase().includes(w)).length;
+          if (matchCount >= 2) {
+            contextProductName = pName;
+            break;
+          }
+        }
+      }
+
+      // Check campaign products first - prioritize context match if available
+      const contextMatch = contextProductName
+        ? [...campaignProducts, ...(otherCatalog || [])].find((p: any) => {
+            if (!p.image_url) return false;
+            const pName = (p.name || p.title || '').toLowerCase();
+            return pName.includes(contextProductName) || contextProductName.includes(pName.split(/\s+/).slice(0, 3).join(' '));
+          })
+        : null;
+
+      const directMatch = contextMatch || campaignProducts.find((p: any) => {
         if (!p.image_url) return false;
         const pName = (p.name || p.title || '').toLowerCase();
         return lowerMsg.split(/\s+/).some((w: string) => w.length > 3 && pName.includes(w));
       }) || campaignProducts.find((p: any) => p.image_url);
 
-      if (matchedProd?.image_url) {
-        imageUrl = matchedProd.image_url;
+      if (directMatch?.image_url) {
+        imageUrl = directMatch.image_url;
       } else if (otherCatalog && otherCatalog.length > 0) {
-        // Fallback to otherCatalog products
         const matchedCatalog = otherCatalog.find((p: any) => {
           if (!p.image_url) return false;
           const title = (p.title || '').toLowerCase();
@@ -562,6 +665,16 @@ Deno.serve(async (req: Request) => {
 
         if (matchedCatalog?.image_url) {
           imageUrl = matchedCatalog.image_url;
+        }
+      }
+
+      // If we found an image via affirmative detection but AI reply doesn't mention the photo,
+      // prepend a natural photo message
+      if (isAffirmativeToPhoto && imageUrl && !/(photo|image|here|yeh raha|yeh rahi)/i.test(aiReply)) {
+        if (detectedLang === 'english') {
+          aiReply = `Here is the photo! ${aiReply}`;
+        } else {
+          aiReply = `Yeh raha photo ji! ${aiReply}`;
         }
       }
     }
