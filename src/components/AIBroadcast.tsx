@@ -5,7 +5,7 @@ import {
   Bot, Plus, Play, Pause, BarChart2, CheckCircle2, AlertCircle, Search, 
   MessageSquare, Users, Tag, Smartphone, Filter, Image as ImageIcon,
   ChevronRight, ChevronLeft, Save, X, ShoppingBag, Target, Settings,
-  Gift, Link as LinkIcon, RefreshCw, Send, Activity
+  Gift, Link as LinkIcon, RefreshCw, Send, Activity, Trash2
 } from 'lucide-react';
 
 interface Campaign {
@@ -262,6 +262,33 @@ export function AIBroadcast() {
       } else {
         const result = await response.json();
         throw new Error(result.error || `Failed to ${action} campaign`);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDelete = async (campaignId: string, campaignName: string) => {
+    if (!confirm(`Delete campaign "${campaignName}"? This cannot be undone.`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(getEdgeFunctionUrl(), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'delete', campaign_id: campaignId })
+      });
+
+      if (response.ok) {
+        showToast('Campaign deleted');
+        loadCampaigns();
+      } else {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to delete campaign');
       }
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -821,6 +848,9 @@ export function AIBroadcast() {
                         )}
                         <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="View Stats">
                           <BarChart2 className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => handleDelete(campaign.id, campaign.name)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors" title="Delete">
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
