@@ -161,24 +161,55 @@ export function AIBroadcast() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
+      // Transform frontend formData to backend expected format
+      const productContext = formData.selectedProducts.map((p: any) => ({
+        id: p.product_id,
+        name: p.title,
+        image_url: p.image_url,
+        price: p.price || '',
+        description: p.description || '',
+        buy_url: p.buy_url || '',
+      }));
+
+      const goalMap: Record<string, string> = {
+        feedback: 'feedback_and_upsell',
+        promotion: 'promotion',
+        winback: 'winback',
+      };
+
+      const audience: any = { type: formData.audienceType };
+      if (formData.audienceType === 'tag') audience.tags = formData.audienceTags;
+      if (formData.audienceType === 'source') audience.source = formData.audienceSource;
+      if (formData.audienceType === 'manual') audience.numbers = formData.manualNumbers.split(/[\n,]+/).map((n: string) => n.trim()).filter(Boolean);
+
+      const campaign = {
+        name: formData.name,
+        goal: goalMap[formData.goal] || formData.goal,
+        ai_personality: formData.personality,
+        language: formData.language.toLowerCase(),
+        product_context: productContext,
+        audience,
+        opening_template_id: formData.templateId || null,
+        offer: formData.offerCode ? { discount_code: formData.offerCode, discount_percent: parseInt(formData.offerDiscount) || 0 } : null,
+        max_turns: formData.maxTurns,
+      };
+
       const response = await fetch(getEdgeFunctionUrl(), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          action: 'create', 
-          campaign: formData 
-        })
+        body: JSON.stringify({ action: 'create', campaign })
       });
 
-      if (response.ok) {
+      const result = await response.json();
+      if (response.ok && result.ok) {
         showToast('Campaign created successfully!');
         setView('list');
         loadCampaigns();
       } else {
-        throw new Error('Failed to create campaign');
+        throw new Error(result.error || result.detail || 'Failed to create campaign');
       }
     } catch (err: any) {
       showToast(err.message, 'error');
