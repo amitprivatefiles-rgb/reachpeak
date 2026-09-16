@@ -54,6 +54,7 @@ import { OnboardingChoice } from './components/onboarding/OnboardingChoice';
 import { Support } from './components/Support';
 import { AdminSupport } from './components/AdminSupport';
 import { AdminProvisionStore } from './components/AdminProvisionStore';
+import { AIBroadcast } from './components/AIBroadcast';
 import { supabase } from './lib/supabase';
 
 /* ─── LOADING FALLBACK ─── */
@@ -198,6 +199,7 @@ function AppDashboard() {
       case 'journeys': return <Journeys />;
       case 'orderguard': return <OrderGuard />;
       case 'wallet': return <Wallet />;
+      case 'ai-broadcast': return <AIBroadcast />;
       case 'billing': return isAdmin ? <AdminBilling /> : <Wallet />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
