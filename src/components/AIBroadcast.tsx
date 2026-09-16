@@ -124,10 +124,10 @@ export function AIBroadcast() {
   const loadCreateData = async () => {
     if (!user) return;
     
-    // Load products
+    // Load products with rich attributes (price, url, description, fabric, colors, sizes)
     const { data: productsData } = await supabase
       .from('shopify_product_images')
-      .select('product_id, title, image_url')
+      .select('product_id, title, image_url, price, product_url, description, fabric, colors, sizes, product_type')
       .eq('user_id', user.id);
       
     if (productsData) setProducts(productsData);
@@ -189,6 +189,10 @@ export function AIBroadcast() {
         price: p.price || '',
         description: p.description || '',
         buy_url: p.buyUrl || '',
+        fabric: p.fabric || '',
+        colors: p.colors || [],
+        sizes: p.sizes || [],
+        product_type: p.product_type || ''
       }));
 
       const goalMap: Record<string, string> = {
@@ -462,7 +466,21 @@ export function AIBroadcast() {
                 } else {
                   setFormData({
                     ...formData,
-                    selectedProducts: [...formData.selectedProducts, { id: product.product_id, title: product.title, price: '', buyUrl: '', description: '' }]
+                    selectedProducts: [
+                      ...formData.selectedProducts, 
+                      { 
+                        id: product.product_id, 
+                        title: product.title, 
+                        image_url: product.image_url,
+                        price: product.price ? `₹${product.price}` : '', 
+                        buyUrl: product.product_url || '', 
+                        description: product.description || '',
+                        fabric: product.fabric || '',
+                        colors: product.colors || [],
+                        sizes: product.sizes || [],
+                        product_type: product.product_type || ''
+                      }
+                    ]
                   });
                 }
               }}
@@ -475,6 +493,26 @@ export function AIBroadcast() {
                 </div>
               )}
               <div className="text-sm font-medium text-gray-900 truncate">{product.title}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs font-bold text-emerald-600">
+                  {product.price ? `₹${product.price}` : ''}
+                </span>
+                {product.fabric && (
+                  <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-medium">
+                    {product.fabric}
+                  </span>
+                )}
+              </div>
+              {((product.colors && product.colors.length > 0) || (product.sizes && product.sizes.length > 0)) && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {(product.colors || []).slice(0, 3).map((c: string) => (
+                    <span key={c} className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{c}</span>
+                  ))}
+                  {(product.sizes || []).slice(0, 4).map((s: string) => (
+                    <span key={s} className="text-[9px] bg-purple-50 text-purple-700 px-1 py-0.5 rounded font-mono font-medium">{s}</span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -511,6 +549,50 @@ export function AIBroadcast() {
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none"
                   placeholder="https://..."
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Fabric</label>
+                <input 
+                  type="text" 
+                  value={p.fabric || ''}
+                  onChange={e => {
+                    const newProducts = [...formData.selectedProducts];
+                    newProducts[index].fabric = e.target.value;
+                    setFormData({...formData, selectedProducts: newProducts});
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none"
+                  placeholder="e.g. Rayon, Satin, Leather"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Colors (comma separated)</label>
+                <input 
+                  type="text" 
+                  value={Array.isArray(p.colors) ? p.colors.join(', ') : (p.colors || '')}
+                  onChange={e => {
+                    const newProducts = [...formData.selectedProducts];
+                    newProducts[index].colors = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                    setFormData({...formData, selectedProducts: newProducts});
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none"
+                  placeholder="e.g. Teal, Brown, Pink"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Sizes (comma separated)</label>
+                <input 
+                  type="text" 
+                  value={Array.isArray(p.sizes) ? p.sizes.join(', ') : (p.sizes || '')}
+                  onChange={e => {
+                    const newProducts = [...formData.selectedProducts];
+                    newProducts[index].sizes = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                    setFormData({...formData, selectedProducts: newProducts});
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none"
+                  placeholder="e.g. M, L, XL or 36, 37, 38"
                 />
               </div>
             </div>
