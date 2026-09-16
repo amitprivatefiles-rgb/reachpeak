@@ -22,6 +22,22 @@ const OPT_OUT_KEYWORDS = [
   'नहीं चाहिए', 'hatao', 'हटाओ', 'opt out', 'opt-out', 'cancel subscription',
 ];
 
+// Detect a return / refund / complaint intent in a customer's free-text message.
+// Returns the inferred dispute type, or null. Covers English + Hinglish.
+function detectDisputeType(raw: string): string | null {
+  const t = (raw || '').toLowerCase();
+  const has = (...ws: string[]) => ws.some((w) => t.includes(w));
+  if (has('refund', 'money back', 'paisa wapas', 'paise wapas', 'pese wapas', 'refund chahiye', 'refund kar')) return 'refund';
+  if (has('exchange', 'replace', 'replacement', 'badal do', 'badalna', 'badal ke', 'change the size', 'change size')) return 'exchange';
+  if (has('want to return', 'return this', 'return the', 'return my', 'return karna', 'return kar do', 'wapas karna', 'wapas kar', 'send it back', 'give it back', 'i want return')) return 'return';
+  if (has('damaged', 'broken', 'defective', 'torn', 'faulty', 'kharab', 'toota', 'tuta', 'phata', 'fata hua', 'not working')) return 'damaged';
+  if (has('wrong item', 'wrong product', 'wrong order', 'wrong size sent', 'different item', 'different product', 'galat product', 'galat item', 'galat order', 'not what i ordered', 'not what i order')) return 'wrong_item';
+  if (has('too small', 'too big', 'too tight', 'too loose', "doesn't fit", 'does not fit', 'not fitting', 'size issue', 'size problem', 'size chota', 'size bada', 'chota hai', 'bada hai')) return 'size_issue';
+  if (has('not delivered', 'not received', "didn't receive", 'did not receive', 'not arrived', "haven't received", 'have not received', 'where is my order', 'order not received', 'nahi mila', 'nahi aya', 'nahi aaya', 'abhi tak nahi')) return 'not_delivered';
+  if (has('cancel my order', 'cancel order', 'cancel the order', 'want to cancel', 'please cancel', 'cancel kar do', 'order cancel')) return 'cancellation';
+  return null;
+}
+
 function isOptOutMessage(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   // Exact match
@@ -297,6 +313,31 @@ Deno.serve(async (req: Request) => {
             if (status.id) {
               await supabase.from('messages').update(patch).eq('wamid', status.id);
 
+              // ── Wallet refund ── Funds are RESERVED and charged at send time by the
+              // worker (hold + settle). Here we reconcile against Meta's actual billing:
+              // if Meta reports the message as NOT billable (free, inside the 24h service
+              // window) or it FAILED delivery, refund exactly what we charged. Idempotent
+              // via reference 'refund:msg:<id>' + the charge_paise=0 guard.
+              if (status.status === 'failed' || (status.pricing && status.pricing.billable === false)) {
+                const { data: rmsg } = await supabase.from('messages')
+                  .select('id, user_id, charge_paise')
+                  .eq('wamid', status.id).maybeSingle();
+                if (rmsg && rmsg.charge_paise && rmsg.charge_paise > 0) {
+                  const { error: refundErr } = await supabase.rpc('wallet_credit', {
+                    p_user: rmsg.user_id,
+                    p_amount: rmsg.charge_paise,
+                    p_reference: `refund:msg:${rmsg.id}`,
+                    p_meta: { reason: status.status === 'failed' ? 'delivery_failed' : 'not_billable', wamid: status.id },
+                    p_type: 'adjust',
+                  });
+                  if (refundErr) {
+                    console.error(`[webhook] refund failed (msg ${rmsg.id}, ${rmsg.charge_paise}p):`, refundErr.message);
+                  } else {
+                    await supabase.from('messages').update({ charge_paise: 0 }).eq('id', rmsg.id);
+                  }
+                }
+              }
+
               // Status callback for partner-originated messages
               if (status.status === 'delivered' || status.status === 'read' || status.status === 'failed') {
                 const { data: msg } = await supabase.from('messages')
@@ -440,6 +481,94 @@ Deno.serve(async (req: Request) => {
                 created_at: tsToIso(msg.timestamp),
               });
 
+              // ── Push notification to the merchant (new customer reply) ──
+              if (!insErr) {
+                fetch(`${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/send-push`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    user_id: account.user_id,
+                    title: `💬 ${contactName || msg.from}`,
+                    body: (messagePreview || 'New message').slice(0, 120),
+                    url: '/app',
+                    tag: `chat:${msg.from}`,
+                  }),
+                }).catch(() => {});
+              }
+
+              // ── Auto-detect return / refund / complaint intent → draft a dispute ──
+              if (!insErr && msgType === 'text' && msg.text?.body) {
+                const dtype = detectDisputeType(msg.text.body);
+                if (dtype) {
+                  try {
+                    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+                    const { data: existing } = await supabase.from('disputes')
+                      .select('id')
+                      .eq('user_id', account.user_id)
+                      .eq('contact_phone', msg.from)
+                      .in('status', ['open', 'in_progress', 'awaiting_customer', 'escalated'])
+                      .gte('created_at', since)
+                      .limit(1).maybeSingle();
+                    if (!existing) {
+                      const { data: contactRow } = await supabase.from('contacts')
+                        .select('id, name').eq('user_id', account.user_id).eq('phone_number', msg.from).maybeSingle();
+                      const { data: lastOrder } = await supabase.from('orders')
+                        .select('external_order_id, total').eq('user_id', account.user_id)
+                        .eq('contact_phone', msg.from).order('created_at', { ascending: false }).limit(1).maybeSingle();
+                      const nowIso = new Date().toISOString();
+                      await supabase.from('disputes').insert({
+                        user_id: account.user_id,
+                        contact_id: contactRow?.id ?? null,
+                        contact_phone: msg.from,
+                        contact_name: contactName || contactRow?.name || null,
+                        order_external_id: lastOrder?.external_order_id ?? null,
+                        order_total: lastOrder?.total ?? null,
+                        dispute_type: dtype,
+                        status: 'open',
+                        priority: 'high',
+                        reason: msg.text.body.slice(0, 500),
+                        created_by: 'auto',
+                        timeline: [{ at: nowIso, action: 'auto_detected', note: `Auto-detected from customer message: "${msg.text.body.slice(0, 160)}"` }],
+                      });
+                      fetch(`${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/send-push`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          user_id: account.user_id,
+                          title: `⚠️ Possible ${dtype.replace(/_/g, ' ')} request`,
+                          body: `${contactName || msg.from}: ${msg.text.body.slice(0, 100)}`,
+                          url: '/app', tag: `dispute:${msg.from}`,
+                        }),
+                      }).catch(() => {});
+                    }
+                  } catch (e: any) { console.error('[whatsapp-webhook] auto-dispute error:', e?.message); }
+                }
+              }
+
+              // ── Forward inbound to the connected PeakCart store (fire-and-forget) ──
+              if (!insErr) {
+                try {
+                  const { data: pk } = await supabase.from('integration_keys')
+                    .select('callback_url, callback_secret, shop_domain')
+                    .eq('user_id', account.user_id).eq('is_active', true).limit(1).maybeSingle();
+                  if (pk?.callback_url && pk?.callback_secret) {
+                    const inboundText = msgType === 'text' ? (msg.text?.body ?? '') : messagePreview;
+                    dispatchCallback(supabase, account.user_id, pk.callback_url, pk.callback_secret, {
+                      callback_id: crypto.randomUUID(),
+                      type: 'inbound',
+                      external_ref: { store_ref: pk.shop_domain },
+                      sender_phone: msg.from,
+                      sender_name: contactName,
+                      message_type: msgType,
+                      message_text: inboundText,
+                      media_url: mediaUrl,
+                      wamid: msg.id,
+                      occurred_at: tsToIso(msg.timestamp),
+                    }).catch(() => {});
+                  }
+                } catch (_e) { /* non-fatal */ }
+              }
+
               // ── A1.3: Opt-out keyword detection ──
               // Check free-text inbound messages for opt-out intent.
               // Word-boundary aware; errs toward over-detecting (legally safer).
@@ -475,9 +604,8 @@ Deno.serve(async (req: Request) => {
                 }).eq('user_id', account.user_id).eq('contact_phone', msg.from);
               }
 
-              // ── Fire-and-forget hooks: flow-engine + journey-engine ──
-              // Runs AFTER message insert succeeds. Both engines are called
-              // independently — neither swallows the other.
+              // ── Fire-and-forget hooks: AI conversation + flow-engine + journey-engine ──
+              // Runs AFTER message insert succeeds.
               if (!insErr) {
                 const HOOK_URL = Deno.env.get('SUPABASE_URL') ?? '';
                 const HOOK_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -486,44 +614,104 @@ Deno.serve(async (req: Request) => {
                   'Content-Type': 'application/json',
                 };
 
-                // A) Flow-engine: forward ALL inbound messages for trigger matching
-                //    (keyword, any_message, new_conversation, button/question answers)
-                if (conversationId) {
-                  const buttonId =
-                    msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
-                    msgType === 'interactive' ? (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title) :
-                    undefined;
+                // ── AI Broadcast conversation routing ──
+                // Check if this inbound message belongs to an active AI broadcast conversation.
+                // If so, route to the AI conversation handler and skip flow/journey engines.
+                let aiHandled = false;
+                {
+                  const messageBody =
+                    msgType === 'text' ? (msg.text?.body ?? '') :
+                    msgType === 'button' ? (msg.button?.text ?? msg.button?.payload ?? '') :
+                    msgType === 'interactive' ? (msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? '') :
+                    messagePreview;
 
-                  fetch(`${HOOK_URL}/functions/v1/flow-engine`, {
-                    method: 'POST',
-                    headers: hookHeaders,
-                    body: JSON.stringify({
-                      conversation_id: conversationId,
-                      trigger: 'inbound',
-                      text: msgType === 'text' ? (msg.text?.body ?? '') : messagePreview,
-                      button_id: buttonId,
-                      is_new: false, // conversation was just upserted, not truly "new"
-                    }),
-                  }).catch(() => {}); // fire-and-forget
+                  const { data: aiConv } = await supabase
+                    .from('ai_conversations')
+                    .select('id, campaign_id, status')
+                    .eq('customer_phone', msg.from)
+                    .eq('user_id', account.user_id)
+                    .in('status', ['template_sent', 'active'])
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (aiConv) {
+                    // Check if the parent campaign is still running
+                    const { data: aiCampaign } = await supabase
+                      .from('ai_campaigns')
+                      .select('status')
+                      .eq('id', aiConv.campaign_id)
+                      .single();
+
+                    if (aiCampaign?.status === 'running') {
+                      aiHandled = true;
+
+                      // Clear human_active_until so AI handler doesn't skip
+                      if (conversationId) {
+                        await supabase.from('conversations').update({
+                          human_active_until: null,
+                        }).eq('id', conversationId);
+                      }
+
+                      // Fire-and-forget to AI conversation handler
+                      fetch(`${HOOK_URL}/functions/v1/ai-conversation`, {
+                        method: 'POST',
+                        headers: hookHeaders,
+                        body: JSON.stringify({
+                          ai_conversation_id: aiConv.id,
+                          customer_message: messageBody,
+                          customer_phone: msg.from,
+                          conversation_id: conversationId,
+                        }),
+                      }).catch((e: Error) => console.error('[whatsapp-webhook] ai-conversation dispatch failed:', e));
+
+                      console.log(`[whatsapp-webhook] Routed inbound from ${msg.from} to AI conversation ${aiConv.id}`);
+                    }
+                  }
                 }
+                // ── End AI Broadcast routing ──
 
-                // B) Journey-engine: forward button/interactive replies for waiting_reply executions
-                if (msgType === 'button' || msgType === 'interactive') {
-                  const buttonPayload =
-                    msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
-                    (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title);
+                // Only dispatch to flow/journey engines if AI is NOT handling this conversation
+                if (!aiHandled) {
+                  // A) Flow-engine: forward ALL inbound messages for trigger matching
+                  //    (keyword, any_message, new_conversation, button/question answers)
+                  if (conversationId) {
+                    const buttonId =
+                      msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
+                      msgType === 'interactive' ? (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title) :
+                      undefined;
 
-                  if (buttonPayload) {
-                    fetch(`${HOOK_URL}/functions/v1/journey-engine`, {
+                    fetch(`${HOOK_URL}/functions/v1/flow-engine`, {
                       method: 'POST',
                       headers: hookHeaders,
                       body: JSON.stringify({
-                        action: 'inbound_reply',
-                        phone: msg.from,
-                        button_payload: buttonPayload,
-                        user_id: account.user_id,
+                        conversation_id: conversationId,
+                        trigger: 'inbound',
+                        text: msgType === 'text' ? (msg.text?.body ?? '') : messagePreview,
+                        button_id: buttonId,
+                        is_new: false,
                       }),
                     }).catch(() => {}); // fire-and-forget
+                  }
+
+                  // B) Journey-engine: forward button/interactive replies for waiting_reply executions
+                  if (msgType === 'button' || msgType === 'interactive') {
+                    const buttonPayload =
+                      msgType === 'button' ? (msg.button?.payload || msg.button?.text) :
+                      (msg.interactive?.button_reply?.id || msg.interactive?.button_reply?.title);
+
+                    if (buttonPayload) {
+                      fetch(`${HOOK_URL}/functions/v1/journey-engine`, {
+                        method: 'POST',
+                        headers: hookHeaders,
+                        body: JSON.stringify({
+                          action: 'inbound_reply',
+                          phone: msg.from,
+                          button_payload: buttonPayload,
+                          user_id: account.user_id,
+                        }),
+                      }).catch(() => {}); // fire-and-forget
+                    }
                   }
                 }
               }

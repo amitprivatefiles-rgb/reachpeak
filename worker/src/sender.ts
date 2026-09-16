@@ -56,15 +56,25 @@ export async function sendWhatsAppMessage(
   const waitMs = acquireToken(phoneNumberId);
   if (waitMs > 0) await sleep(waitMs);
 
+  // Normalize recipient to full international digits — Meta rejects numbers
+  // without a country code (error 131026 not_on_whatsapp). A bare 10-digit
+  // number is treated as an Indian mobile (default country code 91).
+  let toNorm = String(waTo || '').replace(/[^0-9]/g, '');
+  if (toNorm.length === 10) toNorm = '91' + toNorm;
+
   // Build Graph API body
   const body: any = {
     messaging_product: 'whatsapp',
-    to: waTo,
+    to: toNorm,
     type: messageType || 'template',
   };
 
   if (messageType === 'text' && content?.text) {
     body.text = content.text;
+  } else if (messageType === 'image') {
+    const link = content?.image?.link || content?.link || content?.url || (typeof content === 'string' && content.startsWith('http') ? content : undefined);
+    const caption = content?.image?.caption || content?.caption || undefined;
+    body.image = { link, ...(caption ? { caption } : {}) };
   } else if (content?.template) {
     body.template = content.template;
   }
