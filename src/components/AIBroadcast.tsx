@@ -13,10 +13,10 @@ interface Campaign {
   name: string;
   goal: string;
   status: 'draft' | 'running' | 'paused' | 'completed';
-  contacts: number;
-  replied: number;
-  converted: number;
-  revenue: number;
+  total_contacts: number;
+  total_replied: number;
+  total_converted: number;
+  total_revenue: number;
   created_at: string;
 }
 
@@ -298,7 +298,7 @@ export function AIBroadcast() {
           <h3 className="font-medium text-gray-500">Contacts Reached</h3>
         </div>
         <p className="text-2xl font-bold text-gray-900">
-          {campaigns.reduce((acc, c) => acc + c.contacts, 0).toLocaleString()}
+          {campaigns.reduce((acc, c) => acc + (c.total_contacts || 0), 0).toLocaleString()}
         </p>
       </div>
       <div className="bg-white rounded-2xl border border-gray-200/70 p-5 shadow-sm">
@@ -308,7 +308,7 @@ export function AIBroadcast() {
         </div>
         <p className="text-2xl font-bold text-gray-900">
           {campaigns.length ? 
-            Math.round(campaigns.reduce((acc, c) => acc + (c.replied / (c.contacts || 1)) * 100, 0) / campaigns.length) : 0}%
+            Math.round(campaigns.reduce((acc, c) => acc + ((c.total_replied || 0) / ((c.total_contacts || 1))) * 100, 0) / campaigns.length) : 0}%
         </p>
       </div>
     </div>
@@ -716,19 +716,19 @@ export function AIBroadcast() {
                     <div className="flex gap-6 items-center">
                       <div className="text-center">
                         <div className="text-xs text-gray-500 mb-1">Contacts</div>
-                        <div className="font-semibold text-gray-900">{campaign.contacts.toLocaleString()}</div>
+                        <div className="font-semibold text-gray-900">{(campaign.total_contacts || 0).toLocaleString()}</div>
                       </div>
                       <div className="text-center">
                         <div className="text-xs text-gray-500 mb-1">Replied</div>
-                        <div className="font-semibold text-emerald-600">{campaign.replied.toLocaleString()}</div>
+                        <div className="font-semibold text-emerald-600">{(campaign.total_replied || 0).toLocaleString()}</div>
                       </div>
                       <div className="text-center">
                         <div className="text-xs text-gray-500 mb-1">Converted</div>
-                        <div className="font-semibold text-blue-600">{campaign.converted.toLocaleString()}</div>
+                        <div className="font-semibold text-blue-600">{(campaign.total_converted || 0).toLocaleString()}</div>
                       </div>
                       <div className="text-center">
                         <div className="text-xs text-gray-500 mb-1">Revenue</div>
-                        <div className="font-semibold text-gray-900">₹{campaign.revenue.toLocaleString()}</div>
+                        <div className="font-semibold text-gray-900">₹{(campaign.total_revenue || 0).toLocaleString()}</div>
                       </div>
                       
                       <div className="h-10 w-px bg-gray-200 mx-2 hidden lg:block"></div>
