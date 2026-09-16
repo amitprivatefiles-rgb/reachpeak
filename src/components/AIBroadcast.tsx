@@ -166,6 +166,16 @@ export function AIBroadcast() {
   };
 
   const handleCreateCampaign = async () => {
+    // Validation
+    if (!formData.name.trim()) { showToast('Campaign name is required', 'error'); return; }
+    if (formData.selectedProducts.length === 0) { showToast('Select at least one product', 'error'); return; }
+    if (!formData.templateId) { showToast('Please select a starting template', 'error'); return; }
+    if (formData.audienceType === 'manual' && formData.manualContacts.filter(c => c.phone.trim()).length === 0) {
+      showToast('Add at least one contact with a phone number', 'error'); return;
+    }
+    if (formData.audienceType === 'tag' && formData.audienceTags.length === 0) {
+      showToast('Select at least one tag', 'error'); return;
+    }
     try {
       setSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
