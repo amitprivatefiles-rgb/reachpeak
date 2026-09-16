@@ -26,6 +26,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function optimizeWhatsAppImageUrl(rawUrl?: string | null): string | null {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  if (rawUrl.includes('cdn.shopify.com')) {
+    const cleanUrl = rawUrl.replace(/([?&])(width|format|height)=[^&]+/g, '').replace(/[?&]+$/, '');
+    const sep = cleanUrl.includes('?') ? '&' : '?';
+    return `${cleanUrl}${sep}width=1024&format=jpg`;
+  }
+  return rawUrl;
+}
+
 // ─── System prompt builder ───────────────────────────────────────────────────
 function buildSystemPrompt(
   campaign: any, 
@@ -46,7 +56,7 @@ function buildSystemPrompt(
       if (p.sizes && p.sizes.length) lines.push(`  Available Sizes: ${Array.isArray(p.sizes) ? p.sizes.join(', ') : p.sizes}`);
       if (p.description) lines.push(`  Details: ${p.description.slice(0, 350)}`);
       if (p.buy_url || p.buyUrl) lines.push(`  Direct Link: ${p.buy_url || p.buyUrl}`);
-      if (p.image_url) lines.push(`  Photo: ${p.image_url}`);
+      if (p.image_url) lines.push(`  Photo: ${optimizeWhatsAppImageUrl(p.image_url)}`);
       return lines.join('\n');
     })
     .join('\n\n');
@@ -59,7 +69,7 @@ function buildSystemPrompt(
       if (p.sizes && p.sizes.length) info += ` | Sizes: ${p.sizes.slice(0, 6).join(', ')}`;
       if (p.fabric) info += ` | Fabric: ${p.fabric}`;
       if (p.product_url) info += ` | Link: ${p.product_url}`;
-      if (p.image_url) info += ` | Photo: ${p.image_url}`;
+      if (p.image_url) info += ` | Photo: ${optimizeWhatsAppImageUrl(p.image_url)}`;
       return info;
     })
     .join('\n');
@@ -399,6 +409,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (imageUrl) {
+      imageUrl = optimizeWhatsAppImageUrl(imageUrl);
+    }
+
     const isImage = !!imageUrl;
     const previewText = (isImage ? `📷 ${aiReply}` : aiReply).substring(0, 100);
 
@@ -426,7 +440,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Resolve or create conversation for inbox integration
-    let convId = conversation_id || aiConv.conversation_id;
+    let convId: string | null = null;
+    const targetConvId = conversation_id || aiConv.conversation_id;
+    if (targetConvId) {
+      const { data: existingTarget } = await db
+        .from('conversations')
+        .select('id')
+        .eq('id', targetConvId)
+        .maybeSingle();
+      if (existingTarget) {
+        convId = existingTarget.id;
+      }
+    }
+
     if (!convId) {
       const { data: existingConv } = await db
         .from('conversations')
@@ -449,7 +475,7 @@ Deno.serve(async (req: Request) => {
           })
           .select('id')
           .single();
-        convId = newConv?.id;
+        convId = newConv?.id || null;
       }
 
       // Link conversation to ai_conversation

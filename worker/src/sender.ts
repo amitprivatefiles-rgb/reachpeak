@@ -69,10 +69,21 @@ export async function sendWhatsAppMessage(
     type: messageType || 'template',
   };
 
+function optimizeWhatsAppImageUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
+  if (rawUrl.includes('cdn.shopify.com')) {
+    const cleanUrl = rawUrl.replace(/([?&])(width|format|height)=[^&]+/g, '').replace(/[?&]+$/, '');
+    const sep = cleanUrl.includes('?') ? '&' : '?';
+    return `${cleanUrl}${sep}width=1024&format=jpg`;
+  }
+  return rawUrl;
+}
+
   if (messageType === 'text' && content?.text) {
     body.text = content.text;
   } else if (messageType === 'image') {
-    const link = content?.image?.link || content?.link || content?.url || (typeof content === 'string' && content.startsWith('http') ? content : undefined);
+    let link = content?.image?.link || content?.link || content?.url || (typeof content === 'string' && content.startsWith('http') ? content : undefined);
+    link = optimizeWhatsAppImageUrl(link);
     const caption = content?.image?.caption || content?.caption || undefined;
     body.image = { link, ...(caption ? { caption } : {}) };
   } else if (content?.template) {
