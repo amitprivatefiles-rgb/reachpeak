@@ -33,6 +33,11 @@ function optimizeWhatsAppImageUrl(rawUrl?: string | null): string | null {
     const sep = cleanUrl.includes('?') ? '&' : '?';
     return `${cleanUrl}${sep}width=1024&format=jpg`;
   }
+  if (rawUrl.includes('res.cloudinary.com')) {
+    if (!rawUrl.includes('/w_') && !rawUrl.includes('/c_limit')) {
+      return rawUrl.replace('/image/upload/', '/image/upload/w_1024,c_limit,q_auto,f_jpg/');
+    }
+  }
   return rawUrl;
 }
 
