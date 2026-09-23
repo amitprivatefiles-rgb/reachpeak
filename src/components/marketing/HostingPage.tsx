@@ -339,22 +339,51 @@ export function HostingPage() {
 
               <div className="lg:sticky lg:top-32 h-fit space-y-6">
                 <div className="bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                  <h3 className="text-xl font-bold mb-6">Order Summary</h3>
-                  <div className="space-y-4 text-sm">
-                    <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                      <div>
-                        <p className="font-semibold text-white">{selectedPlan.name} Hosting</p>
-                        <p className="text-gray-400">Duration: {selectedPlan.duration}</p>
+                  <h3 className="text-xl font-bold mb-2">Order summary</h3>
+                  <p className="text-white font-semibold mb-5">{selectedPlan.name} Plan</p>
+                  
+                  <div className="space-y-4 text-sm border-b border-white/10 pb-5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">{selectedPlan.duration === 'month' ? '1-month' : selectedPlan.duration === 'year' ? '12-month' : '48-month'} period</span>
+                      <span className="text-white font-semibold">₹{selectedPlan.price.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Daily backup</span>
+                      <div className="text-right">
+                        <span className="text-gray-500 line-through text-xs mr-2">₹{(selectedPlanId === '48months' ? 4800 : selectedPlanId === 'yearly' ? 1200 : 99).toLocaleString()}</span>
+                        <span className="text-emerald-400 font-semibold">₹0</span>
                       </div>
-                      <p className="font-bold">₹{selectedPlan.price.toLocaleString()}</p>
                     </div>
-                    <div className="flex justify-between items-center text-gray-400 pb-4">
-                      <p>GST (18%)</p>
-                      <p>₹{gst.toLocaleString()}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">SSL Certificate</span>
+                      <div className="text-right">
+                        <span className="text-gray-500 line-through text-xs mr-2">₹{(selectedPlanId === '48months' ? 3999 : selectedPlanId === 'yearly' ? 999 : 149).toLocaleString()}</span>
+                        <span className="text-emerald-400 font-semibold">₹0</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center text-lg font-bold text-white pt-2">
-                      <p>Total</p>
-                      <p className="text-[#E04632]">₹{total.toLocaleString()}</p>
+                    {(selectedPlanId === '48months') && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Free Domain</span>
+                        <div className="text-right">
+                          <span className="text-gray-500 line-through text-xs mr-2">₹999</span>
+                          <span className="text-emerald-400 font-semibold">₹0</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Priority Support</span>
+                      <span className={`font-semibold ${selectedPlanId === '48months' ? 'text-emerald-400' : 'text-gray-500'}`}>{selectedPlanId === '48months' ? '₹0' : '—'}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-5">
+                    <div className="flex justify-between items-center text-sm text-gray-400">
+                      <span>Taxes (GST 18%)</span>
+                      <span>₹{Math.round(gst).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-lg font-bold text-white pt-2 border-t border-white/10">
+                      <span>Total</span>
+                      <span className="text-[#E04632]">₹{Math.round(total).toLocaleString()}</span>
                     </div>
                   </div>
                   
