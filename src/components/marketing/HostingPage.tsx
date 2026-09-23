@@ -36,7 +36,6 @@ const PLANS = {
       '99.9% Uptime SLA',
       'Daily Backups',
       '24/7 Support',
-      'Free Domain',
     ]
   },
   '48months': {
