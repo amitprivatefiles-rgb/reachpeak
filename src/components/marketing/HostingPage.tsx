@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Section, DisplayHeading, GradientText } from './Shared';
 import { Check, Server, Shield, Zap, Globe, Clock, ArrowRight, ChevronRight, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 
 type PlanId = 'monthly' | 'yearly' | '48months';
 type Step = 'pricing' | 'billing' | 'gmail' | 'thankyou';
@@ -121,11 +120,14 @@ export function HostingPage() {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('create-hosting-order', {
-        body: { plan: selectedPlan.id, billing }
+      const fnUrl = 'https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/create-hosting-order';
+      const resp = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: selectedPlan.id, billing }),
       });
-
-      if (error || !data) throw new Error(error?.message || 'Failed to create order');
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || 'Failed to create order');
 
       const rzp = new (window as any).Razorpay({
         key: data.key_id,
@@ -160,10 +162,14 @@ export function HostingPage() {
     
     setProcessing(true);
     try {
-      const { error } = await supabase.functions.invoke('create-hosting-order', { 
-        body: { action: 'activate', payment_id: paymentId, gmail } 
+      const fnUrl = 'https://xykynbfsogwxecqzhfdm.supabase.co/functions/v1/create-hosting-order';
+      const resp = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'activate', payment_id: paymentId, gmail }),
       });
-      if (error) throw error;
+      const data = await resp.json();
+      if (!resp.ok || data?.error) throw new Error(data?.error || 'Failed to save');
       setStep('thankyou');
     } catch (err) {
       console.error(err);
