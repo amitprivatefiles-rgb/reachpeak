@@ -16,6 +16,7 @@ const MktPrivacyPolicy = lazy(() => import('./components/marketing/PrivacyPolicy
 const MktTermsPage = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.TermsPage })));
 const MktRefundPolicy = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.RefundPolicyPage })));
 const MktDataDeletion = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.DataDeletionPage })));
+const HostingPage = lazy(() => import('./components/marketing/HostingPage').then(m => ({ default: m.HostingPage })));
 
 /* Solution pages */
 const EcommerceSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.EcommerceSolution })));
@@ -228,6 +229,7 @@ function AppRoutes() {
         <Route path="/terms" element={<Suspense fallback={null}><MktTermsPage /></Suspense>} />
         <Route path="/refund-policy" element={<Suspense fallback={null}><MktRefundPolicy /></Suspense>} />
         <Route path="/data-deletion" element={<Suspense fallback={null}><MktDataDeletion /></Suspense>} />
+        <Route path="/hosting" element={<Suspense fallback={null}><HostingPage /></Suspense>} />
         {/* Solution verticals */}
         <Route path="/solutions/ecommerce" element={<Suspense fallback={null}><EcommerceSolution /></Suspense>} />
         <Route path="/solutions/clinics" element={<Suspense fallback={null}><ClinicsSolution /></Suspense>} />
