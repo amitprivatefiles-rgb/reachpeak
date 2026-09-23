@@ -21,6 +21,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ShopifyConnect from './ShopifyConnect';
+import { ApiDocs } from './ApiDocs';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -377,6 +378,7 @@ export function Integrations() {
   const [showShopifyGuide, setShowShopifyGuide] = useState(false);
   const [showShopifyWizard, setShowShopifyWizard] = useState(false);
   const [showLifecycleDocs, setShowLifecycleDocs] = useState(false);
+  const [showApiDocs, setShowApiDocs] = useState(false);
 
   // ── Events state ──
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -518,6 +520,23 @@ export function Integrations() {
   -d '{"event_type":"cart_abandoned","dedupe_key":"cart_abc123","contact":{"phone":"+91 98765 43210","name":"Priya"},"payload":{"cart_total":1499,"checkout_url":"https://store.example/checkout/abc"}}'`;
 
   // ── Render ──
+  if (showApiDocs) {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <div className="px-4 py-4 sm:px-6 lg:px-8">
+          <button
+            onClick={() => setShowApiDocs(false)}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors mb-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to Integrations
+          </button>
+        </div>
+        <ApiDocs />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-transparent px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -654,24 +673,69 @@ export function Integrations() {
         <section className="rounded-xl border border-gray-200 bg-white p-6">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
             <ExternalLink className="h-5 w-5 text-emerald-400" />
-            Ingest Endpoint
+            API Endpoints
           </h2>
 
-          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-100 px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <code className="break-all text-sm font-mono text-emerald-400">{INGEST_URL}</code>
-              <CopyButton text={INGEST_URL} />
+          {/* Send Message endpoint */}
+          <div className="mb-5">
+            <p className="mb-2 text-sm font-medium text-gray-300">Send Message</p>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">POST</span>
+                  <code className="break-all text-sm font-mono text-emerald-400">
+                    https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/partner-send
+                  </code>
+                </div>
+                <CopyButton text="https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/partner-send" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="relative rounded-lg border border-gray-700 bg-gray-800 p-4">
+                <CopyButton text={`curl -X POST 'https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/partner-send' \\\n  -H 'Authorization: Bearer rpk_live_YOUR_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"to":"+91 98765 43210","type":"template","idempotency_key":"order_123_confirm","template":{"name":"order_confirmed_v2","bodyParams":["Priya","#1234","₹1,499"]}}'`} className="absolute right-3 top-3" />
+                <pre className="overflow-x-auto text-xs leading-relaxed text-gray-300">
+                  <code>{`curl -X POST 'https://mxupzmwznkekdjylaztl.supabase.co/functions/v1/partner-send' \\
+  -H 'Authorization: Bearer rpk_live_YOUR_KEY' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"to":"+91 98765 43210","type":"template","idempotency_key":"order_123_confirm","template":{"name":"order_confirmed_v2","bodyParams":["Priya","#1234","₹1,499"]}}'`}</code>
+                </pre>
+              </div>
             </div>
           </div>
 
+          {/* Ingest Event endpoint */}
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-600">Example Request</p>
-            <div className="relative rounded-lg border border-gray-200 bg-gray-100 p-4">
-              <CopyButton text={curlExample} className="absolute right-3 top-3" />
-              <pre className="overflow-x-auto text-xs leading-relaxed text-gray-600">
-                <code>{curlExample}</code>
-              </pre>
+            <p className="mb-2 text-sm font-medium text-gray-300">Ingest Event</p>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-400">POST</span>
+                  <code className="break-all text-sm font-mono text-emerald-400">{INGEST_URL}</code>
+                </div>
+                <CopyButton text={INGEST_URL} />
+              </div>
             </div>
+            <div className="mt-2">
+              <div className="relative rounded-lg border border-gray-700 bg-gray-800 p-4">
+                <CopyButton text={curlExample} className="absolute right-3 top-3" />
+                <pre className="overflow-x-auto text-xs leading-relaxed text-gray-300">
+                  <code>{curlExample}</code>
+                </pre>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              Full API reference with all parameters, response codes, and examples.
+            </p>
+            <button
+              onClick={() => setShowApiDocs(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View API Docs
+            </button>
           </div>
         </section>
 
