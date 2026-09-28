@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { BrandSpinner } from './BrandSpinner';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Scale, Plus, Search, X, Loader2, RefreshCw, MessageSquare, Clock,
@@ -26,6 +27,28 @@ const TYPES = [
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES.map(t => [t.id, t.label]));
 
+const TYPE_PHRASE = {
+  return: 'return request', exchange: 'exchange request', refund: 'refund request',
+  damaged: 'damaged item report', wrong_item: 'wrong item report', missing_item: 'missing item report',
+  size_issue: 'size issue', not_delivered: 'delivery issue', late_delivery: 'delivery delay',
+  quality_issue: 'quality concern', cancellation: 'cancellation request', other: 'request',
+};
+// Build the "Request" line the customer sees: type + order + reason (single line, no breaks).
+// Map every detail into the 3 vars of the approved UTILITY template dispute_status_update_v2:
+//   {{1}} = name, "request for {{2}}", {{3}} = type + reason + the status update.
+// {{2}} is just the order ref so it always reads well after "request for" for any dispute type.
+function v2Body(name, type, order, reason, message) {
+  const nm = (name || 'there').replace(/\s+/g, ' ').trim();
+  const orderRef = order ? `order #${order}` : 'your recent order';
+  let ctx = TYPE_PHRASE[type] || 'request';
+  ctx = ctx.charAt(0).toUpperCase() + ctx.slice(1);
+  const r = (reason || '').replace(/\s+/g, ' ').trim();
+  if (r) ctx += ` — ${r}`;
+  const msg = (message || '').replace(/\s+/g, ' ').trim();
+  const detail = (msg ? `${ctx}. ${msg}` : ctx).replace(/\s+/g, ' ').trim();
+  return [nm, orderRef, detail];
+}
+
 const STATUSES = [
   { id: 'open', label: 'Open', color: '#f59e0b' },
   { id: 'in_progress', label: 'In Progress', color: '#3b82f6' },
@@ -44,6 +67,15 @@ const PRIORITIES = [
   { id: 'urgent', label: 'Urgent', color: '#ef4444' },
 ];
 const PRIORITY_MAP = Object.fromEntries(PRIORITIES.map(p => [p.id, p]));
+
+const NOTIFY_PRESETS = {
+  open: "We've received your request and opened a ticket for it. Our team will look into it shortly.",
+  in_progress: "Good news — our team is now actively working on your request. We'll update you soon.",
+  awaiting_customer: "We need a little more information to process your request. Could you please share the details?",
+  escalated: "Your request has been escalated to our senior team for priority handling. Thank you for your patience.",
+  resolved: "Good news — your request has been resolved successfully. Thank you for shopping with us!",
+  rejected: "After careful review, we're unable to approve this request. Please reply if you have any questions — we're happy to help.",
+};
 
 const RESOLUTION_TYPES = [
   { id: 'refund_issued', label: 'Refund Issued' },
@@ -198,7 +230,7 @@ export function Disputes({ onNavigate }: { onNavigate?: (p: string) => void }) {
 
       {/* List */}
       {loading ? (
-        <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}><Loader2 className="animate-spin" style={{ margin: '0 auto' }} /></div>
+        <BrandSpinner label="Loading disputes…" />
       ) : filtered.length === 0 ? (
         <div className="rp-card" style={{ borderRadius: 16, padding: 48, textAlign: 'center', color: '#64748b' }}>
           <Scale size={40} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
@@ -225,6 +257,7 @@ export function Disputes({ onNavigate }: { onNavigate?: (p: string) => void }) {
                   {d.order_external_id && <Badge color="#0ea5e9">#{d.order_external_id}</Badge>}
                   <Badge color={pr.color}><Flag size={10} /> {pr.label}</Badge>
                   {overdue && <Badge color="#ef4444"><AlertTriangle size={10} /> Overdue</Badge>}
+                  {d.created_by === 'auto' && <Badge color="#8b5cf6">🤖 Auto-detected</Badge>}
                 </div>
                 {d.reason && <p style={{ fontSize: 13, color: '#475569', marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.reason}</p>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, fontSize: 12, color: '#94a3b8' }}>
@@ -255,6 +288,8 @@ function CreateDispute({ user, onClose, onCreated, prefill }) {
   const [reason, setReason] = useState('');
   const [dueDays, setDueDays] = useState('3');
   const [saving, setSaving] = useState(false);
+  const [notify, setNotify] = useState(true);
+  const [notifyMsg, setNotifyMsg] = useState("We've received your request and our team will look into it shortly. We'll keep you updated here.");
 
   // Prefill (from Inbox "Raise dispute"): resolve the contact + their orders.
   useEffect(() => {
@@ -303,16 +338,33 @@ function CreateDispute({ user, onClose, onCreated, prefill }) {
     const ord = orders.find(o => o.external_order_id === orderId);
     const due = dueDays ? new Date(Date.now() + Number(dueDays) * 864e5).toISOString() : null;
     const now = new Date().toISOString();
+    const timeline: any[] = [{ at: now, action: 'created', note: `Dispute opened (${TYPE_LABEL[type]})` }];
+
+    // Optionally notify the customer on WhatsApp right away.
+    let notifyErr: string | null = null;
+    if (notify && notifyMsg.trim() && contact.phone_number) {
+      const message = notifyMsg.replace(/\s+/g, ' ').trim();
+      try {
+        const { data: conv } = await supabase.from('conversations').select('id')
+          .eq('user_id', user.id).eq('contact_phone', contact.phone_number).maybeSingle();
+        const { error: sErr } = await supabase.functions.invoke('send-message', {
+          body: { to: contact.phone_number, type: 'template', template: { name: 'dispute_status_update_v2', language: 'en', bodyParams: v2Body(contact.name, type, orderId, reason, message) }, conversation_id: conv?.id || null },
+        });
+        if (sErr) throw sErr;
+        timeline.push({ at: new Date().toISOString(), action: 'notified', note: `Customer notified on WhatsApp: "${message}"` });
+      } catch (e: any) { notifyErr = e?.message || 'could not send'; }
+    }
+
     const { error } = await supabase.from('disputes').insert({
       user_id: user.id,
       contact_id: contact.id, contact_phone: contact.phone_number, contact_name: contact.name,
       order_external_id: orderId || null, order_total: ord?.total ?? null,
-      dispute_type: type, priority, reason: reason || null, status: 'open', due_at: due,
-      timeline: [{ at: now, action: 'created', note: `Dispute opened (${TYPE_LABEL[type]})` }],
+      dispute_type: type, priority, reason: reason || null, status: 'open', due_at: due, timeline,
     });
     setSaving(false);
-    if (!error) onCreated();
-    else alert('Could not create dispute: ' + error.message);
+    if (error) { alert('Could not create dispute: ' + error.message); return; }
+    if (notifyErr) alert('Dispute created ✓ — but the customer WhatsApp update could not be sent: ' + notifyErr);
+    onCreated();
   };
 
   return (
@@ -357,6 +409,15 @@ function CreateDispute({ user, onClose, onCreated, prefill }) {
       <Field label="Resolve within (days)">
         <input type="number" min="0" value={dueDays} onChange={e => setDueDays(e.target.value)} style={inp} />
       </Field>
+      <div style={{ background: '#f0fdf4', border: '1px solid #dcfce7', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, color: '#166534', fontSize: 13.5 }}>
+          <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} style={{ width: 16, height: 16 }} />
+          <MessageSquare size={15} /> Notify the customer on WhatsApp now
+        </label>
+        {notify && (
+          <textarea value={notifyMsg} onChange={e => setNotifyMsg(e.target.value)} rows={2} placeholder="Message to send the customer…" style={{ ...inp, resize: 'vertical', marginTop: 8 }} />
+        )}
+      </div>
       <button onClick={save} disabled={!contact || saving} className="rp-tap"
         style={{ width: '100%', padding: 12, borderRadius: 12, border: 'none', background: contact ? ACCENT : '#cbd5e1', color: '#fff', fontWeight: 700, marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Dispute
@@ -373,6 +434,8 @@ function DisputeDetail({ dispute, user, onClose, onChanged, onNavigate }) {
   const [resolution, setResolution] = useState(d.resolution || '');
   const [resolutionType, setResolutionType] = useState(d.resolution_type || '');
   const [refund, setRefund] = useState(d.refund_amount || '');
+  const [notifyMsg, setNotifyMsg] = useState(NOTIFY_PRESETS[d.status] || '');
+  const [notifying, setNotifying] = useState(false);
   const st = STATUS_MAP[d.status] || STATUSES[0];
 
   const patch = async (changes, timelineEntry) => {
@@ -396,6 +459,29 @@ function DisputeDetail({ dispute, user, onClose, onChanged, onNavigate }) {
   const messageCustomer = () => {
     try { localStorage.setItem('rp_open_contact', d.contact_phone); } catch {}
     onNavigate && onNavigate('inbox');
+  };
+  const notifyCustomer = async () => {
+    // WhatsApp body params can't contain line breaks — collapse whitespace.
+    const message = notifyMsg.replace(/\s+/g, ' ').trim();
+    if (!message) return;
+    setNotifying(true);
+    try {
+      const { data: conv } = await supabase.from('conversations').select('id')
+        .eq('user_id', user.id).eq('contact_phone', d.contact_phone).maybeSingle();
+      const { error } = await supabase.functions.invoke('send-message', {
+        body: {
+          to: d.contact_phone,
+          type: 'template',
+          template: { name: 'dispute_status_update_v2', language: 'en', bodyParams: v2Body(d.contact_name, d.dispute_type, d.order_external_id, d.reason, message) },
+          conversation_id: conv?.id || null,
+        },
+      });
+      if (error) throw error;
+      await patch({}, { action: 'notified', note: `Customer notified on WhatsApp: "${message}"` });
+      alert('✓ Update sent to the customer on WhatsApp.');
+    } catch (e: any) {
+      alert('Could not send the update: ' + (e?.message || 'the status-update template may still be under review — please try again shortly'));
+    } finally { setNotifying(false); }
   };
 
   return (
@@ -444,6 +530,20 @@ function DisputeDetail({ dispute, user, onClose, onChanged, onNavigate }) {
       <button onClick={messageCustomer} className="rp-tap" style={{ marginLeft: 8, padding: '9px 16px', borderRadius: 10, border: '1px solid ' + ACCENT, background: '#fff', color: ACCENT, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <MessageSquare size={15} /> Message customer
       </button>
+
+      {/* Notify customer over WhatsApp */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', margin: '18px 0 6px' }}>NOTIFY CUSTOMER ON WHATSAPP</div>
+      <textarea value={notifyMsg} onChange={e => setNotifyMsg(e.target.value)} rows={2} placeholder="Update to send the customer…" style={{ ...inp, resize: 'vertical', marginBottom: 8 }} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button onClick={notifyCustomer} disabled={notifying || !notifyMsg.trim()} className="rp-tap"
+          style={{ padding: '9px 16px', borderRadius: 10, border: 'none', background: '#25D366', color: '#fff', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {notifying ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />} Send WhatsApp update
+        </button>
+        <button onClick={() => setNotifyMsg(NOTIFY_PRESETS[d.status] || '')} className="rp-tap"
+          style={{ padding: '9px 12px', borderRadius: 10, border: '1px solid #e6e8ec', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: 13 }}>
+          Suggested for “{st.label}”
+        </button>
+      </div>
 
       {/* Timeline */}
       <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', margin: '18px 0 8px' }}>ACTIVITY</div>
