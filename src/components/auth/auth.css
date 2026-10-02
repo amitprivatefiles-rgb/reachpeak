@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;1,8..60,400&family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+.rpa { --bg: #FAFAF7; --card: #FFFFFF; --ink: #0E0E10; --ink2: #2B2B30; --mut: #5F6168; --faint: #8C8E96; --line: rgba(14,14,16,.12); --o: #E04632; --g: #15924A;
+  --serif: 'Source Serif 4', Georgia, serif; --sans: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  min-height: 100dvh; display: flex; background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+.rpa *, .rpa *::before, .rpa *::after { box-sizing: border-box; }
+.rpa a { color: inherit; text-decoration: none; }
+
+/* brand panel (desktop) */
+.rpa-panel { display: none; position: relative; overflow: hidden; flex: 1.05; flex-direction: column; justify-content: space-between; padding: 44px 56px; background: var(--ink); color: #F4F4F1; }
+@media (min-width: 960px) { .rpa-panel { display: flex; } }
+.rpa-panel::before { content: ''; position: absolute; width: 620px; height: 420px; right: -220px; top: -160px; background: radial-gradient(ellipse, rgba(224,70,50,.28), transparent 70%); filter: blur(20px); }
+.rpa-panel::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(244,244,241,.06) 1px, transparent 1.2px); background-size: 26px 26px; mask-image: linear-gradient(180deg, #000, transparent 75%); -webkit-mask-image: linear-gradient(180deg, #000, transparent 75%); }
+.rpa-panel > * { position: relative; z-index: 1; }
+.rpa-brand { display: inline-flex; align-items: center; gap: 10px; font: 700 18px/1 var(--sans); letter-spacing: -0.01em; }
+.rpa-brand img { width: 32px; height: 32px; object-fit: contain; }
+.rpa-brand small { font: 600 10px/1 var(--mono); letter-spacing: .14em; color: #5BD38A; }
+.rpa-live { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: rgba(91,211,138,.12); color: #5BD38A; font: 600 11.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.rpa-live i { width: 8px; height: 8px; border-radius: 50%; background: #5BD38A; box-shadow: 0 0 0 4px rgba(91,211,138,.2); }
+.rpa-h { font: 400 clamp(40px, 3.6vw, 54px)/1.03 var(--serif); letter-spacing: -0.03em; margin: 22px 0 0; max-width: 520px; text-wrap: balance; }
+.rpa-h em { font-style: italic; color: #F06850; }
+.rpa-lead { font-size: 17px; line-height: 1.6; color: #B8BAC1; margin: 18px 0 0; max-width: 460px; }
+.rpa-feats { list-style: none; padding: 0; margin: 30px 0 0; display: grid; gap: 14px; }
+.rpa-feats li { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: center; font-size: 15.5px; color: #E4E4E0; }
+.rpa-feats svg { color: #5BD38A; }
+.rpa-quote { border-top: 1px solid rgba(244,244,241,.14); padding-top: 22px; max-width: 480px; }
+.rpa-quote p { font: italic 400 19px/1.45 var(--serif); margin: 0; color: #E4E4E0; }
+.rpa-quote span { display: block; margin-top: 10px; font: 600 11px/1 var(--mono); letter-spacing: .12em; color: #8C8E96; text-transform: uppercase; }
+
+/* form side */
+.rpa-main { flex: 1; display: flex; flex-direction: column; min-height: 100dvh; }
+.rpa-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; }
+@media (min-width: 640px) { .rpa-top { padding: 22px 32px; } }
+.rpa-top .rpa-brand { font-size: 17px; }
+@media (min-width: 960px) { .rpa-top .rpa-brand { visibility: hidden; } }
+.rpa-back { display: inline-flex; align-items: center; gap: 6px; font: 500 14px/1 var(--sans); color: var(--mut); padding: 8px 10px; border-radius: 10px; }
+.rpa-back:hover { color: var(--ink); background: rgba(14,14,16,.05); }
+.rpa-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px 20px 40px; }
+.rpa-box { width: 100%; max-width: 410px; }
+.rpa-title { font: 400 40px/1.05 var(--serif); letter-spacing: -0.025em; margin: 0; }
+.rpa-sub { font-size: 15.5px; line-height: 1.5; color: var(--mut); margin: 10px 0 28px; }
+.rpa-form { display: grid; gap: 16px; }
+.rpa-field label { display: block; font: 600 13px/1 var(--sans); color: var(--ink2); margin-bottom: 8px; }
+.rpa-input { position: relative; display: flex; align-items: center; }
+.rpa-input > svg { position: absolute; left: 15px; color: var(--faint); pointer-events: none; }
+.rpa-input input { width: 100%; height: 50px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); padding: 0 14px 0 44px; font: 500 16px/1 var(--sans); color: var(--ink); outline: none; transition: border-color .15s, box-shadow .15s; }
+.rpa-input input::placeholder { color: #A9ABB2; font-weight: 400; }
+.rpa-input input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(14,14,16,.08); }
+.rpa-eye { position: absolute; right: 8px; width: 36px; height: 36px; border-radius: 9px; border: 0; background: transparent; color: var(--faint); display: grid; place-items: center; cursor: pointer; }
+.rpa-eye:hover { color: var(--ink); background: rgba(14,14,16,.05); }
+.rpa-btn { height: 52px; border-radius: 999px; border: 0; background: var(--o); color: #fff; font: 600 16px/1 var(--sans); display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-top: 6px; box-shadow: 0 12px 26px -14px rgba(224,70,50,.9); transition: background .2s, opacity .2s; }
+.rpa-btn:hover { background: #C93A28; }
+.rpa-btn:disabled { opacity: .7; cursor: not-allowed; }
+.rpa-msg { padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; font-weight: 500; }
+.rpa-msg.err { background: #FDF0EE; color: #B42318; border: 1px solid #F8D5CF; }
+.rpa-msg.ok { background: #ECF8F0; color: #0F6B37; border: 1px solid #C8EBD4; }
+.rpa-msg.ok a { display: inline-block; margin-top: 8px; font-weight: 700; color: #0F6B37; }
+.rpa-note { font-size: 13px; line-height: 1.5; color: var(--faint); margin: 2px 0 0; text-align: center; }
+.rpa-switch { text-align: center; margin-top: 26px; font-size: 15px; color: var(--mut); }
+.rpa-switch a { color: var(--o); font-weight: 600; }
+.rpa-foot { padding: 16px 20px 22px; text-align: center; font-size: 12.5px; color: var(--faint); }
+.rpa-foot a:hover { color: var(--ink); }
+@keyframes rpa-spin { to { transform: rotate(360deg); } }
+.rpa-spin { animation: rpa-spin 1s linear infinite; }

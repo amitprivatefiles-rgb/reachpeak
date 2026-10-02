@@ -52,7 +52,7 @@ export function InstallPrompt() {
   };
 
   let msg: ReactNode = 'Add it to your home screen for one-tap access';
-  const b = (t: string) => <b style={{ color: '#cbd5e1' }}>{t}</b>;
+  const b = (t: string) => <b style={{ color: '#0E0E10' }}>{t}</b>;
   if (!deferred) {
     if (env.inApp) msg = <>Open {b('www.reachpeakapi.in')} in Chrome or Safari to install</>;
     else if (env.ios && env.safari) msg = <>Tap {b('Share')} ⎋ then {b('Add to Home Screen')}</>;
@@ -62,16 +62,16 @@ export function InstallPrompt() {
 
   return (
     <div style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 9999, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-      <div style={{ pointerEvents: 'auto', maxWidth: 460, width: '100%', background: '#0f172a', border: '1px solid #24304a', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 10px 40px rgba(0,0,0,0.45)' }}>
-        <img src="/icon-192.png" alt="" style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0 }} />
+      <div style={{ pointerEvents: 'auto', maxWidth: 460, width: '100%', background: '#FFFFFF', border: '1px solid rgba(14,14,16,0.12)', borderRadius: 16, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 18px 40px -18px rgba(14,14,16,0.35)', fontFamily: "'Inter Tight', 'Inter', -apple-system, sans-serif" }}>
+        <img src="/logo-mark.png" alt="" style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, objectFit: 'contain', background: '#FAFAF7', padding: 6, border: '1px solid rgba(14,14,16,0.08)' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 700 }}>Install ReachPeak</div>
-          <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.4 }}>{msg}</div>
+          <div style={{ color: '#0E0E10', fontSize: 14, fontWeight: 700 }}>Install ReachPeak</div>
+          <div style={{ color: '#5F6168', fontSize: 12.5, lineHeight: 1.4 }}>{msg}</div>
         </div>
         {deferred && (
-          <button onClick={install} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Install</button>
+          <button onClick={install} style={{ background: '#E04632', color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Install</button>
         )}
-        <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'transparent', color: '#64748b', border: 'none', fontSize: 20, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+        <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'transparent', color: '#8C8E96', border: 'none', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
       </div>
     </div>
   );
