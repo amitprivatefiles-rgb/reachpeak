@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { DemoProvider, DemoButton } from './ui';
 import { INDUSTRIES, SUPPORT_EMAIL, WA_DISPLAY, WA_NUMBER } from './data';
 import './site.css';
@@ -14,8 +14,25 @@ function Nav() {
   const [drop, setDrop] = useState(false);
   const loc = useLocation();
   useEffect(() => { setMenu(false); setDrop(false); }, [loc.pathname]);
-  useEffect(() => { document.body.style.overflow = menu ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [menu]);
+  // Lock page scroll while the mobile menu is open: freeze the body in place so the page keeps its position,
+  // then restore it on close (or stay at the top if a menu link navigated to another page).
+  const pathRef = useRef(loc.pathname);
+  pathRef.current = loc.pathname;
+  useEffect(() => {
+    if (!menu) return;
+    const y = window.scrollY, openedOn = pathRef.current, body = document.body;
+    const prev = { position: body.style.position, top: body.style.top, left: body.style.left, right: body.style.right, width: body.style.width };
+    Object.assign(body.style, { position: 'fixed', top: `-${y}px`, left: '0', right: '0', width: '100%' });
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      Object.assign(body.style, prev);
+      window.scrollTo({ top: pathRef.current === openedOn ? y : 0, behavior: 'instant' as ScrollBehavior });
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
   return (
+    <>
     <header className="rp-nav">
       <div className="rp-wrap">
         <Brand />
@@ -37,25 +54,30 @@ function Nav() {
         <div className="rp-navright">
           <Link to="/login" className="rp-login">Log in</Link>
           <DemoButton className="rp-btn primary sm" label="Demo call" />
-          <button type="button" className="rp-burger" onClick={() => setMenu(!menu)} aria-label={menu ? 'Close menu' : 'Open menu'}>{menu ? <X size={20} /> : <Menu size={20} />}</button>
+          <button type="button" className="rp-burger" onClick={() => setMenu(!menu)} aria-label={menu ? 'Close menu' : 'Open menu'} aria-expanded={menu} aria-controls="rp-mobile-menu">{menu ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </div>
-      {menu && (
-        <div className="rp-mobile">
-          <Link to="/ai-calling">AI Calling</Link>
-          <Link to="/whatsapp">WhatsApp</Link>
-          <Link to="/pricing">Pricing</Link>
-          <Link to="/about">About</Link>
-          <Link to="/contact">Contact</Link>
-          <div className="sub">Industries</div>
-          {INDUSTRIES.map((i) => <Link key={i.slug} to={`/solutions/${i.slug}`}>{i.name}</Link>)}
-          <Link to="/use-cases">All use cases</Link>
-          <div className="sub">Account</div>
-          <Link to="/login">Log in</Link>
-          <Link to="/signup">Get started</Link>
-        </div>
-      )}
     </header>
+    {/* Outside the header on purpose: the header's backdrop blur would otherwise trap this fixed panel inside the 68px bar. */}
+    {menu && (
+      <div className="rp-mobile" id="rp-mobile-menu" role="dialog" aria-modal="true" aria-label="Menu">
+        <nav className="rp-mlinks" aria-label="Mobile">
+          {[['/ai-calling', 'AI Calling'], ['/whatsapp', 'WhatsApp'], ['/use-cases', 'Use cases'], ['/pricing', 'Pricing'], ['/about', 'About'], ['/contact', 'Contact']].map(([to, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'on' : '')}>{label}<ChevronRight size={18} /></NavLink>
+          ))}
+        </nav>
+        <div className="sub">Industries</div>
+        <div className="rp-mind">
+          {INDUSTRIES.map((i) => <Link key={i.slug} to={`/solutions/${i.slug}`}>{i.name}</Link>)}
+        </div>
+        <div className="rp-mcta" onClick={() => setMenu(false)}>
+          <DemoButton className="rp-btn primary" label="Get a demo call" />
+          <Link to="/signup" className="rp-btn ghost">Get started</Link>
+          <Link to="/login" className="rp-mlogin">Already a customer? <b>Log in</b></Link>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
