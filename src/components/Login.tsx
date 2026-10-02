@@ -6,9 +6,9 @@ import { Mail, Lock, Eye, EyeOff, Loader2, Check, ArrowRight } from 'lucide-reac
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
 const FEATURES = [
-  'Bulk campaigns & automated journeys',
-  'Order Guard — COD fraud & RTO protection',
-  'Prepaid wallet, live analytics & shared Inbox',
+  'AI calling agents in Hindi, English & Hinglish',
+  'WhatsApp campaigns, journeys & shared inbox',
+  'Prepaid wallet: AI calling billed per minute',
 ];
 
 export function Login() {
@@ -78,10 +78,10 @@ export function Login() {
 
         <div style={{ position: 'relative', maxWidth: 440 }}>
           <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 38, lineHeight: 1.12, fontWeight: 700, color: '#f8fafc', margin: 0, letterSpacing: '-0.02em' }}>
-            Turn WhatsApp into your growth engine.
+            Every lead, called in 60 seconds.
           </h2>
           <p style={{ color: '#94a3b8', fontSize: 16, lineHeight: 1.6, margin: '18px 0 28px' }}>
-            Campaigns, order automation, and fraud protection — all from one dashboard.
+            AI calling agents and WhatsApp, working together for your business, all from one dashboard.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {FEATURES.map((f) => (
@@ -95,7 +95,7 @@ export function Login() {
           </div>
         </div>
 
-        <p style={{ position: 'relative', color: '#475569', fontSize: 13, margin: 0 }}>© {new Date().getFullYear()} ReachPeak · WhatsApp Business Platform</p>
+        <p style={{ position: 'relative', color: '#475569', fontSize: 13, margin: 0 }}>© {new Date().getFullYear()} ReachPeak · AI Calling & WhatsApp Business Platform</p>
       </div>
 
       {/* ── Form panel ── */}

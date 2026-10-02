@@ -6,9 +6,9 @@ import { User, Mail, Lock, Eye, EyeOff, Loader2, Check, ArrowRight } from 'lucid
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 
 const FEATURES = [
-  'Bulk campaigns & automated journeys',
-  'Order Guard — COD fraud & RTO protection',
-  'Prepaid wallet, live analytics & shared Inbox',
+  'AI calling agents in Hindi, English & Hinglish',
+  'WhatsApp campaigns, journeys & shared inbox',
+  'Prepaid wallet: AI calling billed per minute',
 ];
 
 export function Signup() {
@@ -84,9 +84,9 @@ export function Signup() {
         </div>
         <div style={{ position: 'relative', maxWidth: 440 }}>
           <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 38, lineHeight: 1.12, fontWeight: 700, color: '#f8fafc', margin: 0, letterSpacing: '-0.02em' }}>
-            Start scaling on WhatsApp today.
+            No customer should have to wait.
           </h2>
-          <p style={{ color: '#94a3b8', fontSize: 16, lineHeight: 1.6, margin: '18px 0 28px' }}>Set up in minutes — campaigns, automations, and fraud protection in one place.</p>
+          <p style={{ color: '#94a3b8', fontSize: 16, lineHeight: 1.6, margin: '18px 0 28px' }}>Set up in minutes: AI calling agents, WhatsApp automation and a shared inbox, in one place.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {FEATURES.map((f) => (
               <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -98,7 +98,7 @@ export function Signup() {
             ))}
           </div>
         </div>
-        <p style={{ position: 'relative', color: '#475569', fontSize: 13, margin: 0 }}>© {new Date().getFullYear()} ReachPeak · WhatsApp Business Platform</p>
+        <p style={{ position: 'relative', color: '#475569', fontSize: 13, margin: 0 }}>© {new Date().getFullYear()} ReachPeak · AI Calling & WhatsApp Business Platform</p>
       </div>
 
       {/* Form panel */}
@@ -110,7 +110,7 @@ export function Signup() {
           </div>
 
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: '#f8fafc', margin: '0 0 6px', letterSpacing: '-0.01em' }}>Create your account</h1>
-          <p style={{ color: '#94a3b8', fontSize: 15, margin: '0 0 24px' }}>Start scaling your WhatsApp revenue</p>
+          <p style={{ color: '#94a3b8', fontSize: 15, margin: '0 0 24px' }}>Put AI calling and WhatsApp to work for your business</p>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 15 }} autoComplete="off">
             {error && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', padding: '11px 14px', borderRadius: 10, fontSize: 13.5, fontWeight: 500 }}>{error}</div>}
