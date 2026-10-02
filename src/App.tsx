@@ -6,12 +6,16 @@ import { InstallPrompt } from './components/InstallPrompt';
 
 /* ─── MARKETING PAGES (lazy-loaded — keeps app bundle lean) ─── */
 const MarketingLayout = lazy(() => import('./components/marketing/MarketingLayout').then(m => ({ default: m.MarketingLayout })));
-const Landing = lazy(() => import('./components/marketing/Landing').then(m => ({ default: m.Landing })));
-const AICallingPage = lazy(() => import('./components/marketing/AICallingPage').then(m => ({ default: m.AICallingPage })));
-const MktAboutPage = lazy(() => import('./components/marketing/AboutPage').then(m => ({ default: m.AboutPage })));
-const MktPricingPage = lazy(() => import('./components/marketing/PricingPage').then(m => ({ default: m.PricingPage })));
-const MktContactPage = lazy(() => import('./components/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
-const MktUseCasesPage = lazy(() => import('./components/marketing/UseCasesPage').then(m => ({ default: m.UseCasesPage })));
+/* New marketing site (2026-10): light editorial design, every-business positioning, AI calling live */
+const SiteLayout = lazy(() => import('./components/site/SiteLayout').then(m => ({ default: m.SiteLayout })));
+const SiteHome = lazy(() => import('./components/site/pages/Home'));
+const SiteAICalling = lazy(() => import('./components/site/pages/AICalling'));
+const SiteWhatsApp = lazy(() => import('./components/site/pages/WhatsApp'));
+const SiteIndustry = lazy(() => import('./components/site/pages/Industry'));
+const SiteUseCases = lazy(() => import('./components/site/pages/UseCases'));
+const SitePricing = lazy(() => import('./components/site/pages/Pricing'));
+const SiteAbout = lazy(() => import('./components/site/pages/About'));
+const SiteContact = lazy(() => import('./components/site/pages/Contact'));
 const MktPrivacyPolicy = lazy(() => import('./components/marketing/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
 const MktTermsPage = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.TermsPage })));
 const MktRefundPolicy = lazy(() => import('./components/marketing/LegalPages').then(m => ({ default: m.RefundPolicyPage })));
@@ -19,12 +23,7 @@ const MktDataDeletion = lazy(() => import('./components/marketing/LegalPages').t
 const HostingPage = lazy(() => import('./components/marketing/HostingPage').then(m => ({ default: m.HostingPage })));
 
 /* Solution pages */
-const EcommerceSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.EcommerceSolution })));
-const ClinicsSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.ClinicsSolution })));
-const SalonsSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.SalonsSolution })));
-const EducationSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.EducationSolution })));
-const RealEstateSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.RealEstateSolution })));
-const ServicesSolution = lazy(() => import('./components/marketing/solutions/index').then(m => ({ default: m.ServicesSolution })));
+// (old /solutions pages replaced by components/site/pages/Industry)
 
 /* ─── APP PAGES (eagerly loaded — behind auth) ─── */
 import { Login } from './components/Login';
@@ -219,26 +218,25 @@ function AppDashboard() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* ─── MARKETING (dark premium, lazy-loaded) ─── */}
+      {/* ─── MARKETING SITE (light, lazy-loaded) ─── */}
+      <Route element={<Suspense fallback={<MarketingLoading />}><SiteLayout /></Suspense>}>
+        <Route path="/" element={<Suspense fallback={null}><SiteHome /></Suspense>} />
+        <Route path="/ai-calling" element={<Suspense fallback={null}><SiteAICalling /></Suspense>} />
+        <Route path="/whatsapp" element={<Suspense fallback={null}><SiteWhatsApp /></Suspense>} />
+        <Route path="/solutions/:slug" element={<Suspense fallback={null}><SiteIndustry /></Suspense>} />
+        <Route path="/use-cases" element={<Suspense fallback={null}><SiteUseCases /></Suspense>} />
+        <Route path="/pricing" element={<Suspense fallback={null}><SitePricing /></Suspense>} />
+        <Route path="/about" element={<Suspense fallback={null}><SiteAbout /></Suspense>} />
+        <Route path="/contact" element={<Suspense fallback={null}><SiteContact /></Suspense>} />
+        {/* Legal content is frozen (Meta review) — shown on its original dark panel inside the new nav/footer */}
+        <Route path="/privacy-policy" element={<Suspense fallback={null}><div style={{ background: '#070B14', color: '#e2e8f0', fontFamily: "'Inter', sans-serif" }}><MktPrivacyPolicy /></div></Suspense>} />
+        <Route path="/terms" element={<Suspense fallback={null}><div style={{ background: '#070B14', color: '#e2e8f0', fontFamily: "'Inter', sans-serif" }}><MktTermsPage /></div></Suspense>} />
+        <Route path="/refund-policy" element={<Suspense fallback={null}><div style={{ background: '#070B14', color: '#e2e8f0', fontFamily: "'Inter', sans-serif" }}><MktRefundPolicy /></div></Suspense>} />
+        <Route path="/data-deletion" element={<Suspense fallback={null}><div style={{ background: '#070B14', color: '#e2e8f0', fontFamily: "'Inter', sans-serif" }}><MktDataDeletion /></div></Suspense>} />
+      </Route>
+      {/* ─── HOSTING (separate unlinked funnel, unchanged, old layout) ─── */}
       <Route element={<Suspense fallback={<MarketingLoading />}><MarketingLayout /></Suspense>}>
-        <Route path="/" element={<Suspense fallback={null}><Landing /></Suspense>} />
-        <Route path="/ai-calling" element={<Suspense fallback={null}><AICallingPage /></Suspense>} />
-        <Route path="/about" element={<Suspense fallback={null}><MktAboutPage /></Suspense>} />
-        <Route path="/pricing" element={<Suspense fallback={null}><MktPricingPage /></Suspense>} />
-        <Route path="/contact" element={<Suspense fallback={null}><MktContactPage /></Suspense>} />
-        <Route path="/use-cases" element={<Suspense fallback={null}><MktUseCasesPage /></Suspense>} />
-        <Route path="/privacy-policy" element={<Suspense fallback={null}><MktPrivacyPolicy /></Suspense>} />
-        <Route path="/terms" element={<Suspense fallback={null}><MktTermsPage /></Suspense>} />
-        <Route path="/refund-policy" element={<Suspense fallback={null}><MktRefundPolicy /></Suspense>} />
-        <Route path="/data-deletion" element={<Suspense fallback={null}><MktDataDeletion /></Suspense>} />
         <Route path="/hosting" element={<Suspense fallback={null}><HostingPage /></Suspense>} />
-        {/* Solution verticals */}
-        <Route path="/solutions/ecommerce" element={<Suspense fallback={null}><EcommerceSolution /></Suspense>} />
-        <Route path="/solutions/clinics" element={<Suspense fallback={null}><ClinicsSolution /></Suspense>} />
-        <Route path="/solutions/salons" element={<Suspense fallback={null}><SalonsSolution /></Suspense>} />
-        <Route path="/solutions/education" element={<Suspense fallback={null}><EducationSolution /></Suspense>} />
-        <Route path="/solutions/real-estate" element={<Suspense fallback={null}><RealEstateSolution /></Suspense>} />
-        <Route path="/solutions/services" element={<Suspense fallback={null}><ServicesSolution /></Suspense>} />
       </Route>
 
       {/* ─── AUTH ─── */}

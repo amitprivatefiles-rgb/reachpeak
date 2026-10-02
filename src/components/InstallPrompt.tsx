@@ -1,4 +1,8 @@
 import { useEffect, useState, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+
+// The marketing site (light design) has its own CTAs: only offer the app install on app pages.
+const MARKETING = /^\/($|ai-calling|whatsapp|solutions|use-cases|pricing|about|contact|privacy-policy|terms|refund-policy|data-deletion|hosting)/;
 
 // Floating "Install app" banner.
 //  • Desktop/Android Chrome: shows a real Install button when the browser fires
@@ -6,6 +10,7 @@ import { useEffect, useState, ReactNode } from 'react';
 //  • Mobile without that event (iOS Safari, Android Chrome that hasn't fired it yet,
 //    in-app browsers): always shows with the correct manual instructions.
 export function InstallPrompt() {
+  const { pathname } = useLocation();
   const [deferred, setDeferred] = useState<any>(null);
   const [show, setShow] = useState(false);
   const [env, setEnv] = useState({ ios: false, android: false, safari: false, inApp: false });
@@ -36,7 +41,7 @@ export function InstallPrompt() {
     };
   }, []);
 
-  if (!show) return null;
+  if (!show || MARKETING.test(pathname)) return null;
 
   const dismiss = () => { setShow(false); try { localStorage.setItem('rp_install_dismissed', '1'); } catch { /* ignore */ } };
   const install = async () => {
