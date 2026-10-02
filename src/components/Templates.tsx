@@ -6,6 +6,7 @@ import {
   Plus, Trash2, RefreshCw, Eye, EyeOff, FileText, Send as SendIcon,
   Loader2, CheckCircle, XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, X
 } from 'lucide-react';
+import { BrandSpinner } from './BrandSpinner';
 
 interface Template {
   id: string;
@@ -363,13 +364,7 @@ export function Templates() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-green-400" />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading templates…" />;
 
   return (
     <div className="space-y-6">

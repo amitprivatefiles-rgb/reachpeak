@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { CircleUser as UserCircle, Plus, BarChart2, CreditCard as Edit2 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
+import { BrandSpinner } from './BrandSpinner';
 
 type Agent = Database['public']['Tables']['agents']['Row'];
 
@@ -93,13 +94,7 @@ export function Agents() {
     fetchAgents();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading agents...</div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading agents…" />;
 
   return (
     <div className="space-y-6">

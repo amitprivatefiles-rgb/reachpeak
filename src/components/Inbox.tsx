@@ -7,6 +7,7 @@ import {
   Phone, User, File, ChevronDown, CreditCard, Trash2, MapPin,
   Reply, ExternalLink, ShoppingBag,
 } from 'lucide-react';
+import { BrandSpinner } from './BrandSpinner';
 
 interface Conversation {
   id: string;
@@ -647,13 +648,7 @@ export function Inbox({ onNavigate }: { onNavigate?: (page: string) => void }) {
     return `${hours}h ${mins}m`;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading inbox…" />;
 
   return (
     <div className="h-full flex bg-transparent overflow-hidden">

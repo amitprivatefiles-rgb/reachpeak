@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getHeaderFormat } from '../lib/templatePayloadBuilder';
 import { Plus, CreditCard as Edit2, Play, Pause, CheckCircle, XCircle, Lock, Upload, Download, Image as ImageIcon, Video, MessageSquare, ExternalLink, Phone, Loader2, Rocket, StopCircle, RotateCcw, Ban, Eye, Clock } from 'lucide-react';
+import { BrandSpinner } from './BrandSpinner';
 
 // Contact fields available for variable mapping (matches contacts table schema)
 const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
@@ -484,13 +485,7 @@ export function Campaigns() {
 
   const getMetrics = (campaignId: string) => metricsMap[campaignId] || null;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-green-400" />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading campaigns…" />;
 
   return (
     <div className="space-y-6">

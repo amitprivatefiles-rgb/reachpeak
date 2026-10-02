@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { Users, Upload, Send, AlertCircle, Play, CheckCircle, TrendingUp, TrendingDown, Ban, UserCheck, Clock, RefreshCw, Calendar, CreditCard, Megaphone, MessageSquare, Download, Loader2 } from 'lucide-react';
+import { BrandSpinner } from './BrandSpinner';
 
 interface DashboardMetrics {
   total_contacts: number;
@@ -329,16 +330,7 @@ export function Dashboard() {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-          <p className="text-gray-500 text-sm">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading dashboard…" />;
 
   return (
     <div className="space-y-4 sm:space-y-6">

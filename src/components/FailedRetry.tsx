@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertCircle, RefreshCw, Ban, CheckCircle, XCircle } from 'lucide-react';
 import { isRetryable, MAX_RETRY_COUNT } from '../lib/retryability';
+import { BrandSpinner } from './BrandSpinner';
 
 interface FailedMessage {
   id: string;
@@ -130,13 +131,7 @@ export function FailedRetry() {
     return acc;
   }, {});
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading failed messages...</div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading failed messages…" />;
 
   return (
     <div className="space-y-6">

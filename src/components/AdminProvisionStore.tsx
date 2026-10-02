@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Store, Loader2, KeyRound, CheckCircle2, Link2, RefreshCw, Wallet as WalletIcon, Phone, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BrandSpinner } from './BrandSpinner';
 
 const brand = '#E04632';
 const card = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 14, padding: 20 };
@@ -70,7 +71,7 @@ export function AdminProvisionStore() {
     load();
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: brand }} /></div>;
+  if (loading) return <BrandSpinner label="Loading…" />;
 
   const configured = !!cfg?.token_configured;
 

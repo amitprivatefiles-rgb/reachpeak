@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserPlus, Trash2, Shield, User, CheckCircle, XCircle, CreditCard, Eye, X, Image } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import type { Subscription } from '../contexts/SubscriptionContext';
+import { BrandSpinner } from './BrandSpinner';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -147,9 +148,7 @@ export function UserManagement() {
     );
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-96"><div className="text-gray-400">Loading...</div></div>;
-  }
+  if (loading) return <BrandSpinner label="Loading users…" />;
 
   return (
     <div className="space-y-6">

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ConnectWhatsApp } from './ConnectWhatsApp';
 import { Phone, Shield, CheckCircle, AlertTriangle, Send, Loader2, Eye, EyeOff, Wifi, WifiOff, Trash2 } from 'lucide-react';
+import { BrandSpinner } from './BrandSpinner';
 
 interface WhatsAppAccount {
   id: string;
@@ -144,13 +145,7 @@ export function WhatsAppSettings() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-green-400" />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading WhatsApp settings…" />;
 
   return (
     <div className="space-y-6">

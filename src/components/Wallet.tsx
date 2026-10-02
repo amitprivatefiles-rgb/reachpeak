@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Wallet as WalletIcon, Plus, Loader2, ArrowDownCircle, ArrowUpCircle, Clock, AlertTriangle, RefreshCw, Gift, ShieldCheck, Sparkles, Check, Zap, Lock, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { BrandSpinner } from './BrandSpinner';
 
 // 1 token = ₹1 = 100 paise. Balance/pricing are stored in paise.
 const TOKENS = (paise: number) => (Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -115,9 +116,7 @@ export function Wallet() {
     }
   };
 
-  if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#E04632' }} /></div>;
-  }
+  if (loading) return <BrandSpinner label="Loading wallet…" />;
 
   const balance = wallet?.balance_paise ?? 0;
   const held = wallet?.held_paise ?? 0;

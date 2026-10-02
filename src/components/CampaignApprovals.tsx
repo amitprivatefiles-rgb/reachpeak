@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import { sendNotification, NotificationTemplates } from '../lib/notifications';
+import { BrandSpinner } from './BrandSpinner';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'] & {
   profiles?: { full_name: string; email: string } | null;
@@ -387,13 +388,7 @@ export function CampaignApprovals() {
     { id: 'rejected', label: 'Rejected' },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading campaigns...</div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading approvals…" />;
 
   return (
     <div className="space-y-6">

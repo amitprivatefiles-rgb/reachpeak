@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getHeaderFormat } from '../lib/templatePayloadBuilder';
 import { Plus, Upload, Image as ImageIcon, MessageSquare, Download, CheckCircle, XCircle, Send, Eye, X, AlertCircle, ExternalLink, Phone, Edit3, Users, Copy, Trash2 } from 'lucide-react';
 import type { Database } from '../lib/database.types';
+import { BrandSpinner } from './BrandSpinner';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type TagType = Database['public']['Tables']['tags']['Row'];
@@ -501,13 +502,7 @@ export function UserCampaigns() {
     return 'unknown';
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-500">Loading campaigns...</div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading campaigns…" />;
 
   return (
     <div className="space-y-6">

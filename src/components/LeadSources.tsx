@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { BrandSpinner } from './BrandSpinner';
 
 interface SourceStats {
   source_name: string;
@@ -77,13 +78,7 @@ export function LeadSources() {
     fetchSources();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-400">Loading lead sources...</div>
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading lead sources…" />;
 
   const totalNumbers = sources.reduce((sum, s) => sum + s.total_numbers, 0);
   const totalSent = sources.reduce((sum, s) => sum + s.messages_sent, 0);

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { CreditCard, Loader2, Copy, Check, Shield, Zap, Tag, Users, Plus, Minus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BrandSpinner } from './BrandSpinner';
 
 const RUPEE = (paise: number) => '₹' + (Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const CATEGORIES = ['marketing', 'utility', 'authentication', 'service'];
@@ -110,7 +111,7 @@ export function AdminBilling() {
   const label = { fontSize: 13, color: '#94a3b8', fontWeight: 500, display: 'block', marginBottom: 6 };
   const input = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0', fontSize: 14 };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#E04632' }} /></div>;
+  if (loading) return <BrandSpinner label="Loading billing…" />;
 
   return (
     <div style={{ maxWidth: 960 }}>

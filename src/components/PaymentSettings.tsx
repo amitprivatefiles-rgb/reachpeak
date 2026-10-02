@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { BrandSpinner } from './BrandSpinner';
 
 interface ProviderPublic {
   id: string;
@@ -121,13 +122,7 @@ export function PaymentSettings() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#8b5cf6' }} />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading payment settings…" />;
 
   return (
     <div style={{ maxWidth: '720px' }}>

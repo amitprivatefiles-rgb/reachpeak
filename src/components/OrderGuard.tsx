@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { BrandSpinner } from './BrandSpinner';
 
 // ─── Types ───
 
@@ -237,13 +238,7 @@ export function OrderGuard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#8b5cf6' }} />
-      </div>
-    );
-  }
+  if (loading) return <BrandSpinner label="Loading orders…" />;
 
   return (
     <div className="rp-page" style={{ maxWidth: '1400px', margin: '0 auto' }}>
