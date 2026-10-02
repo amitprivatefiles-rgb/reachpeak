@@ -1,6 +1,7 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { CallCard, Ch, CtaBand, DemoButton, Head, Live } from '../ui';
+import { TalkButton, agentForIndustry } from '../TalkToAI';
 import { INDUSTRIES } from '../data';
 
 export default function Industry({ slug: fixed }: { slug?: string }) {
@@ -16,7 +17,7 @@ export default function Industry({ slug: fixed }: { slug?: string }) {
           <span className="rp-eyebrow">{ind.name}</span>
           <h1 className="rp-h1" style={{ fontSize: 'clamp(40px,6vw,72px)' }}>{ind.hero} <em>{ind.heroEm}</em></h1>
           <p className="rp-lead">{ind.sub}</p>
-          <div className="rp-btns"><DemoButton industry={ind.name} /><Link to="/signup" className="rp-btn ghost">Get started</Link></div>
+          <div className="rp-btns"><TalkButton agent={agentForIndustry(ind.slug)} /><DemoButton className="rp-btn ghost" industry={ind.name} /></div>
           <div style={{ marginTop: 28 }}><Live>AI calling + WhatsApp · live</Live></div>
         </div>
         <CallCard only={ind.slug} />

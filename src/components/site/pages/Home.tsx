@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Clock, PhoneMissed, CalendarX, ShieldCheck, Mic, MessageCircle, Workflow, Database, Languages, FileAudio } from 'lucide-react';
-import { CallCard, CtaBand, DemoButton, Faq, Head, Live, Ch, Checks } from '../ui';
+import { CallCard, CtaBand, Faq, Head, Live, Ch, Checks } from '../ui';
+import { TalkButton } from '../TalkToAI';
 import { INDUSTRIES, STAGES, INTEGRATIONS, LANGS_LIVE, LANGS_NEXT, WA_NUMBER } from '../data';
 
 const FAQ = [
@@ -23,7 +24,7 @@ export default function Home() {
           <Live>AI calling + WhatsApp · live</Live>
           <h1 className="rp-h1">Every lead, called in <em>60 seconds.</em></h1>
           <p className="rp-lead">ReachPeak’s AI agents call, qualify and book your customers in Hindi, English or Hinglish, then follow up on WhatsApp. For every business that talks to customers.</p>
-          <div className="rp-btns"><DemoButton /><Link to="/signup" className="rp-btn ghost">Get started <ArrowRight size={17} /></Link></div>
+          <div className="rp-btns"><TalkButton /><Link to="/signup" className="rp-btn ghost">Get started <ArrowRight size={17} /></Link></div>
           <div className="rp-trust">
             <span><ShieldCheck size={16} />Official WhatsApp Business API</span>
             <span><Check size={16} />Consent-first, DND-aware</span>

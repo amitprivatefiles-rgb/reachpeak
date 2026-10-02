@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { DemoProvider, DemoButton } from './ui';
+import { TalkProvider, TalkButton } from './TalkToAI';
 import { INDUSTRIES, SUPPORT_EMAIL, WA_DISPLAY, WA_NUMBER } from './data';
 import './site.css';
 
@@ -71,7 +72,8 @@ function Nav() {
           {INDUSTRIES.map((i) => <Link key={i.slug} to={`/solutions/${i.slug}`}>{i.name}</Link>)}
         </div>
         <div className="rp-mcta" onClick={() => setMenu(false)}>
-          <DemoButton className="rp-btn primary" label="Get a demo call" />
+          <TalkButton />
+          <DemoButton className="rp-btn ghost" label="Get a demo call" />
           <Link to="/signup" className="rp-btn ghost">Get started</Link>
           <Link to="/login" className="rp-mlogin">Already a customer? <b>Log in</b></Link>
         </div>
@@ -110,11 +112,11 @@ export function SiteLayout() {
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
   return (
     <div className="rp">
-      <DemoProvider>
+      <DemoProvider><TalkProvider>
         <Nav />
         <main><Outlet /></main>
         <Footer />
-      </DemoProvider>
+      </TalkProvider></DemoProvider>
     </div>
   );
 }

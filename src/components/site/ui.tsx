@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode, FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { X, Plus, Phone, MessageCircle, Check, Copy } from 'lucide-react';
 import { INDUSTRIES, WA_NUMBER, WA_DISPLAY, Channel } from './data';
+import { TalkButton } from './TalkToAI';
 
 /* ---------- demo-call modal (opens WhatsApp with the visitor's details) ---------- */
 const DemoCtx = createContext<{ open: (industry?: string) => void }>({ open: () => {} });
@@ -181,8 +181,8 @@ export function CtaBand({ title, lead }: { title?: ReactNode; lead?: ReactNode }
         <h2 className="rp-h2" style={{ marginTop: 20 }}>{title || <>No customer should <em>have to wait.</em></>}</h2>
         <p className="rp-lead" style={{ marginInline: 'auto' }}>{lead || 'Hear an AI agent call your own phone, or get started today.'}</p>
         <div className="rp-btns" style={{ justifyContent: 'center' }}>
-          <DemoButton />
-          <Link to="/signup" className="rp-btn ghost">Get started</Link>
+          <TalkButton />
+          <DemoButton className="rp-btn ghost" />
         </div>
       </div>
     </div></section>

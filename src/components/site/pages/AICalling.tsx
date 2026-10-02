@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Zap, UserCheck, CalendarCheck, BellRing, Wallet, Star, PhoneOff, ShieldCheck, Clock, FileAudio, SlidersHorizontal } from 'lucide-react';
 import { CallCard, CtaBand, DemoButton, Faq, Head, Live, WaChat } from '../ui';
+import { TalkButton } from '../TalkToAI';
 import { LANGS_LIVE, LANGS_NEXT, INTEGRATIONS } from '../data';
 
 const USES = [
@@ -33,7 +34,7 @@ export default function AICalling() {
           <Live>Now live</Live>
           <h1 className="rp-h1">AI agents that call like your <em>best team member.</em></h1>
           <p className="rp-lead">They call every lead within 60 seconds, qualify, book and follow up, in Hindi, English or Hinglish. They never get tired, never forget a follow-up, and log every word.</p>
-          <div className="rp-btns"><DemoButton label="Hear it on your phone" /><Link to="/pricing" className="rp-btn ghost">See pricing</Link></div>
+          <div className="rp-btns"><TalkButton /><DemoButton className="rp-btn ghost" label="Hear it on your phone" /></div>
         </div>
         <CallCard />
       </div></section>
