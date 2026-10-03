@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BrandSpinner } from './BrandSpinner';
 import { useVoiceCall, VOICE_WS } from '../lib/useVoiceCall';
 import { placeAiCall, outboundStatus } from '../lib/aiCall';
+import { AiCallingRequest } from './AiCallingRequest';
 
 const ACCENT = '#E04632';
 
@@ -296,7 +297,8 @@ function CallDetail({ row, onClose }) {
 }
 
 export function VoiceAgents({ ownerId, embedded }: { ownerId?: string; embedded?: boolean } = {}) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const [access, setAccess] = useState(undefined); // AI Calling switched on for this account by the admin?
   const [tab, setTab] = useState('agents');
   const [agents, setAgents] = useState([]);
   const [calls, setCalls] = useState([]);
@@ -330,7 +332,10 @@ export function VoiceAgents({ ownerId, embedded }: { ownerId?: string; embedded?
     setNotReady(false);
     setAgents(a.data || []); setCalls(c.data || []);
     if (p.data?.price_paise != null) setPrice(Number(p.data.price_paise));
-    supabase.from('voice_account_settings').select('price_override_paise').eq('user_id', uid).maybeSingle().then(({ data }) => { if (data?.price_override_paise != null) setPrice(Number(data.price_override_paise)); });
+    supabase.from('voice_account_settings').select('price_override_paise, calling_enabled').eq('user_id', uid).maybeSingle().then(({ data }) => {
+      if (data?.price_override_paise != null) setPrice(Number(data.price_override_paise));
+      setAccess(!!data?.calling_enabled);
+    });
     setBalance(w.data ? Number(w.data.balance_paise) : null);
     const byAgent = {}; for (const r of n.data || []) if (r.agent_id) (byAgent[r.agent_id] = byAgent[r.agent_id] || []).push(r.number);
     setNumbersByAgent(byAgent);
@@ -358,6 +363,10 @@ export function VoiceAgents({ ownerId, embedded }: { ownerId?: string; embedded?
     await supabase.from('voice_agents').delete().eq('id', row.id);
     setConfirmDel(null); load();
   };
+
+  // Not active for this business yet: show the request page (admins and the admin setup view always see everything).
+  if (!embedded && !isAdmin && access === undefined) return <BrandSpinner label="Loading AI Calling…" />;
+  if (!embedded && !isAdmin && access === false) return <AiCallingRequest userId={uid} pricePaise={price} />;
 
   if (!loading && notReady) {
     return (

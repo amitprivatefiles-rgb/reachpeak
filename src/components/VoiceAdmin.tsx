@@ -254,113 +254,283 @@ function NumbersTab({ status, numbers, accounts, agents, reload }) {
 }
 
 // ── Accounts ──
-const DEFAULTS = { calling_enabled: true, outbound_enabled: false, caller_number: '', compliance_note: '', price_override_paise: null, max_concurrent: 3, monthly_minute_cap: null, hours_start: 9, hours_end: 21 };
-function AccountsTab({ accounts, settings, numbers, agents, calls, reload }) {
-  const [open, setOpen] = useState(null);
-  const [manage, setManage] = useState(null);
-  const [f, setF] = useState(DEFAULTS);
+const DEFAULTS = { calling_enabled: false, outbound_enabled: false, caller_number: '', compliance_note: '', price_override_paise: null, max_concurrent: 3, monthly_minute_cap: null, hours_start: 9, hours_end: 21 };
+const TYPE_LABEL = { ecommerce: 'Online store', clinics: 'Clinic', education: 'Education', real_estate: 'Real estate', salons: 'Salon / wellness', finance: 'Finance', services: 'Services / agency', other: 'Other' };
+
+// What still blocks an account from taking AI calls (empty = ready).
+function missingFor({ s, agents, nums, status, walletPaise, price }) {
+  const m = [];
+  if (!status?.connected) m.push('Connect Plivo');
+  else if (!status?.plivo_app_id) m.push('Set up the Plivo app');
+  if (!agents.some((a) => a.is_active)) m.push('Create an active agent');
+  if (!nums.some((n) => n.agent_id)) m.push('Assign a phone number + agent');
+  else if (nums.some((n) => n.agent_id && (!n.linked || !n.on_plivo))) m.push('Link the number to the Plivo app');
+  if (walletPaise != null && price > 0 && walletPaise < price) m.push('Wallet needs at least one minute of balance');
+  if (!s.calling_enabled) m.push('Switch AI Calling on');
+  return m;
+}
+
+function Section({ n, title, right, children }) {
+  return (
+    <div className="rp-card" style={{ borderRadius: 14, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}><span style={{ color: ACCENT, marginRight: 6 }}>{n}</span>{title}</h4>{right}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AccountSetup({ account, settings, numbers, request, status, platformPrice, onClose, reload }) {
+  const [ov, setOv] = useState(null);
+  const [f, setF] = useState(() => ({ ...DEFAULTS, ...(settings || {}), caller_number: settings?.caller_number || '', compliance_note: settings?.compliance_note || '' }));
   const [msg, setMsg] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [manage, setManage] = useState(false);
+  const [assign, setAssign] = useState({ number: '', agent_id: '' });
+  const [rejectNote, setRejectNote] = useState('');
+  const loadOv = useCallback(async () => {
+    try { setOv(await adminVoice('account_overview', { user_id: account.id })); } catch (e) { setMsg({ kind: 'error', text: e.message }); }
+  }, [account.id]);
+  useEffect(() => { loadOv(); }, [loadOv]);
+  const agents = ov?.agents || [];
+  const mine = numbers.filter((n) => n.user_id === account.id);
+  const free = numbers.filter((n) => !n.user_id && n.on_plivo);
+  const price = f.price_override_paise != null && f.price_override_paise !== '' ? Number(f.price_override_paise) : platformPrice;
+  const missing = missingFor({ s: f, agents, nums: mine, status, walletPaise: ov ? Number(ov.wallet?.balance_paise || 0) : null, price });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const note = (kind, text) => setMsg({ kind, text });
+
+  const saveRules = async (patch = {}) => {
+    const v = { ...f, ...patch };
+    if (v.outbound_enabled && !v.caller_number) return note('error', 'Pick a caller number before allowing outgoing calls.');
+    if (v.outbound_enabled && String(v.compliance_note).trim().length < 5) return note('error', 'Add the compliance note (which number series / consent was confirmed) before allowing outgoing calls.');
+    if (Number(v.hours_end) <= Number(v.hours_start)) return note('error', 'Calling hours: the end must be after the start.');
+    setBusy('rules');
+    const row = {
+      user_id: account.id, calling_enabled: !!v.calling_enabled, outbound_enabled: !!v.outbound_enabled, caller_number: v.caller_number || null,
+      compliance_note: String(v.compliance_note || '').trim(), price_override_paise: v.price_override_paise === '' || v.price_override_paise == null ? null : Math.round(Number(v.price_override_paise)),
+      max_concurrent: Math.max(1, Math.min(50, Number(v.max_concurrent) || 3)), monthly_minute_cap: v.monthly_minute_cap === '' || v.monthly_minute_cap == null ? null : Math.max(0, Number(v.monthly_minute_cap)),
+      hours_start: Number(v.hours_start), hours_end: Number(v.hours_end), updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('voice_account_settings').upsert(row);
+    setBusy('');
+    if (error) return note('error', error.message);
+    setF(v); note('ok', 'Saved.'); reload();
+  };
+  const toggleAccess = async (on) => {
+    await saveRules({ calling_enabled: on });
+    if (on && request?.status === 'pending') await supabase.from('feature_requests').update({ status: 'approved' }).eq('id', request.id);
+    reload();
+  };
+  const reject = async () => {
+    setBusy('reject');
+    const { error } = await supabase.from('feature_requests').update({ status: 'rejected', admin_note: rejectNote.trim() }).eq('id', request.id);
+    setBusy('');
+    if (error) return note('error', error.message);
+    note('ok', 'Request declined. The business sees your note and can request again.'); reload();
+  };
+  const assignNumber = async () => {
+    if (!assign.number || !assign.agent_id) return;
+    setBusy('assign');
+    const { error } = await supabase.from('voice_numbers').update({ user_id: account.id, agent_id: assign.agent_id }).eq('number', assign.number);
+    setBusy('');
+    if (error) return note('error', error.message);
+    const n = numbers.find((x) => x.number === assign.number);
+    if (n && !n.linked && status?.plivo_app_id) { try { await adminVoice('link_number', { number: assign.number }); } catch (e) { note('error', 'Assigned, but linking to the Plivo app failed: ' + e.message); } }
+    setAssign({ number: '', agent_id: '' }); note('ok', `+${assign.number} assigned.`); reload();
+  };
+  const changeAgent = async (num, agent_id) => {
+    const { error } = await supabase.from('voice_numbers').update({ agent_id: agent_id || null }).eq('number', num);
+    if (error) note('error', error.message); else reload();
+  };
+  const unassign = async (num) => {
+    const { error } = await supabase.from('voice_numbers').update({ user_id: null, agent_id: null }).eq('number', num);
+    if (error) note('error', error.message); else { if (f.caller_number === num) setF({ ...f, caller_number: '' }); note('ok', `+${num} unassigned.`); reload(); }
+  };
+  const sync = async () => { setBusy('sync'); try { const r = await adminVoice('sync_numbers'); note('ok', `Synced ${r.found} number(s) from Plivo.`); reload(); } catch (e) { note('error', e.message); } setBusy(''); };
+  const link = async (num) => { setBusy('link:' + num); try { await adminVoice('link_number', { number: num }); note('ok', `+${num} linked to the Plivo app.`); reload(); } catch (e) { note('error', e.message); } setBusy(''); };
+
+  const d = request?.details || {};
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 55, overflowY: 'auto', padding: '3vh 12px' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 980, margin: '0 auto', background: '#f6f7f9', borderRadius: 18, padding: 16, display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif" }}>Set up AI Calling · {account.full_name || account.email}</h3>
+            <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>{account.email} · {TYPE_LABEL[account.business_type] || 'Type not set'} · Wallet {ov ? rupees(ov.wallet?.balance_paise) : '…'}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ border: 'none', background: '#e2e8f0', borderRadius: 10, padding: 6, cursor: 'pointer' }}><X size={18} /></button>
+        </div>
+
+        <div className="rp-card" style={{ borderRadius: 14, padding: 14, background: missing.length ? '#fffbeb' : '#ecfdf5', border: '1px solid ' + (missing.length ? '#fde68a' : '#a7f3d0') }}>
+          {missing.length ? (
+            <div style={{ fontSize: 13.5, color: '#92400e' }}><b>Not ready to take calls yet.</b> Still to do: {missing.join(' · ')}</div>
+          ) : <div style={{ fontSize: 13.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle2 size={16} /><b>Ready.</b> Calls to {mine.filter((n) => n.agent_id).map((n) => '+' + n.number).join(', ')} are answered by AI and billed to this account.</div>}
+        </div>
+        {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
+
+        <Section n="1" title="AI Calling access" right={f.calling_enabled ? <Pill color="#10b981">On</Pill> : <Pill color="#94a3b8">Off</Pill>}>
+          {request?.status === 'pending' && (
+            <div style={{ padding: 12, borderRadius: 12, background: '#eff6ff', color: '#1e3a8a', fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
+              <b>Requested {fmtWhen(request.created_at)}.</b> {d.use_case}<br />{[d.direction, d.calls, d.contact && `Phone: ${d.contact}`, d.notes].filter(Boolean).join(' · ')}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input style={{ ...inputStyle, maxWidth: 320 }} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="Note if declining (optional)" />
+                <button style={btn()} disabled={!!busy} onClick={reject}>Decline request</button>
+              </div>
+            </div>
+          )}
+          <p style={{ ...hint, marginTop: 0 }}>When off, the business sees a "Request AI Calling" page and its number answers "not available". You can still test agents here while it is off.</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            {f.calling_enabled
+              ? <button style={btn()} disabled={!!busy} onClick={() => toggleAccess(false)}>Switch AI Calling off</button>
+              : <button style={btn('primary')} disabled={!!busy} onClick={() => toggleAccess(true)}><Check size={15} />Switch AI Calling on{request?.status === 'pending' ? ' & approve request' : ''}</button>}
+          </div>
+        </Section>
+
+        <Section n="2" title="Agents" right={<button style={{ ...btn(), padding: '6px 11px', fontSize: 12.5 }} onClick={() => setManage(true)}>Create / edit / test agents</button>}>
+          {agents.length === 0 ? <p style={{ ...hint, marginTop: 0 }}>No agents yet. Create one with the business's details (what to say, prices, timings, slots).</p> : (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{agents.map((a) => <Pill key={a.id} color={a.is_active ? '#10b981' : '#94a3b8'}>{a.name}{a.is_active ? '' : ' (paused)'} · {a.direction === 'both' ? 'in + out' : a.direction}</Pill>)}</div>
+          )}
+        </Section>
+
+        <Section n="3" title="Phone numbers" right={<button style={{ ...btn(), padding: '6px 11px', fontSize: 12.5 }} disabled={!status?.connected || !!busy} onClick={sync}>{busy === 'sync' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}Sync from Plivo</button>}>
+          {mine.length > 0 && (
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              {mine.map((n) => (
+                <div key={n.number} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: 10, borderRadius: 12, background: '#f8fafc' }}>
+                  <b style={{ minWidth: 140 }}>+{n.number}</b>
+                  {!n.on_plivo ? <Pill color="#ef4444">Removed from Plivo</Pill> : n.linked ? <Pill color="#10b981">Linked</Pill> : <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} disabled={!status?.plivo_app_id || !!busy} onClick={() => link(n.number)}><Link2 size={13} />Link to app</button>}
+                  <select style={{ ...inputStyle, width: 'auto', minWidth: 200 }} value={n.agent_id || ''} onChange={(e) => changeAgent(n.number, e.target.value)}>
+                    <option value="">No agent (number silent)</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                  <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} onClick={() => unassign(n.number)}>Unassign</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {free.length > 0 ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 200px' }}><label style={labelStyle}>Free number</label>
+                <select style={inputStyle} value={assign.number} onChange={(e) => setAssign({ ...assign, number: e.target.value })}><option value="">Choose…</option>{free.map((n) => <option key={n.number} value={n.number}>+{n.number}{n.region ? ` · ${n.region}` : ''}{n.linked ? '' : ' (will be linked)'}</option>)}</select></div>
+              <div style={{ flex: '1 1 200px' }}><label style={labelStyle}>Agent that answers</label>
+                <select style={inputStyle} value={assign.agent_id} onChange={(e) => setAssign({ ...assign, agent_id: e.target.value })} disabled={!agents.length}><option value="">{agents.length ? 'Choose…' : 'Create an agent first'}</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+              <button style={btn('primary')} disabled={!assign.number || !assign.agent_id || !!busy} onClick={assignNumber}>{busy === 'assign' ? <Loader2 size={15} className="animate-spin" /> : <Hash size={15} />}Assign</button>
+            </div>
+          ) : <p style={{ ...hint, marginTop: 0 }}>No free numbers. Rent one in the Plivo console (Phone Numbers → Buy Number → India, voice), then press "Sync from Plivo".</p>}
+        </Section>
+
+        <Section n="4" title="Outgoing calls" right={f.outbound_enabled ? <Pill color="#10b981">Allowed</Pill> : <Pill color="#94a3b8">Off</Pill>}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14 }}><input type="checkbox" checked={!!f.outbound_enabled} onChange={set('outbound_enabled')} />Allow "Call a customer" and "Call with AI" on leads</label>
+          <p style={hint}>TRAI: enable only after Plivo confirms the number series (140 promotional / 1600–1601 service) and consent basis for this business.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginTop: 8 }}>
+            <div><label style={labelStyle}>Caller number</label><select style={inputStyle} value={f.caller_number} onChange={set('caller_number')}><option value="">Choose…</option>{mine.map((n) => <option key={n.number} value={n.number}>+{n.number}</option>)}</select></div>
+            <div><label style={labelStyle}>Compliance note</label><input style={inputStyle} value={f.compliance_note} onChange={set('compliance_note')} placeholder="e.g. 1600 series, Plivo ticket #1234" /></div>
+            <div><label style={labelStyle}>Calling hours (IST)</label>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input style={inputStyle} type="number" min={0} max={23} value={f.hours_start} onChange={set('hours_start')} /><span>to</span><input style={inputStyle} type="number" min={1} max={24} value={f.hours_end} onChange={set('hours_end')} /></div></div>
+          </div>
+        </Section>
+
+        <Section n="5" title="Price & limits">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+            <div><label style={labelStyle}>Price per minute (₹)</label><input style={inputStyle} type="number" min={0} step={0.01} value={f.price_override_paise == null || f.price_override_paise === '' ? '' : Number(f.price_override_paise) / 100} onChange={(e) => setF({ ...f, price_override_paise: e.target.value === '' ? null : Math.round(Number(e.target.value) * 100) })} placeholder={`default ${rupees(platformPrice)}`} /></div>
+            <div><label style={labelStyle}>Max calls at once</label><input style={inputStyle} type="number" min={1} max={50} value={f.max_concurrent} onChange={set('max_concurrent')} /></div>
+            <div><label style={labelStyle}>Monthly minute cap</label><input style={inputStyle} type="number" min={0} value={f.monthly_minute_cap ?? ''} onChange={(e) => setF({ ...f, monthly_minute_cap: e.target.value === '' ? null : Number(e.target.value) })} placeholder="no cap" /></div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button style={btn('primary')} disabled={!!busy} onClick={() => saveRules()}>{busy === 'rules' ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Save outgoing, price & limits</button>
+          </div>
+        </Section>
+
+        <Section n="6" title="Other integrations (status)">
+          {!ov ? <BrandSpinner label="Loading…" /> : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, fontSize: 13 }}>
+              <div style={{ padding: 12, borderRadius: 12, background: '#f8fafc' }}>
+                <div style={labelStyle}>WhatsApp (after-call messages)</div>
+                {ov.whatsapp.length ? ov.whatsapp.map((w, i) => <div key={i}>{w.display_phone_number || '—'} · {w.verified_name || ''} <Pill color={w.is_active ? '#10b981' : '#94a3b8'}>{w.is_active ? 'connected' : w.status || 'inactive'}</Pill></div>) : <span style={{ color: '#b45309' }}>Not connected. After-call WhatsApp journeys won't send.</span>}
+              </div>
+              <div style={{ padding: 12, borderRadius: 12, background: '#f8fafc' }}>
+                <div style={labelStyle}>Wallet</div>
+                {rupees(ov.wallet?.balance_paise)} <span style={{ color: '#64748b' }}>≈ {price > 0 ? Math.floor(Number(ov.wallet?.balance_paise || 0) / price) : '∞'} min at {rupees(price)}/min</span>
+              </div>
+              <div style={{ padding: 12, borderRadius: 12, background: '#f8fafc' }}>
+                <div style={labelStyle}>Store / API connections</div>
+                {ov.integrations.length ? ov.integrations.map((k, i) => <div key={i}>{k.source}{k.shop_domain ? ` · ${k.shop_domain}` : ''} <Pill color={k.is_active ? '#10b981' : '#94a3b8'}>{k.is_active ? (k.connection_status || 'active') : 'revoked'}</Pill></div>) : <span style={{ color: '#64748b' }}>None (leads/appointments can be sent via an API key from Integrations).</span>}
+              </div>
+            </div>
+          )}
+        </Section>
+
+        {manage && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 58, overflowY: 'auto', padding: '3vh 12px' }} onClick={() => { setManage(false); loadOv(); reload(); }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1250, margin: '0 auto', background: '#f6f7f9', borderRadius: 18, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: '#64748b' }}>Agents for <b style={{ color: '#0f172a' }}>{account.full_name || account.email}</b> (admin). Test calls bill this account's wallet.</span>
+                <button onClick={() => { setManage(false); loadOv(); reload(); }} style={{ border: 'none', background: '#e2e8f0', borderRadius: 10, padding: 6, cursor: 'pointer' }} aria-label="Close"><X size={18} /></button>
+              </div>
+              <VoiceAgents ownerId={account.id} embedded />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountsTab({ accounts, settings, numbers, agents, calls, requests, status, platformPrice, reload }) {
+  const [open, setOpen] = useState(null);
   const minutes = useMemo(() => {
     const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0);
     const m = {}; for (const c of calls) if (new Date(c.started_at) >= start) m[c.user_id] = (m[c.user_id] || 0) + (c.billed_minutes || 0);
     return m;
   }, [calls]);
-  const edit = (a) => { const s = settings.find((x) => x.user_id === a.id) || {}; setF({ ...DEFAULTS, ...s, caller_number: s.caller_number || '', compliance_note: s.compliance_note || '' }); setOpen(a); setMsg(null); };
-  const save = async () => {
-    setMsg(null);
-    if (f.outbound_enabled && !f.caller_number) return setMsg({ kind: 'error', text: 'Pick a caller number (one of this account’s numbers) before enabling outgoing calls.' });
-    if (f.outbound_enabled && f.compliance_note.trim().length < 5) return setMsg({ kind: 'error', text: 'Add the compliance note (which number series/consent was confirmed) before enabling outgoing calls.' });
-    if (Number(f.hours_end) <= Number(f.hours_start)) return setMsg({ kind: 'error', text: 'Calling hours: the end must be after the start.' });
-    setSaving(true);
-    const row = {
-      user_id: open.id, calling_enabled: !!f.calling_enabled, outbound_enabled: !!f.outbound_enabled, caller_number: f.caller_number || null,
-      compliance_note: f.compliance_note.trim(), price_override_paise: f.price_override_paise === '' || f.price_override_paise == null ? null : Math.round(Number(f.price_override_paise)),
-      max_concurrent: Math.max(1, Math.min(50, Number(f.max_concurrent) || 3)), monthly_minute_cap: f.monthly_minute_cap === '' || f.monthly_minute_cap == null ? null : Math.max(0, Number(f.monthly_minute_cap)),
-      hours_start: Number(f.hours_start), hours_end: Number(f.hours_end), updated_at: new Date().toISOString(),
-    };
-    const { error } = await supabase.from('voice_account_settings').upsert(row);
-    setSaving(false);
-    if (error) return setMsg({ kind: 'error', text: error.message });
-    setOpen(null); reload();
-  };
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const pending = requests.filter((r) => r.status === 'pending');
+  const latestReq = (uid) => requests.find((r) => r.user_id === uid);
+  const sOf = (uid) => ({ ...DEFAULTS, ...(settings.find((x) => x.user_id === uid) || {}) });
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {pending.length > 0 && (
+        <div className="rp-card" style={{ ...card, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 800, color: '#1e3a8a' }}>{pending.length} AI Calling request{pending.length > 1 ? 's' : ''} waiting</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {pending.map((r) => { const a = accounts.find((x) => x.id === r.user_id); if (!a) return null; return (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: '#1e3a8a' }}>
+                <b>{a.full_name || a.email}</b><span style={{ flex: 1, minWidth: 200 }}>{r.details?.use_case}</span><span>{fmtWhen(r.created_at)}</span>
+                <button style={{ ...btn('primary'), padding: '6px 12px', fontSize: 12.5 }} onClick={() => setOpen(a)}>Set up</button>
+              </div>
+            ); })}
+          </div>
+        </div>
+      )}
       <div className="rp-card" style={{ ...card, padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 820 }}>
           <thead><tr style={{ background: '#f8fafc', color: '#475569', textAlign: 'left' }}>
-            {['Account', 'AI calling', 'Outgoing', 'Numbers', 'Agents', 'Minutes this month', 'Price/min', ''].map((h) => <th key={h} style={{ padding: '10px 12px', fontWeight: 700 }}>{h}</th>)}
+            {['Account', 'AI Calling', 'Status', 'Numbers', 'Minutes this month', 'Price/min', ''].map((h) => <th key={h} style={{ padding: '10px 12px', fontWeight: 700 }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {accounts.map((a) => {
-              const s = { ...DEFAULTS, ...(settings.find((x) => x.user_id === a.id) || {}) };
+              const s = sOf(a.id);
               const nums = numbers.filter((n) => n.user_id === a.id);
+              const ag = agents.filter((g) => g.user_id === a.id);
+              const price = s.price_override_paise != null ? Number(s.price_override_paise) : platformPrice;
+              const miss = missingFor({ s, agents: ag, nums, status, walletPaise: null, price });
+              const req = latestReq(a.id);
               return (
                 <tr key={a.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '10px 12px' }}><b>{a.full_name || '—'}</b><div style={{ color: '#94a3b8', fontSize: 12 }}>{a.email}</div></td>
-                  <td style={{ padding: '10px 12px' }}>{s.calling_enabled ? <Pill color="#10b981">On</Pill> : <Pill color="#ef4444">Off</Pill>}</td>
-                  <td style={{ padding: '10px 12px' }}>{s.outbound_enabled ? <Pill color="#10b981">Allowed</Pill> : <Pill color="#94a3b8">Off</Pill>}</td>
+                  <td style={{ padding: '10px 12px' }}><b>{a.full_name || '—'}</b><div style={{ color: '#94a3b8', fontSize: 12 }}>{a.email} · {TYPE_LABEL[a.business_type] || 'type not set'}</div></td>
+                  <td style={{ padding: '10px 12px' }}>{s.calling_enabled ? <Pill color="#10b981">On</Pill> : req?.status === 'pending' ? <Pill color="#3b82f6">Requested</Pill> : <Pill color="#94a3b8">Off</Pill>}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12.5, color: miss.length ? '#b45309' : '#047857' }}>{miss.length ? `Needs: ${miss[0]}${miss.length > 1 ? ` +${miss.length - 1}` : ''}` : 'Ready'}</td>
                   <td style={{ padding: '10px 12px' }}>{nums.length ? nums.map((n) => '+' + n.number).join(', ') : '—'}</td>
-                  <td style={{ padding: '10px 12px' }}>{agents.filter((g) => g.user_id === a.id).length}</td>
                   <td style={{ padding: '10px 12px' }}>{minutes[a.id] || 0}{s.monthly_minute_cap != null ? ` / ${s.monthly_minute_cap}` : ''}</td>
-                  <td style={{ padding: '10px 12px' }}>{s.price_override_paise != null ? rupees(s.price_override_paise) : 'Default'}</td>
-                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}><button style={{ ...btn(), padding: '6px 11px', fontSize: 12.5, marginRight: 6 }} onClick={() => setManage(a)}>Manage agents</button><button style={{ ...btn(), padding: '6px 11px', fontSize: 12.5 }} onClick={() => edit(a)}>Rules</button></td>
+                  <td style={{ padding: '10px 12px' }}>{rupees(price)}</td>
+                  <td style={{ padding: '10px 12px' }}><button style={{ ...btn('primary'), padding: '6px 12px', fontSize: 12.5 }} onClick={() => setOpen(a)}>Set up</button></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      {manage && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 55, overflowY: 'auto', padding: '3vh 12px' }} onClick={() => { setManage(null); reload(); }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1250, margin: '0 auto', background: '#f6f7f9', borderRadius: 18, padding: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 13, color: '#64748b' }}>Managing <b style={{ color: '#0f172a' }}>{manage.full_name || manage.email}</b> as admin. Test and outgoing calls bill this account's wallet.</span>
-              <button onClick={() => { setManage(null); reload(); }} style={{ border: 'none', background: '#e2e8f0', borderRadius: 10, padding: 6, cursor: 'pointer' }} aria-label="Close"><X size={18} /></button>
-            </div>
-            <VoiceAgents ownerId={manage.id} embedded />
-          </div>
-        </div>
-      )}
-      {open && (
-        <div onClick={() => setOpen(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 12px', overflowY: 'auto' }}>
-          <div onClick={(e) => e.stopPropagation()} className="rp-card" style={{ width: '100%', maxWidth: 620, borderRadius: 18, padding: 20, background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Calling rules · {open.full_name || open.email}</h3>
-              <button onClick={() => setOpen(null)} style={{ border: 'none', background: '#f1f5f9', borderRadius: 10, padding: 6, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14 }}><input type="checkbox" checked={!!f.calling_enabled} onChange={set('calling_enabled')} />AI calling enabled (incoming calls + test calls)</label>
-              <div style={{ padding: 12, borderRadius: 12, border: '1px solid #fde68a', background: '#fffbeb' }}>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, fontWeight: 700 }}><input type="checkbox" checked={!!f.outbound_enabled} onChange={set('outbound_enabled')} />Allow outgoing AI calls</label>
-                <p style={hint}>TRAI: business calls must come from the right number series (140 promotional / 1600–1601 service) with consent. Enable only after Plivo has confirmed the series for this business.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginTop: 8 }}>
-                  <div><label style={labelStyle}>Caller number</label>
-                    <select style={inputStyle} value={f.caller_number} onChange={set('caller_number')}>
-                      <option value="">Choose…</option>{numbers.filter((n) => n.user_id === open.id).map((n) => <option key={n.number} value={n.number}>+{n.number}</option>)}
-                    </select></div>
-                  <div><label style={labelStyle}>Compliance note</label><input style={inputStyle} value={f.compliance_note} onChange={set('compliance_note')} placeholder="e.g. 1600 series, Plivo ticket #1234" /></div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-                <div><label style={labelStyle}>Price per minute (₹)</label><input style={inputStyle} type="number" min={0} step={0.01} value={f.price_override_paise == null || f.price_override_paise === '' ? '' : Number(f.price_override_paise) / 100} onChange={(e) => setF({ ...f, price_override_paise: e.target.value === '' ? null : Math.round(Number(e.target.value) * 100) })} placeholder="default" /><p style={hint}>Empty = platform price.</p></div>
-                <div><label style={labelStyle}>Max calls at once</label><input style={inputStyle} type="number" min={1} max={50} value={f.max_concurrent} onChange={set('max_concurrent')} /></div>
-                <div><label style={labelStyle}>Monthly minute cap</label><input style={inputStyle} type="number" min={0} value={f.monthly_minute_cap ?? ''} onChange={(e) => setF({ ...f, monthly_minute_cap: e.target.value === '' ? null : Number(e.target.value) })} placeholder="no cap" /></div>
-                <div><label style={labelStyle}>Calling hours (IST)</label>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input style={inputStyle} type="number" min={0} max={23} value={f.hours_start} onChange={set('hours_start')} /><span>to</span><input style={inputStyle} type="number" min={1} max={24} value={f.hours_end} onChange={set('hours_end')} />
-                  </div><p style={hint}>Outgoing calls only.</p></div>
-              </div>
-            </div>
-            {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button style={btn()} onClick={() => setOpen(null)}>Cancel</button>
-              <button style={btn('primary')} disabled={saving} onClick={save}>{saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Save rules</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {open && <AccountSetup account={open} settings={settings.find((x) => x.user_id === open.id)} numbers={numbers} request={latestReq(open.id)} status={status} platformPrice={platformPrice} onClose={() => setOpen(null)} reload={reload} />}
     </div>
   );
 }
@@ -413,22 +583,26 @@ export function VoiceAdmin() {
   const [agents, setAgents] = useState([]);
   const [settings, setSettings] = useState([]);
   const [calls, setCalls] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [platformPrice, setPlatformPrice] = useState(400);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
   const load = useCallback(async () => {
     setErr('');
-    const [st, n, a, g, s, c] = await Promise.all([
+    const [st, n, a, g, s, c, rq, pr] = await Promise.all([
       adminVoice('status').catch((e) => { setErr(e.message); return null; }),
       supabase.from('voice_numbers').select('*').order('number'),
       supabase.from('profiles').select('id, full_name, email, role, business_type').neq('role', 'admin').order('full_name'),
       supabase.from('voice_agents').select('id, user_id, name, is_active, direction').order('name'),
       supabase.from('voice_account_settings').select('*'),
       supabase.from('voice_calls').select('id, user_id, direction, customer_name, customer_number, started_at, duration_sec, billed_minutes, charge_paise, outcome, end_reason, provider_bill_sec, provider_cost, hangup_cause').order('started_at', { ascending: false }).limit(300),
+      supabase.from('feature_requests').select('*').eq('feature', 'ai_calling').order('created_at', { ascending: false }),
+      supabase.from('message_pricing').select('price_paise').eq('category', 'voice_minute').maybeSingle(),
     ]);
     const nums = n.data || [];
     setStatus(st ? { ...st, numbers_linked: nums.filter((x) => x.linked).length, numbers_assigned: nums.filter((x) => x.user_id && x.agent_id).length } : null);
-    setNumbers(nums); setAccounts(a.data || []); setAgents(g.data || []); setSettings(s.data || []); setCalls(c.data || []);
+    setNumbers(nums); setAccounts(a.data || []); setAgents(g.data || []); setSettings(s.data || []); setCalls(c.data || []); setRequests(rq.data || []); if (pr.data?.price_paise != null) setPlatformPrice(Number(pr.data.price_paise));
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -436,7 +610,7 @@ export function VoiceAdmin() {
   const TABS = [
     { id: 'connection', label: 'Connection', icon: PlugZap },
     { id: 'numbers', label: `Numbers (${numbers.length})`, icon: Hash },
-    { id: 'accounts', label: 'Accounts', icon: Users },
+    { id: 'accounts', label: requests.some((x) => x.status === 'pending') ? `Accounts (${requests.filter((x) => x.status === 'pending').length} new request${requests.filter((x) => x.status === 'pending').length > 1 ? 's' : ''})` : 'Accounts', icon: Users },
     { id: 'calls', label: 'Calls', icon: ListChecks },
     { id: 'manual', label: 'Manual', icon: BookOpen },
   ];
@@ -458,7 +632,7 @@ export function VoiceAdmin() {
       {loading ? <BrandSpinner label="Loading AI Calling setup…" /> : (
         tab === 'connection' ? <ConnectionTab status={status} reload={load} />
         : tab === 'numbers' ? <NumbersTab status={status} numbers={numbers} accounts={accounts} agents={agents} reload={load} />
-        : tab === 'accounts' ? <AccountsTab accounts={accounts} settings={settings} numbers={numbers} agents={agents} calls={calls} reload={load} />
+        : tab === 'accounts' ? <AccountsTab accounts={accounts} settings={settings} numbers={numbers} agents={agents} calls={calls} requests={requests} status={status} platformPrice={platformPrice} reload={load} />
         : tab === 'calls' ? <CallsTab calls={calls} accounts={accounts} />
         : <VoiceManual />
       )}

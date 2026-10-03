@@ -26,7 +26,7 @@ const B = ({ children }: { children: ReactNode }) => <b style={{ color: '#0f172a
 
 const TOC = [
   ['how', 'How AI Calling works'], ['before', 'Before you start (one time)'], ['s1', 'Step 1 · Connect Plivo'], ['s2', 'Step 2 · Set up the Plivo app'],
-  ['s3', 'Step 3 · Rent, sync and link numbers'], ['s4', 'Step 4 · Create the agent'], ['s5', 'Step 5 · Assign the number'], ['s6', 'Step 6 · Account calling rules'],
+  ['s3', 'Step 3 · Rent, sync and link numbers'], ['req', 'Requests from businesses'], ['s4', 'Step 4 · Create the agent'], ['s5', 'Step 5 · Assign the number'], ['s6', 'Step 6 · Account calling rules'],
   ['s7', 'Step 7 · Test before go-live'], ['s8', 'Step 8 · Go live'], ['ops', 'Daily operations'], ['money', 'Pricing, billing and margins'],
   ['comp', 'Compliance (India / TRAI)'], ['sec', 'Security'], ['trouble', 'Troubleshooting'], ['faq', 'FAQ'],
 ];
@@ -35,6 +35,7 @@ export function VoiceManual() {
   return (
     <div className="rp-card" style={{ borderRadius: 16, padding: '20px 22px' }}>
       <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif" }}>AI Calling: Admin Manual</h1>
+      <Note><B>Fastest path for one business:</B> AI Calling Setup → <B>Accounts</B> → <B>Set up</B> on that business. One screen covers access, agents, phone number, outgoing rules, price & limits and their WhatsApp/wallet status, with a checklist of what is still missing.</Note>
       <P>Everything the ReachPeak admin needs to connect Plivo, give any business a working AI phone line, and run it day to day. Only admins can do this setup; businesses only create their agents, test them and (if you allow it) place outgoing calls.</P>
 
       <nav style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '12px 0 4px' }}>
@@ -48,7 +49,7 @@ export function VoiceManual() {
                                                    └─ writes: call log + transcript, wallet charge, lead, "call_completed" event → WhatsApp journeys`}</pre>
       <Steps items={[
         <>A customer dials a business's number (or the AI dials the customer). <B>Plivo</B> carries the phone audio.</>,
-        <>Plivo asks our voice server what to do. The server looks up the number in <B>Numbers</B>, finds the <B>account</B> and the <B>agent</B>, checks the account's <B>rules</B> (calling on, line limit, minute cap) and <B>reserves wallet tokens</B> for the maximum call length.</>,
+        <>Plivo asks our voice server what to do. The server looks up the number in <B>Numbers</B>, finds the <B>account</B> and the <B>agent</B>, checks the account's <B>rules</B> (AI Calling switched on, line limit, minute cap) and <B>reserves wallet tokens</B> for the maximum call length.</>,
         <>The AI talks to the customer using that agent's brief (business facts, slots, purpose). It books, confirms, takes callbacks, and hangs up politely.</>,
         <>When the call ends, the wallet is charged only for the minutes used, the call (summary, outcome, transcript) appears in the business's <B>Call logs</B>, inbound callers become <B>Leads</B> (non-e-commerce businesses), and an <B>"After AI call"</B> WhatsApp journey can send a confirmation.</>,
         <>Plivo then reports its own billing (seconds, cost, why the call ended) which you see in the <B>Calls</B> tab.</>,
@@ -82,8 +83,11 @@ export function VoiceManual() {
       ]} />
       <Note>A number shown as <B>Removed from Plivo</B> was un-rented in the console. Its calls stop; unassign it and assign a new number.</Note>
 
+      <H id="req">AI Calling requests from businesses</H>
+      <P>AI Calling is <B>off</B> for every business until you switch it on. Businesses without access see a <B>Request AI Calling</B> page (what the AI should handle, incoming/outgoing, expected minutes, their phone). Each request notifies all admins and appears at the top of the <B>Accounts</B> tab. Press <B>Set up</B>, complete the checklist, then <B>Switch AI Calling on & approve request</B>, or decline with a note the business can read.</P>
+
       <H id="s4" n="4">Create the agent</H>
-      <P>Each number is answered by an <B>agent</B> that belongs to one business. Either the business creates it (Dashboard → AI Calling → New agent), or you do it for them: <B>Accounts</B> tab → <B>Manage agents</B> on that account.</P>
+      <P>Each number is answered by an <B>agent</B> that belongs to one business. You create it for them: <B>Accounts</B> → <B>Set up</B> → <B>Create / edit / test agents</B>. (Once AI Calling is on, the business can also edit its own agents.)</P>
       <Steps items={[
         <><B>Business name</B> and the <B>agent's name</B> (how it introduces itself), a <B>voice</B>.</>,
         <><B>What the call should achieve</B> (book appointments, confirm orders, qualify leads, support, payment reminders).</>,
@@ -94,12 +98,12 @@ export function VoiceManual() {
       ]} />
 
       <H id="s5" n="5">Assign the number</H>
-      <P><B>Numbers</B> tab → on the number choose the <B>Account</B> and then the <B>Agent that answers</B> → <B>Save</B>. From that moment, calls to the number are answered by that agent and billed to that account's wallet. The business sees the number on its agent card.</P>
+      <P><B>Accounts</B> → <B>Set up</B> → <B>Phone numbers</B> → pick a free number and the agent → <B>Assign</B> (an unlinked number is linked to the Plivo app automatically). The <B>Numbers</B> tab shows every number and can do the same. From that moment, calls to the number are answered by that agent and billed to that account's wallet. The business sees the number on its agent card.</P>
       <Note>Unassigned numbers (or a paused / outgoing-only agent) answer with: "Sorry, this number is not active yet." Nothing is billed.</Note>
 
       <H id="s6" n="6">Account calling rules</H>
       <Table head={['Rule', 'What it does', 'Default']} rows={[
-        [<B>AI calling enabled</B>, 'Master switch for the account: incoming calls, test calls, outgoing calls.', 'On'],
+        [<B>AI Calling access</B>, 'Master switch for the account. Off = the business sees a "Request AI Calling" page and its number answers "not available". Admins can still test agents while it is off.', 'Off'],
         [<B>Allow outgoing AI calls</B>, 'Shows "Call a customer" in the business dashboard and "Call with AI" on leads. Needs a caller number and a compliance note.', 'Off'],
         [<B>Caller number</B>, 'Which of the account’s numbers the AI calls from.', '—'],
         [<B>Compliance note</B>, 'Record of what was confirmed (number series, consent basis, Plivo ticket).', '—'],

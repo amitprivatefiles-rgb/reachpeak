@@ -9,6 +9,7 @@
 //   link_number      → { number }: attach a number to our Plivo Application
 //   rotate_secret    → new webhook path secret (updates the Plivo Application too)
 //   set_strict       → { on }: reject webhooks without a valid Plivo signature
+//   account_overview → { user_id }: wallet, WhatsApp, integrations, agents for one business
 //
 // Deploy: supabase functions deploy admin-voice --no-verify-jwt
 
@@ -184,6 +185,21 @@ Deno.serve(async (req: Request) => {
       await plivo(authId, token, 'POST', `Number/${number}/`, { app_id: s.plivo_app_id });
       await db.from('voice_numbers').update({ linked: true, updated_at: new Date().toISOString() }).eq('number', number);
       return json({ ok: true });
+    }
+
+    if (action === 'account_overview') {
+      // Everything the admin needs to set up AI Calling for one business, in one call.
+      const uid = String(body.user_id || '');
+      if (!/^[0-9a-f-]{36}$/i.test(uid)) return json({ error: 'user_id required' }, 400);
+      const [prof, wallet, wa, keys, agents] = await Promise.all([
+        db.from('profiles').select('id, full_name, email, business_type, is_active').eq('id', uid).maybeSingle(),
+        db.from('wallets').select('balance_paise, held_paise').eq('user_id', uid).maybeSingle(),
+        db.from('whatsapp_accounts').select('display_phone_number, verified_name, status, is_active, quality_rating, is_system').eq('user_id', uid),
+        db.from('integration_keys').select('name, source, is_active, connection_status, last_event_at, shop_domain, created_at').eq('user_id', uid),
+        db.from('voice_agents').select('id, name, is_active, direction').eq('user_id', uid),
+      ]);
+      return json({ ok: true, profile: prof.data, wallet: wallet.data || { balance_paise: 0, held_paise: 0 },
+        whatsapp: (wa.data || []).filter((w: any) => !w.is_system), integrations: keys.data || [], agents: agents.data || [] });
     }
 
     if (action === 'set_strict') {
