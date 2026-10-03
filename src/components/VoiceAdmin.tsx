@@ -119,13 +119,13 @@ function ConnectionTab({ status, reload }) {
 
       <div className="rp-card" style={card}>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}><Link2 size={17} color={ACCENT} /> Plivo app (webhooks)</h3>
-        <p style={hint}>One Plivo Application holds our answer and hangup URLs. Every number you link to it is answered by ReachPeak AI.</p>
+        <p style={hint}>One click creates (or updates) the Plivo Application with our answer and hangup URLs, imports your Plivo numbers, and links every number that is already assigned to an account.</p>
         <div style={{ display: 'grid', gap: 6, marginTop: 10, fontSize: 13 }}>
           <div><b>App ID:</b> {s.plivo_app_id || <span style={{ color: '#94a3b8' }}>not created yet</span>}</div>
           {s.webhooks && <><div style={{ wordBreak: 'break-all' }}><b>Answer URL:</b> <code>{s.webhooks.answer_url}</code></div><div style={{ wordBreak: 'break-all' }}><b>Hangup URL:</b> <code>{s.webhooks.hangup_url}</code></div></>}
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button style={btn('primary')} disabled={!s.connected || !!busy} onClick={() => run('app', () => adminVoice('setup_app'), (r) => `Plivo app ready (${r.app_id}).`)}>
+          <button style={btn('primary')} disabled={!s.connected || !!busy} onClick={() => run('app', () => adminVoice('setup_app'), (r) => `Plivo app ready (${r.app_id}). Found ${r.numbers_found ?? 0} number(s) on Plivo${r.numbers_linked?.length ? `; linked ${r.numbers_linked.map((n) => '+' + n).join(', ')} to ReachPeak AI` : ''}${r.numbers_failed?.length ? `; could not link ${r.numbers_failed.map((n) => '+' + n).join(', ')}` : ''}${r.sync_error ? ` (number sync failed: ${r.sync_error})` : ''}.`)}>
             {busy === 'app' ? <Loader2 size={15} className="animate-spin" /> : <Link2 size={15} />}{s.plivo_app_id ? 'Re-apply app settings' : 'Set up Plivo app'}
           </button>
           {s.plivo_app_id && !confirmRotate && <button style={btn()} disabled={!!busy} onClick={() => setConfirmRotate(true)}><KeyRound size={15} />Rotate webhook secret</button>}
@@ -166,7 +166,7 @@ function NumbersTab({ status, numbers, accounts, agents, reload }) {
   const acctName = (id) => accounts.find((a) => a.id === id)?.full_name || accounts.find((a) => a.id === id)?.email || '—';
   const sync = async () => {
     setBusy('sync'); setMsg(null);
-    try { const r = await adminVoice('sync_numbers'); setMsg({ kind: 'ok', text: `Found ${r.found} number(s) on Plivo.` }); await reload(); }
+    try { const r = await adminVoice('sync_numbers'); setMsg({ kind: 'ok', text: `Found ${r.found} number(s) on Plivo.${r.numbers_linked?.length ? ` Linked ${r.numbers_linked.map((n) => '+' + n).join(', ')}.` : ''}` }); await reload(); }
     catch (e) { setMsg({ kind: 'error', text: e.message }); }
     setBusy('');
   };
@@ -593,7 +593,7 @@ export function VoiceAdmin() {
     const [st, n, a, g, s, c, rq, pr] = await Promise.all([
       adminVoice('status').catch((e) => { setErr(e.message); return null; }),
       supabase.from('voice_numbers').select('*').order('number'),
-      supabase.from('profiles').select('id, full_name, email, role, business_type').neq('role', 'admin').order('full_name'),
+      supabase.from('profiles').select('id, full_name, email, role, business_type').order('full_name'),
       supabase.from('voice_agents').select('id, user_id, name, is_active, direction').order('name'),
       supabase.from('voice_account_settings').select('*'),
       supabase.from('voice_calls').select('id, user_id, direction, customer_name, customer_number, started_at, duration_sec, billed_minutes, charge_paise, outcome, end_reason, provider_bill_sec, provider_cost, hangup_cause').order('started_at', { ascending: false }).limit(300),
@@ -602,7 +602,7 @@ export function VoiceAdmin() {
     ]);
     const nums = n.data || [];
     setStatus(st ? { ...st, numbers_linked: nums.filter((x) => x.linked).length, numbers_assigned: nums.filter((x) => x.user_id && x.agent_id).length } : null);
-    setNumbers(nums); setAccounts(a.data || []); setAgents(g.data || []); setSettings(s.data || []); setCalls(c.data || []); setRequests(rq.data || []); if (pr.data?.price_paise != null) setPlatformPrice(Number(pr.data.price_paise));
+    setNumbers(nums); setAccounts((a.data || []).map((p) => (p.role === 'admin' ? { ...p, full_name: `${p.full_name || p.email} (you)` } : p))); setAgents(g.data || []); setSettings(s.data || []); setCalls(c.data || []); setRequests(rq.data || []); if (pr.data?.price_paise != null) setPlatformPrice(Number(pr.data.price_paise));
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);

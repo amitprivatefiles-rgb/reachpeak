@@ -73,14 +73,16 @@ export function VoiceManual() {
 
       <H id="s2" n="2">Set up the Plivo app</H>
       <P>Click <B>Set up Plivo app</B>. This creates one Plivo Application called "ReachPeak AI Voice" with our <B>Answer URL</B> (what to do when a call connects) and <B>Hangup URL</B> (call ended, billing). The URLs contain a secret, so outsiders cannot fake calls.</P>
+      <P>The same click also <B>imports every number</B> on your Plivo account and <B>links every number that is already assigned to an account</B>. The message shows which numbers were linked. If a number was already assigned (like ReachPeak's own line), it is ready to receive calls straight away.</P>
       <Note kind="warn">Do not edit these URLs by hand in the Plivo console. If anything changes (new server address, rotated secret), press <B>Re-apply app settings</B> and we update Plivo for you.</Note>
 
       <H id="s3" n="3">Rent, sync and link numbers</H>
       <Steps items={[
         <>Plivo console → <B>Phone Numbers → Buy Number</B> → country India → a <B>voice-enabled</B> number (local/landline-style or mobile as available). Rent one per business (or one shared demo line).</>,
         <>Here: <B>Numbers</B> tab → <B>Sync from Plivo</B>. Every number on the account appears with type, region and monthly rent.</>,
-        <>For each number click <B>Link to app</B>. The number now rings ReachPeak AI. Status shows <B>Linked</B>.</>,
+        <>For each number click <B>Link to app</B>. The number now rings ReachPeak AI. Status shows <B>Linked</B>. (Assigning a number to an account also links it automatically.)</>,
       ]} />
+      <Note><B>ReachPeak's own line:</B> +91 80 6558 1616 ("ReachPeak AI Line 1") is already assigned to the <B>ReachPeak API</B> account (hello@reachpeakapi.in) with the agent "ReachPeak API line" (Riya, incoming only, free: price ₹0). It only needs steps 1 and 2. Edit its brief and demo slots under Accounts → ReachPeak API → Set up → agents.</Note>
       <Note>A number shown as <B>Removed from Plivo</B> was un-rented in the console. Its calls stop; unassign it and assign a new number.</Note>
 
       <H id="req">AI Calling requests from businesses</H>
@@ -88,6 +90,7 @@ export function VoiceManual() {
 
       <H id="s4" n="4">Create the agent</H>
       <P>Each number is answered by an <B>agent</B> that belongs to one business. You create it for them: <B>Accounts</B> → <B>Set up</B> → <B>Create / edit / test agents</B>. (Once AI Calling is on, the business can also edit its own agents.)</P>
+      <Note><B>Fastest way:</B> on a new agent, pick a <B>template</B> (Clinic, Coaching, Real estate, Salon, Finance, Agency, Online store). It fills everything; then replace each <B>[square bracket]</B> with the business's real details. The agent cannot be saved while any [placeholder] is left.</Note>
       <Steps items={[
         <><B>Business name</B> and the <B>agent's name</B> (how it introduces itself), a <B>voice</B>.</>,
         <><B>What the call should achieve</B> (book appointments, confirm orders, qualify leads, support, payment reminders).</>,

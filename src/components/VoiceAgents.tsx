@@ -30,6 +30,31 @@ const PURPOSES = [
   { label: 'Customer support', text: 'Answer customer questions from the brief and take a message for the team if something is not covered.' },
   { label: 'Payment reminders', text: 'Politely remind the customer about a pending payment and note when they will pay.' },
 ];
+// Ready-made starting points. [Square brackets] = replace with the business's real details.
+const TEMPLATES = [
+  { id: 'clinic', label: 'Clinic / doctor', v: { agent_name: 'Riya', voice: 'Aoede', direction: 'both', purpose: 'Book an appointment or consultation slot for the customer.',
+    brief: '[Clinic name], [area, city]. [Doctor name], [speciality]. Consultation fee Rs [amount], paid at the clinic. Clinic hours [10 AM to 8 PM], closed [Sunday]. Address: [full address, landmark]. Services: [list]. For reports or emergencies the patient must call [phone] or visit the clinic.',
+    slots: 'Mon–Sat: 11:00 AM, 4:00 PM, 6:00 PM', instructions: 'Never give medical advice. For severe symptoms tell them to call 112 or go to the nearest hospital.' } },
+  { id: 'coaching', label: 'Coaching / education', v: { agent_name: 'Aditi', voice: 'Kore', direction: 'both', purpose: 'Understand the student\'s class, subject and goal, and book a free counselling session or demo class.',
+    brief: '[Institute name], [city]. Courses: [e.g. NEET, JEE, Class 9–12 boards]. Batches: [timings, online/offline]. Fees: [amount per year / month, EMI options]. Free demo class available. Address: [address].',
+    slots: 'Mon–Sat: 4:00 PM, 6:00 PM; Sun: 11:00 AM', instructions: 'Ask which class the student is in first.' } },
+  { id: 'realestate', label: 'Real estate', v: { agent_name: 'Arjun', voice: 'Puck', direction: 'both', purpose: 'Qualify the buyer (budget, configuration, timeline, loan need) and book a site visit.',
+    brief: '[Project name] by [developer], [location]. [2BHK from Rs X lakh, 3BHK from Rs Y lakh]. Possession [month year]. RERA no. [number]. Amenities: [list]. Home loans available from [banks]. Site visits [days and hours].',
+    slots: 'Sat–Sun: 11:00 AM, 2:00 PM, 5:00 PM', instructions: 'Do not quote final prices or discounts; say the sales team will share the price sheet on WhatsApp.' } },
+  { id: 'salon', label: 'Salon / spa', v: { agent_name: 'Leda', voice: 'Leda', direction: 'both', purpose: 'Book a salon or spa appointment for the requested service.',
+    brief: '[Salon name], [area, city]. Services and prices: [haircut Rs X, colour from Rs Y, facial Rs Z…]. Open [10 AM to 9 PM], [all days]. Address: [address].',
+    slots: 'Daily: 11:00 AM, 1:00 PM, 4:00 PM, 7:00 PM', instructions: '' } },
+  { id: 'finance', label: 'Finance / insurance', v: { agent_name: 'Kabir', voice: 'Charon', direction: 'both', purpose: 'Understand what the customer needs (loan, insurance, investment) and book a call with an advisor.',
+    brief: '[Company name], [registration e.g. IRDAI/AMFI no.]. Products: [list]. Documents usually needed: [list]. Office hours [10 AM to 6 PM, Mon–Sat].',
+    slots: 'Mon–Sat: 11:00 AM, 3:00 PM, 5:00 PM', instructions: 'Never give investment, tax or loan-approval promises. Never ask for OTPs, card or bank details.' } },
+  { id: 'agency', label: 'Agency / services', v: { agent_name: 'Riya', voice: 'Aoede', direction: 'both', purpose: 'Understand the caller\'s requirement and book a free consultation call with the team.',
+    brief: '[Agency name], [city]. Services: [list]. Typical packages: [from Rs X per month]. Free [30-minute] consultation. Office hours [10 AM to 7 PM, Mon–Sat].',
+    slots: 'Mon–Sat: 11:00 AM, 3:00 PM, 6:00 PM', instructions: 'Do not promise custom pricing; say the team will send a proposal on WhatsApp.' } },
+  { id: 'store', label: 'Online store (orders)', v: { agent_name: 'Riya', voice: 'Aoede', direction: 'both', purpose: 'Confirm the customer\'s order and delivery details (address, landmark, preferred time) and answer order questions.',
+    brief: '[Store name]. Delivery in [3–5] days. Cash on delivery available. Returns/exchanges within [7] days of delivery [conditions]. Support hours [10 AM to 7 PM].',
+    slots: '', instructions: 'Never ask for OTPs or payment details.' } },
+];
+
 const DIRECTIONS = [
   { id: 'both', label: 'Incoming + outgoing' },
   { id: 'inbound', label: 'Incoming calls only' },
@@ -94,6 +119,7 @@ function AgentEditor({ initial, userId, onClose, onSaved }) {
     setErr('');
     if (!f.business_name.trim()) return setErr('Please enter your business name.');
     if (!f.brief.trim()) return setErr('Please add a short brief: what you offer, prices, timings. The agent only uses these facts.');
+    if (/\[[^\]]{2,}\]/.test(f.brief + ' ' + f.slots + ' ' + f.purpose)) return setErr('Replace the [square-bracket] placeholders with the real details before saving.');
     setSaving(true);
     const row = {
       name: (f.name.trim() || f.business_name.trim()).slice(0, 80), business_name: f.business_name.trim().slice(0, 120), agent_name: (f.agent_name.trim() || 'Riya').slice(0, 40),
@@ -108,6 +134,18 @@ function AgentEditor({ initial, userId, onClose, onSaved }) {
   };
   return (
     <Modal title={initial?.id ? 'Edit AI agent' : 'New AI agent'} onClose={onClose} width={720}>
+      {!initial?.id && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Start from a template</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TEMPLATES.map((t) => (
+              <button key={t.id} type="button" onClick={() => setF({ ...f, ...t.v, name: f.name || t.label })}
+                style={{ padding: '6px 11px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: '1px solid #e2e8f0', background: '#fff', color: '#475569' }}>{t.label}</button>
+            ))}
+          </div>
+          <div style={hintStyle}>Fills the form with a ready brief. Replace everything in [square brackets] with the business's real details.</div>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <div><label style={labelStyle}>Business name *</label><input style={inputStyle} value={f.business_name} onChange={set('business_name')} placeholder="e.g. Glow Dental, Park Street" maxLength={120} /></div>
         <div><label style={labelStyle}>Agent's name</label><input style={inputStyle} value={f.agent_name} onChange={set('agent_name')} placeholder="e.g. Riya" maxLength={40} /><div style={hintStyle}>The name the agent introduces itself with.</div></div>

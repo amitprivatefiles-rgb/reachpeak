@@ -4,7 +4,7 @@
 //   status           → connection (no secrets), Plivo app, numbers, voice-server health, webhook URLs (secret masked)
 //   save_credentials → { auth_id, auth_token }: verified against Plivo, token stored in Vault
 //   verify           → re-check Plivo account (name, balance)
-//   setup_app        → create/update the Plivo Application with our answer + hangup URLs
+//   setup_app        → create/update the Plivo Application with our answer + hangup URLs, then sync numbers and link assigned ones
 //   sync_numbers     → import numbers rented on the Plivo account into voice_numbers (keeps assignments)
 //   link_number      → { number }: attach a number to our Plivo Application
 //   rotate_secret    → new webhook path secret (updates the Plivo Application too)
@@ -82,6 +82,42 @@ async function verifyAccount(authId: string, token: string) {
   return patch;
 }
 
+// Import every number on the Plivo account (keeps account/agent assignments), mark removed ones.
+async function syncNumbers(authId: string, token: string, appId: string | null) {
+  const all: any[] = [];
+  for (let offset = 0; offset < 1000; offset += 20) {
+    const page = await plivo(authId, token, 'GET', `Number/?limit=20&offset=${offset}`);
+    const objs = page?.objects || [];
+    all.push(...objs);
+    if (objs.length < 20) break;
+  }
+  const now = new Date().toISOString();
+  const seen: string[] = [];
+  for (const n of all) {
+    const number = String(n.number || '').replace(/\D/g, '');
+    if (!number) continue;
+    seen.push(number);
+    const linked = !!(appId && String(n.application || '').includes(appId));
+    const row = { number, alias: n.alias || null, number_type: n.number_type || null, region: n.region || null, monthly_rental: n.monthly_rental_rate ?? null, linked, on_plivo: true, last_synced_at: now };
+    const { data: existing } = await db.from('voice_numbers').select('number, alias').eq('number', number).maybeSingle();
+    if (existing) await db.from('voice_numbers').update({ ...row, alias: n.alias || existing.alias || null }).eq('number', number);
+    else await db.from('voice_numbers').insert(row);
+  }
+  const { data: rows } = await db.from('voice_numbers').select('number');
+  for (const r of rows || []) if (!seen.includes(r.number)) await db.from('voice_numbers').update({ on_plivo: false, linked: false, last_synced_at: now }).eq('number', r.number);
+  return seen.length;
+}
+// Numbers already assigned to an account but not yet pointing at our app → link them (assigned = meant for AI Calling).
+async function linkAssigned(authId: string, token: string, appId: string) {
+  const { data: rows } = await db.from('voice_numbers').select('number').eq('on_plivo', true).eq('linked', false).not('user_id', 'is', null);
+  const linked: string[] = [], failed: string[] = [];
+  for (const r of rows || []) {
+    try { await plivo(authId, token, 'POST', `Number/${r.number}/`, { app_id: appId }); await db.from('voice_numbers').update({ linked: true }).eq('number', r.number); linked.push(r.number); }
+    catch { failed.push(r.number); }
+  }
+  return { linked, failed };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -147,34 +183,16 @@ Deno.serve(async (req: Request) => {
         if (!appId) throw new Error('Plivo did not return an app_id');
       }
       await db.from('voice_settings').update({ plivo_app_id: appId, updated_at: new Date().toISOString() }).eq('id', 1);
-      return json({ ok: true, app_id: appId, answer_url: mask(u.answer_url), hangup_url: mask(u.hangup_url), rotated: action === 'rotate_secret' });
+      let found = 0, link = { linked: [] as string[], failed: [] as string[] }, syncError = '';
+      try { found = await syncNumbers(authId, token, appId); link = await linkAssigned(authId, token, appId); } catch (e) { syncError = (e as Error).message; }
+      return json({ ok: true, app_id: appId, answer_url: mask(u.answer_url), hangup_url: mask(u.hangup_url), rotated: action === 'rotate_secret', numbers_found: found, numbers_linked: link.linked, numbers_failed: link.failed, sync_error: syncError || undefined });
     }
 
     if (action === 'sync_numbers') {
-      const { s, authId, token } = await creds();
-      const all: any[] = [];
-      for (let offset = 0; offset < 1000; offset += 20) {
-        const page = await plivo(authId, token, 'GET', `Number/?limit=20&offset=${offset}`);
-        const objs = page?.objects || [];
-        all.push(...objs);
-        if (objs.length < 20) break;
-      }
-      const now = new Date().toISOString();
-      const seen: string[] = [];
-      for (const n of all) {
-        const number = String(n.number || '').replace(/\D/g, '');
-        if (!number) continue;
-        seen.push(number);
-        const appUri = String(n.application || '');
-        const linked = !!(s.plivo_app_id && appUri.includes(s.plivo_app_id));
-        const row = { number, alias: n.alias || null, number_type: n.number_type || null, region: n.region || null, monthly_rental: n.monthly_rental_rate ?? null, linked, on_plivo: true, last_synced_at: now };
-        const { data: existing } = await db.from('voice_numbers').select('number').eq('number', number).maybeSingle();
-        if (existing) await db.from('voice_numbers').update(row).eq('number', number);
-        else await db.from('voice_numbers').insert(row);
-      }
-      const { data: rows } = await db.from('voice_numbers').select('number');
-      for (const r of rows || []) if (!seen.includes(r.number)) await db.from('voice_numbers').update({ on_plivo: false, linked: false, last_synced_at: now }).eq('number', r.number);
-      return json({ ok: true, found: seen.length });
+      const { s: st, authId, token } = await creds();
+      const found = await syncNumbers(authId, token, st.plivo_app_id);
+      const link = st.plivo_app_id ? await linkAssigned(authId, token, st.plivo_app_id) : { linked: [], failed: [] };
+      return json({ ok: true, found, numbers_linked: link.linked, numbers_failed: link.failed });
     }
 
     if (action === 'link_number') {
