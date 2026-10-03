@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PhoneCall, Plus, RefreshCw, X, Mic, PhoneOff, Check, Pencil, Trash2, Clock, IndianRupee, Bot,
-  PhoneIncoming, PhoneOutgoing, Monitor, CheckCircle2, Search, FileText, Wallet as WalletIcon, Hash,
+  PhoneIncoming, PhoneOutgoing, Monitor, CheckCircle2, Search, FileText, Wallet as WalletIcon, Hash, PhoneForwarded,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandSpinner } from './BrandSpinner';
 import { useVoiceCall, VOICE_WS } from '../lib/useVoiceCall';
+import { placeAiCall, outboundStatus } from '../lib/aiCall';
 
 const ACCENT = '#E04632';
 
@@ -41,7 +42,7 @@ const OUTCOME = {
   other: { label: 'Other', color: '#94a3b8' },
 };
 const SUCCESS = ['booked', 'confirmed', 'qualified', 'rescheduled', 'callback'];
-const EMPTY = { name: '', business_name: '', agent_name: 'Riya', voice: 'Aoede', purpose: PURPOSES[0].text, brief: '', slots: '', instructions: '', direction: 'both', phone_number: '', save_transcripts: true, is_active: true };
+const EMPTY = { name: '', business_name: '', agent_name: 'Riya', voice: 'Aoede', purpose: PURPOSES[0].text, brief: '', slots: '', instructions: '', direction: 'both', save_transcripts: true, is_active: true };
 
 const rupees = (paise) => '₹' + ((Number(paise) || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const fmtDur = (s) => { s = Number(s) || 0; return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -83,8 +84,8 @@ function Modal({ title, onClose, children, width = 640 }) {
   );
 }
 
-function AgentEditor({ initial, isAdmin, userId, onClose, onSaved }) {
-  const [f, setF] = useState(() => ({ ...EMPTY, ...(initial || {}), phone_number: initial?.phone_number || '' }));
+function AgentEditor({ initial, userId, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({ ...EMPTY, ...(initial || {}) }));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e });
@@ -97,12 +98,11 @@ function AgentEditor({ initial, isAdmin, userId, onClose, onSaved }) {
       name: (f.name.trim() || f.business_name.trim()).slice(0, 80), business_name: f.business_name.trim().slice(0, 120), agent_name: (f.agent_name.trim() || 'Riya').slice(0, 40),
       voice: f.voice, purpose: f.purpose.trim().slice(0, 600), brief: f.brief.trim().slice(0, 6000), slots: f.slots.trim().slice(0, 1500), instructions: f.instructions.trim().slice(0, 2000),
       direction: f.direction, save_transcripts: !!f.save_transcripts, is_active: !!f.is_active,
-      ...(isAdmin ? { phone_number: f.phone_number.replace(/[^\d]/g, '') || null } : {}),
     };
     const q = initial?.id ? supabase.from('voice_agents').update(row).eq('id', initial.id) : supabase.from('voice_agents').insert({ ...row, user_id: userId });
     const { error } = await q;
     setSaving(false);
-    if (error) return setErr(error.code === '23505' ? 'That phone number is already assigned to another agent.' : 'Could not save: ' + error.message);
+    if (error) return setErr('Could not save: ' + error.message);
     onSaved();
   };
   return (
@@ -157,13 +157,6 @@ function AgentEditor({ initial, isAdmin, userId, onClose, onSaved }) {
         <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><input type="checkbox" checked={f.is_active} onChange={set('is_active')} />Agent active</label>
       </div>
 
-      {isAdmin && (
-        <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: '#f8fafc', border: '1px dashed #cbd5e1' }}>
-          <label style={labelStyle}>Phone number (admin only)</label>
-          <input style={inputStyle} value={f.phone_number} onChange={set('phone_number')} placeholder="e.g. 918012345678 (Plivo number)" />
-          <div style={hintStyle}>Incoming calls to this number are answered by this agent and billed to this business's wallet.</div>
-        </div>
-      )}
 
       {err && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', fontSize: 13 }}>{err}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
@@ -227,6 +220,47 @@ function TestCall({ agent, price, onClose, onFinished }) {
   );
 }
 
+function CallCustomer({ agents, status, onClose, onPlaced }) {
+  const callable = agents.filter((a) => a.is_active && a.direction !== 'inbound');
+  const [agentId, setAgentId] = useState(callable[0]?.id || '');
+  const [to, setTo] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const go = async () => {
+    setMsg(null); setBusy(true);
+    try { const r = await placeAiCall({ agent_id: agentId, to, name }); setMsg({ ok: true, text: `Calling now. The customer's phone is ringing; the agent will talk for up to ${r.minutes} min. The result appears in Call logs.` }); onPlaced?.(); }
+    catch (e) { setMsg({ ok: false, text: e.message }); }
+    setBusy(false);
+  };
+  return (
+    <Modal title="Call a customer with AI" onClose={onClose} width={520}>
+      {!status?.allowed ? (
+        <div style={{ padding: 12, borderRadius: 12, background: '#fffbeb', color: '#92400e', fontSize: 13.5 }}>{status?.reason || 'Checking…'}</div>
+      ) : callable.length === 0 ? (
+        <div style={{ padding: 12, borderRadius: 12, background: '#fffbeb', color: '#92400e', fontSize: 13.5 }}>None of your agents can make outgoing calls. Edit an agent and set "Calls it handles" to include outgoing calls.</div>
+      ) : (
+        <>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>The AI phones the customer from +{status.callerNumber}, introduces your business and handles the call. Billed per minute from your wallet. Calls are allowed {status.hours[0]}:00 to {status.hours[1]}:00 (India time).</p>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div><label style={labelStyle}>Agent</label><select style={inputStyle} value={agentId} onChange={(e) => setAgentId(e.target.value)}>{callable.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <div><label style={labelStyle}>Customer mobile</label><input style={inputStyle} value={to} onChange={(e) => setTo(e.target.value)} inputMode="tel" placeholder="e.g. 98765 43210" /></div>
+              <div><label style={labelStyle}>Customer name</label><input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="e.g. Rahul" /></div>
+            </div>
+            <p style={{ ...hintStyle, marginTop: 0 }}>Only call people who asked to be contacted (they enquired, booked or are your customers).</p>
+          </div>
+        </>
+      )}
+      {msg && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: msg.ok ? '#ecfdf5' : '#fef2f2', color: msg.ok ? '#047857' : '#b91c1c', fontSize: 13 }}>{msg.text}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        <button type="button" onClick={onClose} style={btn(false)}>Close</button>
+        {status?.allowed && callable.length > 0 && <button type="button" onClick={go} disabled={busy || !to.trim() || !agentId} style={{ ...btn(true), opacity: busy || !to.trim() ? 0.6 : 1 }}><PhoneForwarded size={16} />{busy ? 'Placing call…' : 'Call now'}</button>}
+      </div>
+    </Modal>
+  );
+}
+
 function CallDetail({ row, onClose }) {
   const [transcript, setTranscript] = useState(null);
   useEffect(() => {
@@ -261,8 +295,8 @@ function CallDetail({ row, onClose }) {
   );
 }
 
-export function VoiceAgents() {
-  const { user, isAdmin } = useAuth();
+export function VoiceAgents({ ownerId, embedded }: { ownerId?: string; embedded?: boolean } = {}) {
+  const { user } = useAuth();
   const [tab, setTab] = useState('agents');
   const [agents, setAgents] = useState([]);
   const [calls, setCalls] = useState([]);
@@ -276,23 +310,31 @@ export function VoiceAgents() {
   const [confirmDel, setConfirmDel] = useState(null);
   const [search, setSearch] = useState('');
   const [agentFilter, setAgentFilter] = useState('all');
+  const [numbersByAgent, setNumbersByAgent] = useState({});
+  const [outbound, setOutbound] = useState(null);
+  const [calling, setCalling] = useState(false);
 
-  const uid = user?.id;
+  const uid = ownerId || user?.id;
   const load = useCallback(async () => {
     if (!uid) return;
     setLoading(true);
-    const [a, c, p, w] = await Promise.all([
+    const [a, c, p, w, n] = await Promise.all([
       supabase.from('voice_agents').select('*').eq('user_id', uid).order('created_at', { ascending: true }),
       supabase.from('voice_calls').select('id,agent_id,agent_label,direction,customer_number,customer_name,started_at,duration_sec,billed_minutes,charge_paise,outcome,summary,when_text,details,end_reason')
         .eq('user_id', uid).order('started_at', { ascending: false }).limit(300),
       supabase.from('message_pricing').select('price_paise').eq('category', 'voice_minute').maybeSingle(),
       supabase.from('wallets').select('balance_paise').eq('user_id', uid).maybeSingle(),
+      supabase.from('voice_numbers').select('number, agent_id').eq('user_id', uid),
     ]);
     if (missingTable(a.error) || missingTable(c.error)) { setNotReady(true); setLoading(false); return; }
     setNotReady(false);
     setAgents(a.data || []); setCalls(c.data || []);
     if (p.data?.price_paise != null) setPrice(Number(p.data.price_paise));
+    supabase.from('voice_account_settings').select('price_override_paise').eq('user_id', uid).maybeSingle().then(({ data }) => { if (data?.price_override_paise != null) setPrice(Number(data.price_override_paise)); });
     setBalance(w.data ? Number(w.data.balance_paise) : null);
+    const byAgent = {}; for (const r of n.data || []) if (r.agent_id) (byAgent[r.agent_id] = byAgent[r.agent_id] || []).push(r.number);
+    setNumbersByAgent(byAgent);
+    outboundStatus(uid).then(setOutbound).catch(() => setOutbound(null));
     setLoading(false);
   }, [uid]);
   useEffect(() => { load(); }, [load]);
@@ -334,12 +376,13 @@ export function VoiceAgents() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 10, fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>
-            <PhoneCall size={24} style={{ color: ACCENT }} /> AI Calling
+            <PhoneCall size={24} style={{ color: ACCENT }} /> {embedded ? 'Agents & calls' : 'AI Calling'}
           </h1>
           <p style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>AI voice agents that talk to your customers in Hindi, English and Hinglish: book, confirm and follow up.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={load} className="rp-tap" style={{ ...btn(false), padding: '10px 12px' }} aria-label="Refresh"><RefreshCw size={16} /></button>
+          {agents.length > 0 && <button onClick={() => setCalling(true)} className="rp-tap" style={btn(false)}><PhoneForwarded size={16} /> Call a customer</button>}
           <button onClick={() => setEditing({})} className="rp-tap" style={btn(true)}><Plus size={17} /> New agent</button>
         </div>
       </div>
@@ -384,7 +427,7 @@ export function VoiceAgents() {
                   <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{a.purpose || 'General customer calls'}</div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <Pill color="#475569">{a.direction === 'inbound' ? <><PhoneIncoming size={11} />Incoming</> : a.direction === 'outbound' ? <><PhoneOutgoing size={11} />Outgoing</> : <><PhoneCall size={11} />In + out</>}</Pill>
-                    {a.phone_number ? <Pill color="#10b981"><Hash size={11} />+{a.phone_number}</Pill> : <Pill color="#f59e0b">Phone number: coming soon</Pill>}
+                    {(numbersByAgent[a.id] || []).length ? numbersByAgent[a.id].map((num) => <Pill key={num} color="#10b981"><Hash size={11} />+{num}</Pill>) : <Pill color="#94a3b8">No phone number yet</Pill>}
                     <Pill color="#3b82f6">{n} call{n === 1 ? '' : 's'}</Pill>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -438,9 +481,10 @@ export function VoiceAgents() {
         </>
       )}
 
-      {editing && <AgentEditor initial={editing.id ? editing : null} isAdmin={isAdmin} userId={uid} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {editing && <AgentEditor initial={editing.id ? editing : null} userId={uid} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       {testing && <TestCall agent={testing} price={price} onClose={() => { setTesting(null); load(); }} onFinished={load} />}
       {detail && <CallDetail row={detail} onClose={() => setDetail(null)} />}
+      {calling && <CallCustomer agents={agents} status={outbound} onClose={() => setCalling(false)} onPlaced={() => setTimeout(load, 4000)} />}
       {confirmDel && (
         <Modal title="Delete agent?" onClose={() => setConfirmDel(null)} width={420}>
           <p style={{ margin: '0 0 16px', color: '#475569', fontSize: 14 }}>"{confirmDel.name}" will be deleted. Its past call logs stay in your history.</p>

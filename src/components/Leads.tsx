@@ -1,9 +1,10 @@
 // @ts-nocheck
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Inbox as InboxIcon, Plus, RefreshCw, Search, X, Check, Users, Sparkles, Trophy, Clock, Code2, Copy, Trash2, PhoneCall } from 'lucide-react';
+import { Inbox as InboxIcon, Plus, RefreshCw, Search, X, Check, Users, Sparkles, Trophy, Clock, Code2, Copy, Trash2, PhoneCall, PhoneForwarded } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandSpinner } from './BrandSpinner';
+import { placeAiCall, outboundStatus } from '../lib/aiCall';
 
 const ACCENT = '#E04632';
 const STATUSES = [
@@ -132,6 +133,29 @@ export function Leads({ onNavigate }: { onNavigate?: (p: string) => void }) {
   const [editing, setEditing] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [callAgents, setCallAgents] = useState([]);
+  const [outbound, setOutbound] = useState(null);
+  const [callLead, setCallLead] = useState(null);
+  const [callAgent, setCallAgent] = useState('');
+  const [callMsg, setCallMsg] = useState(null);
+  const [calling, setCalling] = useState(false);
+  useEffect(() => {
+    if (!uid) return;
+    outboundStatus(uid).then(setOutbound).catch(() => setOutbound(null));
+    supabase.from('voice_agents').select('id, name, is_active, direction').eq('user_id', uid).then(({ data }) => {
+      const list = (data || []).filter((a) => a.is_active && a.direction !== 'inbound'); setCallAgents(list); setCallAgent(list[0]?.id || '');
+    });
+  }, [uid]);
+  const startCall = async () => {
+    setCalling(true); setCallMsg(null);
+    try {
+      await placeAiCall({ agent_id: callAgent, to: callLead.phone, name: callLead.name || '' });
+      if (callLead.status === 'new') await supabase.from('leads').update({ status: 'contacted' }).eq('id', callLead.id);
+      setCallMsg({ ok: true, text: 'Calling now. The result will appear in AI Calling → Call logs.' }); load();
+    } catch (e) { setCallMsg({ ok: false, text: e.message }); }
+    setCalling(false);
+  };
+  const canCall = outbound?.allowed && callAgents.length > 0;
 
   const load = useCallback(async () => {
     if (!uid) return;
@@ -239,6 +263,7 @@ export function Leads({ onNavigate }: { onNavigate?: (p: string) => void }) {
                   style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid ' + st.color + '55', background: st.color + '14', color: st.color, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
                   {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
+                {canCall && l.phone && <button onClick={() => { setCallLead(l); setCallMsg(null); }} title="Call with AI" aria-label="Call with AI" style={{ border: '1px solid #e2e8f0', background: '#fff', color: ACCENT, cursor: 'pointer', padding: '6px 9px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700 }}><PhoneForwarded size={14} />Call</button>}
                 <button onClick={() => setConfirmDel(l)} aria-label="Delete lead" style={{ border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
               </div>
             );
@@ -247,6 +272,18 @@ export function Leads({ onNavigate }: { onNavigate?: (p: string) => void }) {
       )}
 
       {editing && <LeadEditor lead={editing.id ? editing : null} userId={uid} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {callLead && (
+        <Modal title={'Call ' + (callLead.name || '+' + callLead.phone) + ' with AI'} onClose={() => setCallLead(null)} width={460}>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>The AI phones +{callLead.phone} from your business number and follows the agent's purpose. Billed per minute from your wallet.</p>
+          <label style={labelStyle}>Agent</label>
+          <select style={inputStyle} value={callAgent} onChange={(e) => setCallAgent(e.target.value)}>{callAgents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+          {callMsg && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: callMsg.ok ? '#ecfdf5' : '#fef2f2', color: callMsg.ok ? '#047857' : '#b91c1c', fontSize: 13 }}>{callMsg.text}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button onClick={() => setCallLead(null)} style={btn(false)}>Close</button>
+            {!callMsg?.ok && <button onClick={startCall} disabled={calling || !callAgent} style={{ ...btn(true), opacity: calling ? 0.7 : 1 }}><PhoneForwarded size={16} />{calling ? 'Placing call…' : 'Call now'}</button>}
+          </div>
+        </Modal>
+      )}
       {showHelp && <CaptureHelp onClose={() => setShowHelp(false)} onNavigate={onNavigate} />}
       {confirmDel && (
         <Modal title="Delete lead?" onClose={() => setConfirmDel(null)} width={420}>

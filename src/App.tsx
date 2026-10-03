@@ -41,6 +41,7 @@ import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import { Disputes } from './components/Disputes';
 const Leads = lazy(() => import('./components/Leads').then(m => ({ default: m.Leads })));
+const VoiceAdmin = lazy(() => import('./components/VoiceAdmin').then(m => ({ default: m.VoiceAdmin })));
 const VoiceAgents = lazy(() => import('./components/VoiceAgents').then(m => ({ default: m.VoiceAgents })));
 import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
@@ -184,6 +185,7 @@ function AppDashboard() {
       case 'orderguard': return <OrderGuard />;
       case 'disputes': return <Disputes onNavigate={setCurrentPage} />;
       case 'leads': return <Suspense fallback={<BrandSpinner label="Loading leads…" />}><Leads onNavigate={setCurrentPage} /></Suspense>;
+      case 'voice-admin': return isAdmin ? <Suspense fallback={<BrandSpinner label="Loading AI Calling setup…" />}><VoiceAdmin /></Suspense> : <Dashboard />;
       case 'ai-calling': return <Suspense fallback={<BrandSpinner label="Loading AI Calling…" />}><VoiceAgents /></Suspense>;
       case 'wallet': return <Wallet />;
       case 'ai-broadcast': return <AIBroadcast />;

@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall, Target } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall, Target, Radio } from 'lucide-react';
 import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
 import { hasFeature } from '../lib/businessTypes';
 
@@ -72,6 +72,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
     { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
+    { id: 'voice-admin', label: 'AI Calling Setup', icon: Radio },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'All Contacts', icon: Users },
     { id: 'reports', label: 'Reports', icon: Activity },
