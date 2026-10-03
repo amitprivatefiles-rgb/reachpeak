@@ -44,6 +44,7 @@ import { Agents } from './components/Agents';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import { Disputes } from './components/Disputes';
+const VoiceAgents = lazy(() => import('./components/VoiceAgents').then(m => ({ default: m.VoiceAgents })));
 import { UserManagement } from './components/UserManagement';
 import { Inbox } from './components/Inbox';
 import { Integrations } from './components/Integrations';
@@ -57,7 +58,7 @@ import { AdminSupport } from './components/AdminSupport';
 import { AdminProvisionStore } from './components/AdminProvisionStore';
 import { AIBroadcast } from './components/AIBroadcast';
 import { supabase } from './lib/supabase';
-import { BrandSplash } from './components/BrandSpinner';
+import { BrandSplash, BrandSpinner } from './components/BrandSpinner';
 
 /* ─── LOADING FALLBACK ─── */
 function MarketingLoading() {
@@ -182,6 +183,7 @@ function AppDashboard() {
       case 'journeys': return <Journeys />;
       case 'orderguard': return <OrderGuard />;
       case 'disputes': return <Disputes onNavigate={setCurrentPage} />;
+      case 'ai-calling': return <Suspense fallback={<BrandSpinner label="Loading AI Calling…" />}><VoiceAgents /></Suspense>;
       case 'wallet': return <Wallet />;
       case 'ai-broadcast': return <AIBroadcast />;
       case 'billing': return isAdmin ? <AdminBilling /> : <Wallet />;

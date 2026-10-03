@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall } from 'lucide-react';
 import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
@@ -82,6 +82,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'approvals', label: 'Campaign Approvals', icon: CheckSquare, badge: pendingCount > 0 ? pendingCount : undefined },
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
+    { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'All Contacts', icon: Users },
     { id: 'failed', label: 'Failed & Retry', icon: AlertCircle },
@@ -105,6 +106,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
+    { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'My Contacts', icon: Users },
     { id: 'wallet', label: 'Wallet', icon: Wallet },

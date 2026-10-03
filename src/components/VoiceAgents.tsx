@@ -1,0 +1,455 @@
+// @ts-nocheck
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  PhoneCall, Plus, RefreshCw, X, Mic, PhoneOff, Check, Pencil, Trash2, Clock, IndianRupee, Bot,
+  PhoneIncoming, PhoneOutgoing, Monitor, CheckCircle2, Search, FileText, Wallet as WalletIcon, Hash,
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { BrandSpinner } from './BrandSpinner';
+import { useVoiceCall, VOICE_WS } from '../lib/useVoiceCall';
+
+const ACCENT = '#E04632';
+
+const VOICES = [
+  { id: 'Aoede', label: 'Aoede', hint: 'Female · warm' },
+  { id: 'Kore', label: 'Kore', hint: 'Female · confident' },
+  { id: 'Leda', label: 'Leda', hint: 'Female · young, friendly' },
+  { id: 'Zephyr', label: 'Zephyr', hint: 'Female · bright' },
+  { id: 'Puck', label: 'Puck', hint: 'Male · upbeat' },
+  { id: 'Charon', label: 'Charon', hint: 'Male · deep, calm' },
+  { id: 'Fenrir', label: 'Fenrir', hint: 'Male · energetic' },
+  { id: 'Orus', label: 'Orus', hint: 'Male · firm' },
+];
+const PURPOSES = [
+  { label: 'Book appointments', text: 'Book an appointment or consultation slot for the customer.' },
+  { label: 'Confirm orders', text: 'Confirm the customer\'s order and delivery details (address, landmark, preferred time).' },
+  { label: 'Qualify leads', text: 'Understand what the customer is looking for (need, budget, timeline) and book a follow-up with the team.' },
+  { label: 'Customer support', text: 'Answer customer questions from the brief and take a message for the team if something is not covered.' },
+  { label: 'Payment reminders', text: 'Politely remind the customer about a pending payment and note when they will pay.' },
+];
+const DIRECTIONS = [
+  { id: 'both', label: 'Incoming + outgoing' },
+  { id: 'inbound', label: 'Incoming calls only' },
+  { id: 'outbound', label: 'Outgoing calls only' },
+];
+const OUTCOME = {
+  booked: { label: 'Booked', color: '#10b981' }, confirmed: { label: 'Confirmed', color: '#10b981' }, qualified: { label: 'Qualified', color: '#10b981' },
+  rescheduled: { label: 'Rescheduled', color: '#3b82f6' }, callback: { label: 'Callback', color: '#3b82f6' }, human_requested: { label: 'Wants a human', color: '#8b5cf6' },
+  cancelled: { label: 'Cancelled', color: '#64748b' }, not_interested: { label: 'Not interested', color: '#64748b' }, wrong_number: { label: 'Wrong number', color: '#64748b' },
+  opt_out: { label: 'Opted out', color: '#f59e0b' }, emergency_referred: { label: 'Emergency', color: '#ef4444' }, no_response: { label: 'No response', color: '#94a3b8' },
+  other: { label: 'Other', color: '#94a3b8' },
+};
+const SUCCESS = ['booked', 'confirmed', 'qualified', 'rescheduled', 'callback'];
+const EMPTY = { name: '', business_name: '', agent_name: 'Riya', voice: 'Aoede', purpose: PURPOSES[0].text, brief: '', slots: '', instructions: '', direction: 'both', phone_number: '', save_transcripts: true, is_active: true };
+
+const rupees = (paise) => '₹' + ((Number(paise) || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const fmtDur = (s) => { s = Number(s) || 0; return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const fmtWhen = (iso) => new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const missingTable = (e) => e && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|schema cache/i.test(e.message || ''));
+
+function Pill({ color, children }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color, background: color + '18', padding: '2px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>{children}</span>;
+}
+function StatCard({ icon, label, value, color, subtitle }) {
+  return (
+    <div className="rp-card" style={{ borderRadius: 16, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color, marginBottom: 8 }}>{icon}<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>{label}</span></div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{value}</div>
+      {subtitle && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{subtitle}</div>}
+    </div>
+  );
+}
+const btn = (primary) => ({ padding: '10px 16px', borderRadius: 12, border: primary ? 'none' : '1px solid #e6e8ec', background: primary ? ACCENT : '#fff', color: primary ? '#fff' : '#475569', fontWeight: primary ? 700 : 600, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 });
+const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14, color: '#0f172a', boxSizing: 'border-box' };
+const labelStyle = { display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 };
+const hintStyle = { fontSize: 11.5, color: '#94a3b8', marginTop: 5, lineHeight: 1.4 };
+
+function Modal({ title, onClose, children, width = 640 }) {
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, [onClose]);
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 12px', overflowY: 'auto' }}>
+      <div onClick={(e) => e.stopPropagation()} className="rp-card" style={{ width: '100%', maxWidth: width, borderRadius: 18, padding: 20, background: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif" }}>{title}</h2>
+          <button onClick={onClose} aria-label="Close" style={{ border: 'none', background: '#f1f5f9', borderRadius: 10, padding: 6, cursor: 'pointer', color: '#475569' }}><X size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function AgentEditor({ initial, isAdmin, userId, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({ ...EMPTY, ...(initial || {}), phone_number: initial?.phone_number || '' }));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e });
+  const save = async () => {
+    setErr('');
+    if (!f.business_name.trim()) return setErr('Please enter your business name.');
+    if (!f.brief.trim()) return setErr('Please add a short brief: what you offer, prices, timings. The agent only uses these facts.');
+    setSaving(true);
+    const row = {
+      name: (f.name.trim() || f.business_name.trim()).slice(0, 80), business_name: f.business_name.trim().slice(0, 120), agent_name: (f.agent_name.trim() || 'Riya').slice(0, 40),
+      voice: f.voice, purpose: f.purpose.trim().slice(0, 600), brief: f.brief.trim().slice(0, 6000), slots: f.slots.trim().slice(0, 1500), instructions: f.instructions.trim().slice(0, 2000),
+      direction: f.direction, save_transcripts: !!f.save_transcripts, is_active: !!f.is_active,
+      ...(isAdmin ? { phone_number: f.phone_number.replace(/[^\d]/g, '') || null } : {}),
+    };
+    const q = initial?.id ? supabase.from('voice_agents').update(row).eq('id', initial.id) : supabase.from('voice_agents').insert({ ...row, user_id: userId });
+    const { error } = await q;
+    setSaving(false);
+    if (error) return setErr(error.code === '23505' ? 'That phone number is already assigned to another agent.' : 'Could not save: ' + error.message);
+    onSaved();
+  };
+  return (
+    <Modal title={initial?.id ? 'Edit AI agent' : 'New AI agent'} onClose={onClose} width={720}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+        <div><label style={labelStyle}>Business name *</label><input style={inputStyle} value={f.business_name} onChange={set('business_name')} placeholder="e.g. Glow Dental, Park Street" maxLength={120} /></div>
+        <div><label style={labelStyle}>Agent's name</label><input style={inputStyle} value={f.agent_name} onChange={set('agent_name')} placeholder="e.g. Riya" maxLength={40} /><div style={hintStyle}>The name the agent introduces itself with.</div></div>
+        <div><label style={labelStyle}>Label (only you see it)</label><input style={inputStyle} value={f.name} onChange={set('name')} placeholder="e.g. Booking line" maxLength={80} /></div>
+        <div><label style={labelStyle}>Calls it handles</label>
+          <select style={inputStyle} value={f.direction} onChange={set('direction')}>{DIRECTIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>Voice</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+          {VOICES.map((v) => (
+            <button key={v.id} type="button" onClick={() => setF({ ...f, voice: v.id })}
+              style={{ textAlign: 'left', padding: '9px 11px', borderRadius: 12, cursor: 'pointer', border: '1.5px solid ' + (f.voice === v.id ? ACCENT : '#e2e8f0'), background: f.voice === v.id ? ACCENT + '0d' : '#fff' }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a' }}>{v.label}</div><div style={{ fontSize: 11.5, color: '#64748b' }}>{v.hint}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>What should the call achieve?</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {PURPOSES.map((p) => (
+            <button key={p.label} type="button" onClick={() => setF({ ...f, purpose: p.text })}
+              style={{ padding: '6px 11px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (f.purpose === p.text ? ACCENT : '#e2e8f0'), background: f.purpose === p.text ? ACCENT : '#fff', color: f.purpose === p.text ? '#fff' : '#475569' }}>{p.label}</button>
+          ))}
+        </div>
+        <textarea style={{ ...inputStyle, minHeight: 60 }} value={f.purpose} onChange={set('purpose')} maxLength={600} />
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={labelStyle}>Brief: facts the agent may use *</label>
+        <textarea style={{ ...inputStyle, minHeight: 130 }} value={f.brief} onChange={set('brief')} maxLength={6000}
+          placeholder={'Services and prices, timings, address, delivery or refund policy, offers.\ne.g. Dr. Sen (dentist). Check-up ₹500, paid at the clinic. Open 10 AM to 7 PM, closed Sunday. 12 Park Street, Kolkata. Free parking.'} />
+        <div style={hintStyle}>The agent never invents prices or policies: anything not written here, it says your team will confirm on WhatsApp.</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginTop: 14 }}>
+        <div><label style={labelStyle}>Available slots (optional)</label>
+          <textarea style={{ ...inputStyle, minHeight: 80 }} value={f.slots} onChange={set('slots')} maxLength={1500} placeholder={'e.g. Mon–Sat: 11:00 AM, 3:00 PM, 6:00 PM'} />
+          <div style={hintStyle}>Weekly. It never offers a slot that has already passed.</div></div>
+        <div><label style={labelStyle}>Extra instructions (optional)</label>
+          <textarea style={{ ...inputStyle, minHeight: 80 }} value={f.instructions} onChange={set('instructions')} maxLength={2000} placeholder={'e.g. Always mention free parking. Speak mostly in Bengali.'} /></div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 14, fontSize: 13, color: '#334155' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><input type="checkbox" checked={f.save_transcripts} onChange={set('save_transcripts')} />Save call transcripts</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><input type="checkbox" checked={f.is_active} onChange={set('is_active')} />Agent active</label>
+      </div>
+
+      {isAdmin && (
+        <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: '#f8fafc', border: '1px dashed #cbd5e1' }}>
+          <label style={labelStyle}>Phone number (admin only)</label>
+          <input style={inputStyle} value={f.phone_number} onChange={set('phone_number')} placeholder="e.g. 918012345678 (Plivo number)" />
+          <div style={hintStyle}>Incoming calls to this number are answered by this agent and billed to this business's wallet.</div>
+        </div>
+      )}
+
+      {err && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', fontSize: 13 }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+        <button type="button" onClick={onClose} style={btn(false)}>Cancel</button>
+        <button type="button" onClick={save} disabled={saving} style={{ ...btn(true), opacity: saving ? 0.7 : 1 }}><Check size={16} />{saving ? 'Saving…' : 'Save agent'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function TestCall({ agent, price, onClose, onFinished }) {
+  const call = useVoiceCall();
+  const [name, setName] = useState(() => { try { return localStorage.getItem('rp_test_name') || ''; } catch { return ''; } });
+  const [flow, setFlow] = useState(agent.direction === 'inbound' ? 'in' : 'out');
+  const linesRef = useRef(null);
+  useEffect(() => { linesRef.current?.scrollTo({ top: 1e9 }); }, [call.lines]);
+  const wasLive = useRef(false);
+  useEffect(() => { if (call.phase === 'live') wasLive.current = true; if (call.phase === 'ended' && wasLive.current) { wasLive.current = false; setTimeout(onFinished, 2500); } }, [call.phase, onFinished]);
+  const busy = call.phase === 'connecting' || call.phase === 'live';
+  const begin = async () => {
+    try { localStorage.setItem('rp_test_name', name.trim()); } catch { /* ignore */ }
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return call.note('Your session expired. Please sign in again.');
+    call.start(`${VOICE_WS}?mode=test`, (ws) => ws.send(JSON.stringify({ type: 'auth', token, agent_id: agent.id, name: name.trim().slice(0, 30), flow })));
+  };
+  const close = () => { call.stop(); onClose(); };
+  return (
+    <Modal title={`Test call · ${agent.agent_name} (${agent.business_name})`} onClose={close} width={560}>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Talk to your agent like a customer would. Test calls are billed from your wallet at {rupees(price)}/min, up to 5 minutes.</p>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ flex: '1 1 180px' }}><label style={labelStyle}>Customer name for the test</label><input style={inputStyle} value={name} disabled={busy} onChange={(e) => setName(e.target.value)} placeholder="e.g. Amit" maxLength={30} /></div>
+        <div style={{ flex: '1 1 200px' }}><label style={labelStyle}>Simulate</label>
+          <select style={inputStyle} value={flow} disabled={busy} onChange={(e) => setFlow(e.target.value)}>
+            <option value="out">Agent calls the customer</option><option value="in">Customer calls the business</option>
+          </select></div>
+      </div>
+      <div style={{ borderRadius: 16, background: '#0f172a', color: '#e2e8f0', padding: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 999, background: ACCENT, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#fff', fontSize: 13 }}>AI</div>
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>{call.phase === 'live' ? 'On call' : call.phase === 'connecting' ? 'Connecting…' : call.phase === 'ended' ? 'Call ended' : 'Ready'}</div><div style={{ fontSize: 12, color: '#94a3b8' }}>{agent.agent_name} · {VOICES.find((v) => v.id === agent.voice)?.hint || agent.voice}</div></div>
+          <span style={{ fontFamily: 'monospace', color: call.phase === 'live' ? '#6EE7A0' : '#94a3b8' }}>{call.phase === 'live' ? `● ${fmtDur(call.secs)}` : call.phase.toUpperCase()}</span>
+        </div>
+        <div style={{ height: 4, background: '#1e293b', borderRadius: 4, marginTop: 12, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.min(100, call.level * 140)}%`, background: '#6EE7A0', transition: 'width .1s' }} /></div>
+        <div ref={linesRef} style={{ maxHeight: 260, minHeight: 120, overflowY: 'auto', marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {call.lines.length === 0 && <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>{call.phase === 'live' ? 'Listening… say hello.' : 'Press start, allow the microphone, and talk. Interrupt any time.'}</p>}
+          {call.lines.map((l, i) => (
+            <div key={i} style={{ alignSelf: l.role === 'agent' ? 'flex-start' : 'flex-end', maxWidth: '85%', background: l.role === 'agent' ? '#1e293b' : ACCENT, color: '#fff', padding: '8px 11px', borderRadius: 12, fontSize: 13.5, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 10.5, opacity: 0.7, marginBottom: 2 }}>{l.role === 'agent' ? agent.agent_name : 'You'}</div>{l.text}
+            </div>
+          ))}
+        </div>
+        {call.notes.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{call.notes.map((n) => <span key={n.text} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '4px 10px', borderRadius: 999, background: n.ok ? '#10b98126' : '#ffffff14', color: n.ok ? '#6EE7A0' : '#cbd5e1' }}>{n.ok && <Check size={12} />}{n.text}</span>)}</div>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        {busy ? <button type="button" onClick={() => call.stop()} style={{ ...btn(false), background: '#0f172a', color: '#fff', border: 'none' }}><PhoneOff size={16} />End call</button>
+          : <button type="button" onClick={begin} style={btn(true)}><Mic size={16} />{call.phase === 'ended' ? 'Call again' : 'Start test call'}</button>}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 11.5, color: '#94a3b8' }}>Use headphones for the best result. The call result and transcript appear in Call logs.</p>
+    </Modal>
+  );
+}
+
+function CallDetail({ row, onClose }) {
+  const [transcript, setTranscript] = useState(null);
+  useEffect(() => {
+    supabase.from('voice_calls').select('transcript').eq('id', row.id).maybeSingle().then(({ data }) => {
+      const t = []; for (const [r, x] of data?.transcript || []) { if (t.length && t[t.length - 1][0] === r) t[t.length - 1][1] += x; else t.push([r, x]); }
+      setTranscript(t);
+    });
+  }, [row.id]);
+  const o = OUTCOME[row.outcome] || (row.outcome ? { label: row.outcome, color: '#94a3b8' } : null);
+  return (
+    <Modal title="Call details" onClose={onClose} width={620}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+        {o && <Pill color={o.color}>{o.label}</Pill>}
+        <Pill color="#475569">{row.direction === 'in' ? 'Incoming' : row.direction === 'out' ? 'Outgoing' : 'Test call'}</Pill>
+        <span style={{ fontSize: 12.5, color: '#64748b' }}>{fmtWhen(row.started_at)} · {fmtDur(row.duration_sec)} · {rupees(row.charge_paise)}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, fontSize: 13 }}>
+        <div><div style={labelStyle}>Agent</div>{row.agent_label || '—'}</div>
+        <div><div style={labelStyle}>Customer</div>{row.customer_name || '—'}{row.customer_number ? ` · +${row.customer_number}` : ''}</div>
+        {row.when_text && <div><div style={labelStyle}>When</div>{row.when_text}</div>}
+      </div>
+      {row.summary && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: '#f8fafc', fontSize: 13.5, color: '#0f172a' }}><b>Summary: </b>{row.summary}{row.details ? <div style={{ marginTop: 6, color: '#475569' }}>{row.details}</div> : null}</div>}
+      <div style={{ marginTop: 14 }}>
+        <div style={labelStyle}>Transcript</div>
+        {transcript === null ? <BrandSpinner label="Loading…" /> : transcript.length === 0 ? <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>No transcript saved for this call.</p> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+            {transcript.map(([r, x], i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45 }}><b style={{ color: r === 'agent' ? ACCENT : '#0f172a' }}>{r === 'agent' ? (row.agent_label ? 'Agent' : 'AI') : 'Customer'}: </b>{x.trim()}</div>)}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+export function VoiceAgents() {
+  const { user, isAdmin } = useAuth();
+  const [tab, setTab] = useState('agents');
+  const [agents, setAgents] = useState([]);
+  const [calls, setCalls] = useState([]);
+  const [price, setPrice] = useState(400);
+  const [balance, setBalance] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notReady, setNotReady] = useState(false);
+  const [editing, setEditing] = useState(null);   // {} new | row
+  const [testing, setTesting] = useState(null);   // agent row
+  const [detail, setDetail] = useState(null);     // call row
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [search, setSearch] = useState('');
+  const [agentFilter, setAgentFilter] = useState('all');
+
+  const uid = user?.id;
+  const load = useCallback(async () => {
+    if (!uid) return;
+    setLoading(true);
+    const [a, c, p, w] = await Promise.all([
+      supabase.from('voice_agents').select('*').eq('user_id', uid).order('created_at', { ascending: true }),
+      supabase.from('voice_calls').select('id,agent_id,agent_label,direction,customer_number,customer_name,started_at,duration_sec,billed_minutes,charge_paise,outcome,summary,when_text,details,end_reason')
+        .eq('user_id', uid).order('started_at', { ascending: false }).limit(300),
+      supabase.from('message_pricing').select('price_paise').eq('category', 'voice_minute').maybeSingle(),
+      supabase.from('wallets').select('balance_paise').eq('user_id', uid).maybeSingle(),
+    ]);
+    if (missingTable(a.error) || missingTable(c.error)) { setNotReady(true); setLoading(false); return; }
+    setNotReady(false);
+    setAgents(a.data || []); setCalls(c.data || []);
+    if (p.data?.price_paise != null) setPrice(Number(p.data.price_paise));
+    setBalance(w.data ? Number(w.data.balance_paise) : null);
+    setLoading(false);
+  }, [uid]);
+  useEffect(() => { load(); }, [load]);
+
+  const stats = useMemo(() => {
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    const month = calls.filter((c) => new Date(c.started_at) >= monthStart);
+    const mins = month.reduce((s, c) => s + (c.billed_minutes || 0), 0);
+    const spend = month.reduce((s, c) => s + (Number(c.charge_paise) || 0), 0);
+    const wins = month.filter((c) => SUCCESS.includes(c.outcome)).length;
+    return { count: month.length, mins, spend, wins, rate: month.length ? Math.round((wins / month.length) * 100) : 0 };
+  }, [calls]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return calls.filter((c) => (agentFilter === 'all' || c.agent_id === agentFilter)
+      && (!q || [c.customer_name, c.customer_number, c.summary, c.agent_label].some((v) => String(v || '').toLowerCase().includes(q))));
+  }, [calls, search, agentFilter]);
+
+  const del = async (row) => {
+    await supabase.from('voice_agents').delete().eq('id', row.id);
+    setConfirmDel(null); load();
+  };
+
+  if (!loading && notReady) {
+    return (
+      <div className="rp-page" style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div className="rp-card" style={{ borderRadius: 18, padding: 40, textAlign: 'center' }}>
+          <PhoneCall size={36} style={{ color: ACCENT }} />
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: '12px 0 6px', fontFamily: "'Space Grotesk', sans-serif" }}>AI Calling is being set up</h2>
+          <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>Your AI voice agents will appear here shortly. Please check back soon.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rp-page" style={{ maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 10, fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>
+            <PhoneCall size={24} style={{ color: ACCENT }} /> AI Calling
+          </h1>
+          <p style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>AI voice agents that talk to your customers in Hindi, English and Hinglish: book, confirm and follow up.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={load} className="rp-tap" style={{ ...btn(false), padding: '10px 12px' }} aria-label="Refresh"><RefreshCw size={16} /></button>
+          <button onClick={() => setEditing({})} className="rp-tap" style={btn(true)}><Plus size={17} /> New agent</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+        <StatCard icon={<PhoneCall size={18} />} label="Calls this month" value={stats.count} color="#3b82f6" />
+        <StatCard icon={<Clock size={18} />} label="Minutes" value={stats.mins} color="#8b5cf6" subtitle={`${rupees(price)} per minute`} />
+        <StatCard icon={<CheckCircle2 size={18} />} label="Successful" value={stats.wins} color="#10b981" subtitle={`${stats.rate}% booked / confirmed / callback`} />
+        <StatCard icon={<IndianRupee size={18} />} label="Spent this month" value={rupees(stats.spend)} color="#f97316" />
+        <StatCard icon={<WalletIcon size={18} />} label="Wallet" value={balance == null ? '—' : rupees(balance)} color={ACCENT} subtitle={balance != null && price > 0 ? `≈ ${Math.floor(balance / price)} min of calls` : undefined} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[{ id: 'agents', label: `Agents (${agents.length})` }, { id: 'calls', label: `Call logs (${calls.length})` }].map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} className="rp-tap"
+            style={{ padding: '8px 15px', borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: '1px solid ' + (tab === t.id ? ACCENT : '#e6e8ec'), background: tab === t.id ? ACCENT : '#fff', color: tab === t.id ? '#fff' : '#475569' }}>{t.label}</button>
+        ))}
+      </div>
+
+      {loading ? <BrandSpinner label="Loading AI Calling…" /> : tab === 'agents' ? (
+        agents.length === 0 ? (
+          <div className="rp-card" style={{ borderRadius: 16, padding: 44, textAlign: 'center', color: '#64748b' }}>
+            <Bot size={34} style={{ color: ACCENT }} />
+            <h3 style={{ color: '#0f172a', margin: '10px 0 6px' }}>Create your first AI agent</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 14 }}>Tell it about your business in plain words. Then test it right here in your browser.</p>
+            <button onClick={() => setEditing({})} style={btn(true)}><Plus size={16} /> New agent</button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+            {agents.map((a) => {
+              const n = calls.filter((c) => c.agent_id === a.id).length;
+              return (
+                <div key={a.id} className="rp-card" style={{ borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: ACCENT + '14', color: ACCENT, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Bot size={20} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                      <div style={{ fontSize: 12.5, color: '#64748b' }}>{a.agent_name} · {VOICES.find((v) => v.id === a.voice)?.hint || a.voice}</div>
+                    </div>
+                    {!a.is_active && <Pill color="#94a3b8">Paused</Pill>}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{a.purpose || 'General customer calls'}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Pill color="#475569">{a.direction === 'inbound' ? <><PhoneIncoming size={11} />Incoming</> : a.direction === 'outbound' ? <><PhoneOutgoing size={11} />Outgoing</> : <><PhoneCall size={11} />In + out</>}</Pill>
+                    {a.phone_number ? <Pill color="#10b981"><Hash size={11} />+{a.phone_number}</Pill> : <Pill color="#f59e0b">Phone number: coming soon</Pill>}
+                    <Pill color="#3b82f6">{n} call{n === 1 ? '' : 's'}</Pill>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button onClick={() => setTesting(a)} style={{ ...btn(true), flex: 1, justifyContent: 'center', padding: '9px 12px' }}><Mic size={15} />Test call</button>
+                    <button onClick={() => setEditing(a)} style={{ ...btn(false), padding: '9px 12px' }} aria-label="Edit"><Pencil size={15} /></button>
+                    <button onClick={() => setConfirmDel(a)} style={{ ...btn(false), padding: '9px 12px', color: '#b91c1c' }} aria-label="Delete"><Trash2 size={15} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+            <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #e6e8ec', background: '#fff', color: '#475569', fontSize: 13 }}>
+              <option value="all">All agents</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 360 }}>
+              <Search size={15} style={{ position: 'absolute', left: 10, top: 10, color: '#94a3b8' }} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, number, summary…" style={{ ...inputStyle, padding: '8px 12px 8px 32px', fontSize: 13 }} />
+            </div>
+          </div>
+          {filtered.length === 0 ? (
+            <div className="rp-card" style={{ borderRadius: 16, padding: 40, textAlign: 'center', color: '#64748b' }}>
+              <FileText size={30} style={{ color: '#94a3b8' }} /><p style={{ margin: '10px 0 0' }}>{calls.length ? 'No calls match your filters.' : 'No calls yet. Make a test call from the Agents tab.'}</p>
+            </div>
+          ) : (
+            <div className="rp-card" style={{ borderRadius: 16, overflow: 'hidden' }}>
+              {filtered.map((c, i) => {
+                const o = OUTCOME[c.outcome] || (c.outcome ? { label: c.outcome, color: '#94a3b8' } : null);
+                const Icon = c.direction === 'in' ? PhoneIncoming : c.direction === 'out' ? PhoneOutgoing : Monitor;
+                return (
+                  <button key={c.id} onClick={() => setDetail(c)} style={{ display: 'flex', width: '100%', textAlign: 'left', gap: 12, alignItems: 'center', padding: '12px 14px', border: 'none', borderTop: i ? '1px solid #f1f5f9' : 'none', background: '#fff', cursor: 'pointer' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon size={16} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <b style={{ fontSize: 14, color: '#0f172a' }}>{c.customer_name || (c.customer_number ? '+' + c.customer_number : c.direction === 'web' ? 'Test call' : 'Unknown caller')}</b>
+                        {o && <Pill color={o.color}>{o.label}</Pill>}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.summary || c.agent_label || '—'}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b', flexShrink: 0 }}>
+                      <div>{fmtWhen(c.started_at)}</div><div>{fmtDur(c.duration_sec)} · {rupees(c.charge_paise)}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {editing && <AgentEditor initial={editing.id ? editing : null} isAdmin={isAdmin} userId={uid} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {testing && <TestCall agent={testing} price={price} onClose={() => { setTesting(null); load(); }} onFinished={load} />}
+      {detail && <CallDetail row={detail} onClose={() => setDetail(null)} />}
+      {confirmDel && (
+        <Modal title="Delete agent?" onClose={() => setConfirmDel(null)} width={420}>
+          <p style={{ margin: '0 0 16px', color: '#475569', fontSize: 14 }}>"{confirmDel.name}" will be deleted. Its past call logs stay in your history.</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={() => setConfirmDel(null)} style={btn(false)}>Cancel</button>
+            <button onClick={() => del(confirmDel)} style={{ ...btn(true), background: '#b91c1c' }}><Trash2 size={15} />Delete</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
