@@ -21,14 +21,14 @@ const PUBLIC_API_URL = (Deno.env.get('PUBLIC_API_URL') ?? 'https://api.reachpeak
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
 const db = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { autoRefreshToken: false, persistSession: false } });
-const VALID_CATEGORIES = ['marketing', 'utility', 'authentication', 'service'];
+const VALID_CATEGORIES = ['marketing', 'utility', 'authentication', 'service', 'voice_minute'];
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });

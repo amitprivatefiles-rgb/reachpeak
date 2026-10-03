@@ -29,7 +29,8 @@ create index if not exists voice_agents_user_idx on public.voice_agents (user_id
 create or replace function public.voice_agents_guard() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   new.updated_at := now();
-  if coalesce(auth.role(), '') <> 'service_role' and not coalesce(public.is_admin(), false) then
+  -- trusted: service role (voice server), admins, and direct DB sessions (SQL editor/migrations: no request JWT at all)
+  if coalesce(auth.role(), '') not in ('service_role', '') and not coalesce(public.is_admin(), false) then
     if tg_op = 'INSERT' then
       new.phone_number := null;
     elsif new.phone_number is distinct from old.phone_number then
@@ -86,5 +87,9 @@ create policy voice_calls_own_select on public.voice_calls for select using (use
 -- no insert/update/delete policies: only the voice server (service role) writes calls.
 
 -- Per-minute price (paise), editable by the founder like the message prices. ₹4.00/min default.
+-- The category whitelist only knew the 4 WhatsApp categories: add voice_minute (existing values unchanged).
+alter table public.message_pricing drop constraint if exists message_pricing_category_check;
+alter table public.message_pricing add constraint message_pricing_category_check
+  check (category = any (array['marketing','utility','authentication','service','voice_minute']));
 insert into public.message_pricing (category, price_paise) values ('voice_minute', 400)
   on conflict (category) do nothing;

@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 import { BrandSpinner } from './BrandSpinner';
 
 const RUPEE = (paise: number) => '₹' + (Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const CATEGORIES = ['marketing', 'utility', 'authentication', 'service'];
+const CATEGORIES = ['marketing', 'utility', 'authentication', 'service', 'voice_minute'];
+const CATEGORY_LABEL: Record<string, string> = { voice_minute: 'AI call (per minute)' };
 
 export function AdminBilling() {
   const [loading, setLoading] = useState(true);
@@ -179,7 +180,7 @@ export function AdminBilling() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
           {CATEGORIES.map(c => (
             <div key={c}>
-              <label style={{ ...label, textTransform: 'capitalize' }}>{c}</label>
+              <label style={{ ...label, textTransform: 'capitalize' }}>{CATEGORY_LABEL[c] || c}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: '#64748b' }}>₹</span>
                 <input style={input} type="number" min={0} step={0.01} value={(prices[c] ?? 0) / 100}
