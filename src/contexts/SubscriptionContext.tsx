@@ -38,10 +38,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uid = user?.id ?? null;
+  const uidRef = useRef<string | null>(uid);
+  uidRef.current = uid;
+  // Which user the current subscription value belongs to (undefined = not resolved yet).
+  const [resolvedFor, setResolvedFor] = useState<string | null | undefined>(undefined);
 
   const fetchSubscription = async (retryCount = 0) => {
-    if (!user) {
+    const id = uidRef.current;
+    if (!id) {
       setSubscription(null);
+      setResolvedFor(null);
       setLoading(false);
       return;
     }
@@ -49,7 +56,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const { data } = await supabase
       .from('subscriptions')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -60,7 +67,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (uidRef.current !== id) return; // user changed while this request was in flight
     setSubscription(data as Subscription | null);
+    setResolvedFor(id);
     setLoading(false);
   };
 
@@ -69,10 +78,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     return () => {
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [user]);
+  }, [uid]);
+
+  const effectiveLoading = loading || (uid !== null && resolvedFor !== uid);
 
   return (
-    <SubscriptionContext.Provider value={{ subscription, loading, refresh: fetchSubscription }}>
+    <SubscriptionContext.Provider value={{ subscription, loading: effectiveLoading, refresh: fetchSubscription }}>
       {children}
     </SubscriptionContext.Provider>
   );

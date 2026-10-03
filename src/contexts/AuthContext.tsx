@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileFor = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -29,8 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && data) {
+    if (!error && data && profileFor.current === userId) {
       setProfile(data);
+    }
+  };
+
+  // Supabase emits SIGNED_IN / TOKEN_REFRESHED every time the tab regains focus. Keep the same
+  // user object (and profile) unless the signed-in person actually changed, so the app does not
+  // re-render, refetch or remount on every tab switch.
+  const applyUser = (next: User | null, force = false) => {
+    setUser((prev) => (!force && prev?.id === next?.id ? prev : next));
+    const id = next?.id ?? null;
+    if (id !== profileFor.current) {
+      profileFor.current = id;
+      if (id) fetchProfile(id);
+      else setProfile(null);
     }
   };
 
@@ -42,23 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
+      applyUser(session?.user ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      (async () => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      })();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      applyUser(session?.user ?? null, event === 'USER_UPDATED');
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -75,6 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    try { localStorage.removeItem('rp_page'); } catch { /* storage blocked */ }
+    profileFor.current = null;
     setProfile(null);
   };
 

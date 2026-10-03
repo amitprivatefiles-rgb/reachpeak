@@ -153,15 +153,23 @@ function LoadingScreen() {
 }
 
 function AppDashboard() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  // Remember the open page: phones and browsers often reload a background tab, which used to land on home.
+  const [currentPage, setCurrentPage] = useState(() => {
+    try { return localStorage.getItem('rp_page') || 'dashboard'; } catch { return 'dashboard'; }
+  });
   const { user, isAdmin, profile } = useAuth();
+  const userId = user?.id;
+
+  useEffect(() => {
+    try { localStorage.setItem('rp_page', currentPage); } catch { /* storage blocked */ }
+  }, [currentPage]);
 
   // Onboarding gate: send a non-admin who hasn't picked a WhatsApp model to Setup first.
   useEffect(() => {
-    if (!user || isAdmin) return;
-    supabase.from('profiles').select('onboarding_choice').eq('id', user.id).maybeSingle()
+    if (!userId || isAdmin) return;
+    supabase.from('profiles').select('onboarding_choice').eq('id', userId).maybeSingle()
       .then(({ data }) => { if (!data?.onboarding_choice) setCurrentPage('setup'); });
-  }, [user, isAdmin]);
+  }, [userId, isAdmin]);
 
   const renderPage = () => {
     // Pages that depend on the business type: wait for the profile, then show only if enabled for this account.
