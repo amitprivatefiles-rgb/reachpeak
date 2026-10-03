@@ -23,6 +23,14 @@ const db = createClient(SUPABASE_URL, SERVICE_ROLE, {
 
 // ─── Helpers ───
 
+// Shopify CDN images can be large PNGs that exceed WhatsApp's media limit.
+// Append ?width=800 so the CDN returns a smaller image (also faster to load).
+// Leaves non-Shopify URLs (e.g. Supabase-hosted template samples) untouched.
+function shopifyImageWidth(url: string | undefined, w = 800): string | undefined {
+  if (!url || !url.includes('cdn.shopify.com') || /[?&]width=/.test(url)) return url;
+  return url + (url.includes('?') ? '&' : '?') + `width=${w}`;
+}
+
 function resolveBinding(binding: string, context: Record<string, any>): string {
   // "literal:<text>" → static/custom text typed by the automation author.
   if (binding.startsWith('literal:')) return binding.slice(8);
@@ -180,8 +188,12 @@ async function checkGoalAlreadyMet(exec: any, journey: any): Promise<string | nu
       return `goal_met:order_${order.status}${order.converted_to_prepaid ? '_prepaid' : ''}`;
   }
 
-  // COD confirmation → confirm_status already set
-  if (preset === 'cod_confirm' && order.confirm_status)
+  // COD confirmation → only "met" once the customer has actually decided.
+  // 'pending' is the initial awaiting-confirmation state (set at order creation
+  //  by Order Guard), so it must NOT block the very first confirmation message.
+  if (preset === 'cod_confirm'
+      && order.confirm_status
+      && ['confirmed', 'declined', 'cancelled'].includes(order.confirm_status))
     return `goal_met:already_${order.confirm_status}`;
 
   // Review request (triggered by order_delivered) → returned/refunded
@@ -354,6 +366,11 @@ function matchFilters(filters: Record<string, any>, payload: Record<string, any>
       const bands = Array.isArray(filterVal) ? filterVal : [filterVal];
       if (!bands.includes(payload.risk_band)) return false;
     }
+    else if (key === 'outcome') {
+      // AI call result filter (call_completed events): array of allowed outcomes, e.g. ["booked", "confirmed"]
+      const allowed = Array.isArray(filterVal) ? filterVal : [filterVal];
+      if (!allowed.includes(payload.outcome)) return false;
+    }
     // Add more filter matchers as needed
   }
   return true;
@@ -389,6 +406,8 @@ async function enqueueTemplate(
   exec: any, account: any, templateId: string,
   variableBindings: Record<string, string>, headerMedia: string | null,
   context: Record<string, any>,
+  buttonUrlBinding?: string | null,
+  headerMediaBinding?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   // Load template — templateId may be a UUID or a template name
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
@@ -401,15 +420,34 @@ async function enqueueTemplate(
 
   if (!tpl) return { ok: false, error: `Template ${templateId} not found` };
 
-  // Resolve variable bindings → body params
+  // Resolve variable bindings → body params.
+  // Meta rejects an empty body parameter with (#131008) Required parameter is
+  // missing, so a blank resolution must never be sent. Name variables fall back
+  // to a friendly generic; any other blank falls back to a neutral placeholder.
   const bodyParamKeys = Object.keys(variableBindings).sort((a, b) => parseInt(a) - parseInt(b));
-  const bodyParams = bodyParamKeys.map(k => resolveBinding(variableBindings[k], context));
+  const bodyParams = bodyParamKeys.map(k => {
+    const binding = variableBindings[k];
+    const v = resolveBinding(binding, context).trim();
+    if (v) return v;
+    return /name/i.test(binding) ? 'there' : '—';
+  });
 
-  // Build components via shared builder
-  const media = headerMedia || tpl.header_sample_url || undefined;
+  // Resolve dynamic URL-button suffix (e.g. {{1}} in the "View Order" button).
+  // Meta rejects an empty URL param, so fall back to "account".
+  let buttonParams: { index: number; sub_type: 'url' | 'copy_code'; text: string }[] | undefined;
+  if (buttonUrlBinding) {
+    const suffix = resolveBinding(buttonUrlBinding, context) || 'account';
+    buttonParams = [{ index: 0, sub_type: 'url', text: suffix }];
+  }
+
+  // Build components via shared builder. Dynamic header media (e.g. product image)
+  // resolves from the event payload; falls back to the template's approved sample.
+  const resolvedHeader = headerMediaBinding ? (resolveBinding(headerMediaBinding, context) || null) : null;
+  const media = shopifyImageWidth(headerMedia || resolvedHeader || tpl.header_sample_url || undefined);
   const components = buildTemplateSendComponents(tpl as StoredTemplate, {
     headerMedia: media,
     bodyParams: bodyParams.length > 0 ? bodyParams : undefined,
+    buttonParams,
   });
 
   // Resolve/create conversation
@@ -495,7 +533,14 @@ async function runSteps(
 
     if (step.type === 'wait') {
       const minutes = step.minutes ?? 1;
-      const wakeAt = new Date(Date.now() + minutes * 60_000).toISOString();
+      let wakeMs = Date.now() + minutes * 60_000;
+      // "Wait until": a time from the event (e.g. payload.appointment_at) plus an offset (e.g. -1440 = 24 h before).
+      // If that moment has already passed, continue right away. Plain waits (no until_field) are unchanged.
+      if (step.until_field) {
+        const t = Date.parse(resolveBinding(step.until_field, exec.context || {}));
+        if (Number.isFinite(t)) wakeMs = Math.max(Date.now(), t + (Number(step.offset_minutes) || 0) * 60_000);
+      }
+      const wakeAt = new Date(wakeMs).toISOString();
       await db.from('journey_executions').update({
         status: 'waiting_delay',
         current_step: stepIdx,
@@ -511,7 +556,8 @@ async function runSteps(
       const result = await enqueueTemplate(
         exec, account, step.template_id,
         step.variable_bindings || {}, step.header_media ?? null,
-        exec.context,
+        exec.context, step.button_url_binding ?? null,
+        step.header_media_binding ?? null,
       );
       if (!result.ok) {
         await finish(exec, 'error', `Step ${stepIdx}: ${result.error}`);
@@ -528,7 +574,8 @@ async function runSteps(
       const result = await enqueueTemplate(
         exec, account, step.template_id,
         step.variable_bindings || {}, step.header_media ?? null,
-        exec.context,
+        exec.context, step.button_url_binding ?? null,
+        step.header_media_binding ?? null,
       );
       if (!result.ok) {
         await finish(exec, 'error', `Step ${stepIdx}: ${result.error}`);
@@ -978,13 +1025,25 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: 'No WhatsApp account' }), { status: 200 });
       }
 
+      // Resolve the customer's name once. Abandoned-checkout events often carry no
+      // name, so fall back to the saved contact, then to a friendly generic. A
+      // template body {{name}} sent empty is rejected by Meta (#131008), so this
+      // value must never be blank.
+      let contactName = (event.contact_name || '').trim();
+      if (!contactName && phone) {
+        const { data: knownContact } = await db.from('contacts')
+          .select('name').eq('user_id', userId).eq('phone_number', phone).maybeSingle();
+        contactName = (knownContact?.name || '').trim();
+      }
+      if (!contactName) contactName = 'there';
+
       for (const journey of journeys ?? []) {
         // Check trigger filters
         if (!matchFilters(journey.trigger_filters ?? {}, event.payload ?? {})) continue;
 
         // Create execution (unique index dedupes)
         const context = {
-          contact: { name: event.contact_name, phone_number: phone },
+          contact: { name: contactName, phone_number: phone },
           payload: event.payload,
           event_type: event.event_type,
         };

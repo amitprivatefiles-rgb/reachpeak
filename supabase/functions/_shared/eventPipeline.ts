@@ -197,6 +197,23 @@ export async function runPipeline(
     console.error('[pipeline] journey-engine invoke error:', err.message);
   });
 
+  /* ── 5. New-order push notification to the merchant ── */
+  if (eventType === 'order_created') {
+    fetch(`${supabaseUrl}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        title: '🛒 New order',
+        body: `${payload.order_id ? 'Order ' + payload.order_id : 'New order'}`
+          + `${payload.total ? ' · ₹' + payload.total : ''}`
+          + `${contactName ? ' · ' + contactName : ''}`,
+        url: '/app',
+        tag: `order:${payload.order_id || eventId}`,
+      }),
+    }).catch(() => {});
+  }
+
   return {
     ok: true,
     eventId,

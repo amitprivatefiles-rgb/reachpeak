@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall, Target } from 'lucide-react';
 import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
 import { hasFeature } from '../lib/businessTypes';
 
@@ -68,6 +68,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const adminNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: 'leads', label: 'Leads', icon: Target },
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
     { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
@@ -89,6 +90,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'setup', label: 'Connect WhatsApp', icon: Smartphone },
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: 'leads', label: 'Leads', icon: Target },
     { id: 'campaigns', label: 'My Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
     { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
@@ -116,6 +118,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'inbox', label: 'Inbox', icon: MessageSquare },
     { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
     { id: 'orderguard', label: 'Guard', icon: ShieldAlert },
+    { id: 'leads', label: 'Leads', icon: Target },
     { id: 'ai-calling', label: 'Calls', icon: PhoneCall },
   ].filter(b => navItems.some(n => n.id === b.id)).slice(0, 4);
   const bottomIds = BOTTOM.map(b => b.id);

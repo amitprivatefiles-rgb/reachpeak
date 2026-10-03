@@ -14,7 +14,7 @@ const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 function json(body: unknown, status = 200) {
@@ -30,6 +30,9 @@ const ALLOWED_EVENTS = new Set([
   'customer_created', 'custom',
   // Phase 3 additions
   'order_confirmed', 'order_rto', 'order_returned', 'order_refunded', 'prepay_nudge',
+  // Leads, appointments, payments (non-e-commerce businesses) — 2026-10-03
+  'lead_created', 'appointment_booked', 'appointment_reminder', 'appointment_missed', 'appointment_completed',
+  'payment_due', 'payment_overdue', 'renewal_due',
 ]);
 
 // ── SHA-256 hash ──

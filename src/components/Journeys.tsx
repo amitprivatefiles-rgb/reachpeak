@@ -888,7 +888,7 @@ function StepBadge({
     return (
       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-xs font-medium">
         <Clock className="w-3.5 h-3.5" />
-        Wait {formatMinutes(step.minutes || 0)}
+        {step.until_field ? describeUntil(step) : <>Wait {formatMinutes(step.minutes || 0)}</>}
       </div>
     );
   }
@@ -959,6 +959,8 @@ function CreateJourneyModal({
     template_id: string;
     variable_bindings: Record<string, string>;
     minutes: number;
+    until_field: string;
+    offset_hours: number;
     label: string;
     // For send_buttons on_timeout send_template
     timeout_template_id: string;
@@ -980,6 +982,8 @@ function CreateJourneyModal({
           template_id: s.template_id || '',
           variable_bindings: { ...(s.variable_bindings || {}) },
           minutes: s.minutes || 0,
+          until_field: s.until_field || '',
+          offset_hours: s.until_field ? Math.round(-(s.offset_minutes || 0) / 60) : 0,
           label: s.label || '',
           timeout_template_id: '',
           timeout_variable_bindings: {},
@@ -1028,6 +1032,7 @@ function CreateJourneyModal({
 
           if (cfg.type === 'wait') {
             rebuilt.minutes = cfg.minutes;
+            if (original.until_field) rebuilt.offset_minutes = -Math.round((cfg.offset_hours || 0) * 60);
           }
           if (cfg.type === 'send_template' || cfg.type === 'send_buttons') {
             rebuilt.template_id = cfg.template_id;
@@ -1052,7 +1057,7 @@ function CreateJourneyModal({
         return presetSteps.map(mapStep);
       };
 
-      const triggerFilters: Record<string, any> = {};
+      const triggerFilters: Record<string, any> = { ...(selectedPreset.trigger_filters || {}) };
       if (selectedPreset.key === 'abandoned_cart' && minCartTotal) {
         triggerFilters.min_cart_total = parseFloat(minCartTotal);
       }
@@ -1160,6 +1165,14 @@ function CreateJourneyModal({
 
 // ─── Preset Picker Grid ───
 
+const UNTIL_LABELS: Record<string, string> = { 'payload.appointment_at': 'the appointment', 'payload.due_date': 'the due date', 'payload.renewal_date': 'the renewal date' };
+function fieldLabel(f?: string) { return (f && UNTIL_LABELS[f]) || 'the scheduled time'; }
+function describeUntil(step: JourneyStep) {
+  const m = -(step.offset_minutes || 0);
+  const amount = Math.abs(m) >= 1440 && Math.abs(m) % 1440 === 0 ? `${Math.abs(m) / 1440} day(s)` : `${Math.round(Math.abs(m) / 60 * 10) / 10} h`;
+  return m > 0 ? `Wait until ${amount} before ${fieldLabel(step.until_field)}` : m < 0 ? `Wait until ${amount} after ${fieldLabel(step.until_field)}` : `Wait until ${fieldLabel(step.until_field)}`;
+}
+
 function PresetPicker({ onSelect }: { onSelect: (preset: JourneyPreset) => void }) {
   const { profile } = useAuth();
   return (
@@ -1171,7 +1184,7 @@ function PresetPicker({ onSelect }: { onSelect: (preset: JourneyPreset) => void 
 
         return (
           <button
-            key={preset.key + preset.trigger_event}
+            key={preset.key + preset.trigger_event + preset.name}
             onClick={() => onSelect(preset)}
             className={`text-left bg-gray-50 border ${colors.border} rounded-xl p-5 hover:bg-gray-100 hover:border-gray-300 transition group`}
           >
@@ -1206,6 +1219,8 @@ interface StepConfig {
   template_id: string;
   variable_bindings: Record<string, string>;
   minutes: number;
+  until_field: string;
+  offset_hours: number;
   label: string;
   timeout_template_id: string;
   timeout_variable_bindings: Record<string, string>;
@@ -1280,7 +1295,21 @@ function ConfigureJourney({
             </div>
 
             {/* Wait step */}
-            {cfg.type === 'wait' && (
+            {cfg.type === 'wait' && cfg.until_field && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Hours before {fieldLabel(cfg.until_field)}</label>
+                <input
+                  type="number"
+                  value={cfg.offset_hours}
+                  onChange={(e) => updateStepConfig(idx, { offset_hours: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-gray-500 text-xs mt-1">
+                  Sends {cfg.offset_hours > 0 ? `${cfg.offset_hours} hour(s) before` : cfg.offset_hours < 0 ? `${-cfg.offset_hours} hour(s) after` : 'at'} the time in <code>{cfg.until_field}</code> from your booking/billing system. If that time has passed, it sends right away.
+                </p>
+              </div>
+            )}
+            {cfg.type === 'wait' && !cfg.until_field && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Wait duration (minutes)</label>
                 <input

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { hasFeature } from '../lib/businessTypes';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { Users, Upload, Send, AlertCircle, Play, CheckCircle, TrendingUp, TrendingDown, Ban, UserCheck, Clock, RefreshCw, Calendar, CreditCard, Megaphone, MessageSquare, Download, Loader2 } from 'lucide-react';
+import { Users, Upload, Send, AlertCircle, Play, CheckCircle, TrendingUp, TrendingDown, Ban, Clock, RefreshCw, Calendar, CreditCard, MessageSquare, Download, Loader2, PhoneCall, Target } from 'lucide-react';
 import { BrandSpinner } from './BrandSpinner';
 
 interface DashboardMetrics {
@@ -18,7 +19,8 @@ interface DashboardMetrics {
   delivery_rate: number;
   failure_rate: number;
   blacklisted_numbers: number;
-  active_agents: number;
+  ai_calls_month: number;
+  new_leads_week: number;
   last_upload_time: string | null;
 }
 
@@ -57,13 +59,13 @@ interface CampaignMetric {
 }
 
 export function Dashboard() {
-  const { isAdmin, user } = useAuth();
+  const { user, profile } = useAuth();
+  const showLeads = hasFeature(profile, 'leads');
   const { subscription } = useSubscription();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignMetricsMap, setCampaignMetricsMap] = useState<Record<string, CampaignMetric>>({});
   const [loading, setLoading] = useState(true);
-  const [pendingApprovals, setPendingApprovals] = useState(0);
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -143,11 +145,18 @@ export function Dashboard() {
         .eq('user_id', user!.id)
         .eq('is_blacklisted', true);
 
-      const { count: activeAgentsCount } = await supabase
-        .from('agents')
+      // AI calls this month + new leads this week (tables may not exist on older setups: treat as 0)
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const { count: aiCallsCount } = await (supabase as any)
+        .from('voice_calls')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user!.id)
-        .eq('is_active', true);
+        .gte('started_at', monthStart.toISOString());
+      const { count: newLeadsCount } = await (supabase as any)
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .gte('created_at', new Date(Date.now() - 7 * 864e5).toISOString());
 
       const latestMetric = metricsData && metricsData.length > 0
         ? metricsData.sort((a, b) => new Date(b.metric_date).getTime() - new Date(a.metric_date).getTime())[0]
@@ -175,18 +184,10 @@ export function Dashboard() {
         delivery_rate: calculatedDeliveryRate,
         failure_rate: calculatedFailureRate,
         blacklisted_numbers: blacklistedCount || 0,
-        active_agents: activeAgentsCount || 0,
+        ai_calls_month: aiCallsCount || 0,
+        new_leads_week: newLeadsCount || 0,
         last_upload_time: lastUploadTime,
       });
-
-      // Fetch pending approvals count for admin
-      if (isAdmin) {
-        const { count: pendingApprovalCount } = await supabase
-          .from('campaigns')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending_approval');
-        setPendingApprovals(pendingApprovalCount || 0);
-      }
 
       // Campaign list
       let campaignsQuery = supabase
@@ -411,24 +412,6 @@ export function Dashboard() {
         </p>
       </div>
 
-      {isAdmin && pendingApprovals > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
-              <Megaphone className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <p className="text-gray-900 text-sm font-medium">
-                {pendingApprovals} campaign{pendingApprovals > 1 ? 's' : ''} pending approval
-              </p>
-              <p className="text-amber-400/70 text-xs">Check Campaign Approvals in the sidebar</p>
-            </div>
-          </div>
-          <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-sm font-medium rounded-full">
-            {pendingApprovals}
-          </span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <MetricCard
@@ -667,20 +650,21 @@ export function Dashboard() {
           color="bg-rose-500"
         />
         <MetricCard
-          title="Active Agents"
-          value={metrics?.active_agents || 0}
-          icon={UserCheck}
+          title="AI Calls (this month)"
+          value={metrics?.ai_calls_month || 0}
+          icon={PhoneCall}
           color="bg-violet-500"
         />
+        {showLeads && (
+          <MetricCard
+            title="New Leads (7 days)"
+            value={metrics?.new_leads_week || 0}
+            icon={Target}
+            color="bg-sky-500"
+          />
+        )}
       </div>
 
-      {!isAdmin && (
-        <div className="bg-blue-500/10 border border-blue-500/50 rounded-xl p-4">
-          <p className="text-blue-400 text-sm">
-            You have view-only access. Contact your administrator to make changes.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
