@@ -106,8 +106,27 @@ Deno.serve(async (req) => {
       await serviceClient.rpc('set_waba_access_token', { p_account_id: data.id, p_token: access_token });
     }
 
+    // Best-effort activation, same as embedded signup / managed provisioning:
+    // subscribe our app to the WABA (inbound webhooks) and register the number for Cloud API.
+    const GRAPH = 'https://graph.facebook.com/v21.0';
+    const H = { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' };
+    const activation: Record<string, string> = {};
+    try {
+      const sub = await fetch(`${GRAPH}/${waba_id}/subscribed_apps`, { method: 'POST', headers: H, signal: AbortSignal.timeout(10000) });
+      activation.webhooks = sub.ok ? 'subscribed' : 'failed: ' + ((await sub.json().catch(() => ({})))?.error?.message || sub.status);
+    } catch (e) { activation.webhooks = 'failed: ' + (e as Error).message; }
+    try {
+      const reg = await fetch(`${GRAPH}/${phone_number_id}/register`, { method: 'POST', headers: H, signal: AbortSignal.timeout(10000), body: JSON.stringify({ messaging_product: 'whatsapp', pin: '000000' }) });
+      const rj = await reg.json().catch(() => ({}));
+      const already = rj?.error?.error_subcode === 2388004 || /already/i.test(rj?.error?.message ?? '');
+      activation.number = reg.ok || already ? 'registered' : 'failed: ' + (rj?.error?.message || reg.status);
+      if ((reg.ok || already) && data?.id) {
+        await serviceClient.from('whatsapp_accounts').update({ last_registered_at: new Date().toISOString() }).eq('id', data.id);
+      }
+    } catch (e) { activation.number = 'failed: ' + (e as Error).message; }
+
     // Return ONLY non-secret columns — never access_token
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify({ ...data, activation }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

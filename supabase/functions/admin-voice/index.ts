@@ -18,7 +18,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-const APP_NAME = 'ReachPeak AI Voice';
+const APP_NAME = 'ReachPeak-AI-Voice';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,7 +54,11 @@ async function plivo(authId: string, token: string, method: string, path: string
   });
   const text = await r.text();
   let data: any = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!r.ok) throw new Error(`Plivo ${r.status}: ${typeof data === 'object' ? (data?.error || JSON.stringify(data)).toString().slice(0, 200) : String(data).slice(0, 200)}`);
+  if (!r.ok) {
+    const e = data && typeof data === 'object' ? (data.error ?? data.message ?? data) : data;
+    const msg = typeof e === 'string' ? e : Object.entries(e || {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : v}`).join('; ');
+    throw new Error(`Plivo ${r.status}: ${String(msg || text).slice(0, 300)}`);
+  }
   return data;
 }
 async function creds() {
@@ -176,6 +180,13 @@ Deno.serve(async (req: Request) => {
       if (appId) {
         try { await plivo(authId, token, 'POST', `Application/${appId}/`, cfg); }
         catch (e) { if (/404/.test((e as Error).message)) appId = null; else throw e; }
+      }
+      if (!appId) {
+        try {
+          const list = await plivo(authId, token, 'GET', 'Application/?limit=20');
+          const mine = (list?.objects || []).find((a: any) => a.app_name === APP_NAME);
+          if (mine?.app_id) { appId = String(mine.app_id); await plivo(authId, token, 'POST', `Application/${appId}/`, cfg); }
+        } catch { /* fall through to create */ }
       }
       if (!appId) {
         const created = await plivo(authId, token, 'POST', 'Application/', { app_name: APP_NAME, ...cfg });
