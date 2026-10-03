@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { Wallet as WalletIcon, Plus, Loader2, ArrowDownCircle, ArrowUpCircle, Clock, AlertTriangle, RefreshCw, Gift, ShieldCheck, Sparkles, Check, Zap, Lock, Info } from 'lucide-react';
+import { Wallet as WalletIcon, Plus, Loader2, ArrowDownCircle, ArrowUpCircle, Clock, AlertTriangle, RefreshCw, Gift, ShieldCheck, Sparkles, Check, Zap, Lock, Info, PhoneCall } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandSpinner } from './BrandSpinner';
@@ -41,6 +41,12 @@ function txLabel(t: any) {
   const src = t?.meta?.source;
   if (src === 'recharge_bonus') return { label: 'Welcome bonus 🎁', color: '#a855f7', sign: '+', icon: Gift };
   if (src === 'recharge') return { label: 'Tokens purchased', color: '#10b981', sign: '+', icon: ArrowUpCircle };
+  if (String(t?.reference || '').startsWith('vcall:')) {
+    const m = t?.meta?.minutes;
+    if (t.type === 'debit') return { label: `AI call${m ? ` · ${m} min` : ''}`, color: '#ef4444', sign: '−', icon: PhoneCall };
+    if (t.type === 'hold') return { label: 'AI call · reserved', color: '#f59e0b', sign: '−', icon: Clock };
+    if (t.type === 'release') return { label: 'AI call · unused minutes returned', color: '#3b82f6', sign: '+', icon: RefreshCw };
+  }
   return TYPE_META[t.type] || TYPE_META.debit;
 }
 
@@ -49,6 +55,7 @@ export function Wallet() {
   const [wallet, setWallet] = useState<any>(null);
   const [txns, setTxns] = useState<any[]>([]);
   const [pricing, setPricing] = useState<any[]>([]);
+  const [callPrice, setCallPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState(MIN_RUPEES);
   const [paying, setPaying] = useState(false);
@@ -56,14 +63,17 @@ export function Wallet() {
 
   const loadAll = useCallback(async () => {
     if (!user) return;
-    const [{ data: w }, { data: t }, { data: p }] = await Promise.all([
+    const [{ data: w }, { data: t }, { data: p }, { data: acct }] = await Promise.all([
       supabase.from('wallets').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('wallet_transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('message_pricing').select('*').order('category'),
+      (supabase as any).from('voice_account_settings').select('price_override_paise').eq('user_id', user.id).maybeSingle(),
     ]);
     setWallet(w || { balance_paise: 0, held_paise: 0 });
     setTxns(t || []);
-    setPricing(p || []);
+    setPricing((p || []).filter((x: any) => x.category !== 'voice_minute'));
+    const base = (p || []).find((x: any) => x.category === 'voice_minute');
+    setCallPrice((acct as any)?.price_override_paise != null ? Number((acct as any).price_override_paise) : base ? Number(base.price_paise) : null);
     setLoading(false);
   }, [user]);
 
@@ -251,6 +261,23 @@ export function Wallet() {
           Messages are delivered through Meta's official WhatsApp Business Platform, which charges per conversation. ReachPeak converts that usage into tokens and bills you for it. Payments are processed securely by Razorpay; <strong style={{ color: '#64748b' }}>ReachPeak is the merchant of record</strong> and issues your GST invoice.
         </p>
       </div>
+
+      {/* AI call pricing */}
+      {callPrice != null && (
+        <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: '#ffffff', border: '1px solid #e6e8ec', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#E0463214', color: '#E04632', display: 'grid', placeItems: 'center', flexShrink: 0 }}><PhoneCall size={20} /></div>
+          <div style={{ flex: '1 1 220px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>AI calls: {callPrice === 0 ? 'Free' : `₹${TOKENS(callPrice)} per minute`}</div>
+            <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>{callPrice === 0 ? 'Calls are not charged on your account.' : `${TOKENS(callPrice)} tokens per started minute. Incoming, outgoing and test calls. Unanswered calls are free.`}</div>
+          </div>
+          {callPrice > 0 && wallet && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{Math.floor(Number(wallet.balance_paise || 0) / callPrice).toLocaleString('en-IN')}</div>
+              <div style={{ fontSize: 11.5, color: '#64748b' }}>minutes of calling left</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Per-message pricing */}
       {pricing.length > 0 && (
