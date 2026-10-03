@@ -172,7 +172,7 @@ function NumbersTab({ status, numbers, accounts, agents, reload }) {
   };
   const link = async (n) => {
     setBusy('link:' + n); setMsg(null);
-    try { await adminVoice('link_number', { number: n }); setMsg({ kind: 'ok', text: `+${n} now rings ReachPeak AI.` }); await reload(); }
+    try { await linkNumberToApp(n, !!status?.plivo_app_id); setMsg({ kind: 'ok', text: `+${n} now rings ReachPeak AI.` }); await reload(); }
     catch (e) { setMsg({ kind: 'error', text: e.message }); }
     setBusy('');
   };
@@ -219,7 +219,7 @@ function NumbersTab({ status, numbers, accounts, agents, reload }) {
                     <td style={{ padding: '10px 12px' }}><b>+{n.number}</b><div style={{ color: '#94a3b8', fontSize: 12 }}>{[n.number_type, n.region, n.monthly_rental && `$${n.monthly_rental}/mo`].filter(Boolean).join(' · ')}</div></td>
                     <td style={{ padding: '10px 12px' }}>
                       {!n.on_plivo ? <Pill color="#ef4444">Removed from Plivo</Pill> : n.linked ? <Pill color="#10b981"><Check size={11} />Linked</Pill> : (
-                        <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} disabled={!status?.plivo_app_id || !!busy} onClick={() => link(n.number)}>
+                        <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} disabled={!status?.connected || !!busy} title={status?.connected ? (status?.plivo_app_id ? 'Point this number at ReachPeak AI' : 'Sets up the Plivo app, then links this number') : 'Connect Plivo first (Connection tab)'} onClick={() => link(n.number)}>
                           {busy === 'link:' + n.number ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}Link to app
                         </button>
                       )}
@@ -281,6 +281,17 @@ function Section({ n, title, right, children }) {
   );
 }
 
+// Link one number to the Plivo app. If the app was never set up, set it up first
+// (that also links every assigned number), so "Link to app" always works.
+async function linkNumberToApp(number, hasApp) {
+  if (!hasApp) {
+    const r = await adminVoice('setup_app');
+    if ((r.numbers_linked || []).includes(number)) return;
+    if ((r.numbers_failed || []).includes(number)) throw new Error('Plivo app created, but Plivo refused to link +' + number + '. Try again in a minute.');
+  }
+  await adminVoice('link_number', { number });
+}
+
 function AccountSetup({ account, settings, numbers, request, status, platformPrice, onClose, reload }) {
   const [ov, setOv] = useState(null);
   const [f, setF] = useState(() => ({ ...DEFAULTS, ...(settings || {}), caller_number: settings?.caller_number || '', compliance_note: settings?.compliance_note || '' }));
@@ -337,7 +348,7 @@ function AccountSetup({ account, settings, numbers, request, status, platformPri
     setBusy('');
     if (error) return note('error', error.message);
     const n = numbers.find((x) => x.number === assign.number);
-    if (n && !n.linked && status?.plivo_app_id) { try { await adminVoice('link_number', { number: assign.number }); } catch (e) { note('error', 'Assigned, but linking to the Plivo app failed: ' + e.message); } }
+    if (n && !n.linked && n.on_plivo && status?.connected) { try { await linkNumberToApp(assign.number, !!status?.plivo_app_id); } catch (e) { note('error', 'Assigned, but linking to the Plivo app failed: ' + e.message); } }
     setAssign({ number: '', agent_id: '' }); note('ok', `+${assign.number} assigned.`); reload();
   };
   const changeAgent = async (num, agent_id) => {
@@ -349,7 +360,7 @@ function AccountSetup({ account, settings, numbers, request, status, platformPri
     if (error) note('error', error.message); else { if (f.caller_number === num) setF({ ...f, caller_number: '' }); note('ok', `+${num} unassigned.`); reload(); }
   };
   const sync = async () => { setBusy('sync'); try { const r = await adminVoice('sync_numbers'); note('ok', `Synced ${r.found} number(s) from Plivo.`); reload(); } catch (e) { note('error', e.message); } setBusy(''); };
-  const link = async (num) => { setBusy('link:' + num); try { await adminVoice('link_number', { number: num }); note('ok', `+${num} linked to the Plivo app.`); reload(); } catch (e) { note('error', e.message); } setBusy(''); };
+  const link = async (num) => { setBusy('link:' + num); try { await linkNumberToApp(num, !!status?.plivo_app_id); note('ok', `+${num} linked to the Plivo app.`); reload(); } catch (e) { note('error', e.message); } setBusy(''); };
 
   const d = request?.details || {};
   return (
@@ -400,7 +411,7 @@ function AccountSetup({ account, settings, numbers, request, status, platformPri
               {mine.map((n) => (
                 <div key={n.number} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: 10, borderRadius: 12, background: '#f8fafc' }}>
                   <b style={{ minWidth: 140 }}>+{n.number}</b>
-                  {!n.on_plivo ? <Pill color="#ef4444">Removed from Plivo</Pill> : n.linked ? <Pill color="#10b981">Linked</Pill> : <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} disabled={!status?.plivo_app_id || !!busy} onClick={() => link(n.number)}><Link2 size={13} />Link to app</button>}
+                  {!n.on_plivo ? <Pill color="#ef4444">Removed from Plivo</Pill> : n.linked ? <Pill color="#10b981">Linked</Pill> : <button style={{ ...btn(), padding: '5px 10px', fontSize: 12 }} disabled={!status?.connected || !!busy} title={status?.connected ? (status?.plivo_app_id ? 'Point this number at ReachPeak AI' : 'Sets up the Plivo app, then links this number') : 'Connect Plivo first (Connection tab)'} onClick={() => link(n.number)}><Link2 size={13} />Link to app</button>}
                   <select style={{ ...inputStyle, width: 'auto', minWidth: 200 }} value={n.agent_id || ''} onChange={(e) => changeAgent(n.number, e.target.value)}>
                     <option value="">No agent (number silent)</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
