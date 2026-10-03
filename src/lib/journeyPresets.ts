@@ -45,6 +45,8 @@ export interface JourneyPreset {
   payload_fields: string[];
   /** Known contact fields */
   contact_fields: string[];
+  /** Optional feature this preset needs (see lib/businessTypes FEATURES); omitted = every business */
+  feature?: string;
 }
 
 // ─── Payload fields shared across presets ───
@@ -69,6 +71,7 @@ export const PRESET_ABANDONED_CART: JourneyPreset = {
   name: 'Abandoned Cart Recovery',
   description: 'Remind customers who abandoned their cart. Stops automatically when they complete the order.',
   trigger_event: 'cart_abandoned',
+  feature: 'store_journeys',
   exit_on_events: ['order_created', 'order_paid'],
   steps: [
     { type: 'wait', minutes: 30, label: 'Wait 30 minutes' },
@@ -98,6 +101,7 @@ export const PRESET_ORDER_CONFIRM: JourneyPreset = {
   name: 'Order Confirmation',
   description: 'Send order confirmation when an order is created.',
   trigger_event: 'order_created',
+  feature: 'store_journeys',
   exit_on_events: [],
   steps: [
     {
@@ -117,6 +121,7 @@ export const PRESET_ORDER_SHIPPED: JourneyPreset = {
   name: 'Order Shipped',
   description: 'Notify customer when their order ships.',
   trigger_event: 'order_shipped',
+  feature: 'store_journeys',
   exit_on_events: ['order_returned', 'order_cancelled'],
   steps: [
     {
@@ -136,6 +141,7 @@ export const PRESET_ORDER_DELIVERED: JourneyPreset = {
   name: 'Review Request',
   description: 'Ask for a review 72 hours after delivery.',
   trigger_event: 'order_delivered',
+  feature: 'store_journeys',
   exit_on_events: ['order_returned', 'order_refunded'],
   steps: [
     { type: 'wait', minutes: 4320, label: 'Wait 72 hours' },  // 72h = 4320m
@@ -157,6 +163,7 @@ export const PRESET_COD_CONFIRM: JourneyPreset = {
   name: 'COD Confirmation',
   description: 'Ask COD customers to confirm their order via button reply. Sends decision to your store callback.',
   trigger_event: 'cod_pending',
+  feature: 'store_journeys',
   exit_on_events: ['order_confirmed', 'order_cancelled', 'order_paid'],
   steps: [
     {
@@ -216,6 +223,7 @@ export const PRESET_PREPAY_NUDGE: JourneyPreset = {
   name: 'Prepay Nudge',
   description: 'Nudge high-risk COD orders to switch to prepaid payment. Requires a payment link in the order payload.',
   trigger_event: 'prepay_nudge',
+  feature: 'store_journeys',
   exit_on_events: ['order_paid'],
   steps: [
     {

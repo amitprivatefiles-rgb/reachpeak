@@ -58,6 +58,7 @@ interface ApprovedTemplate {
   components: any[] | null;
   variables: any;
   header_sample_url: string | null;
+  category?: string | null;
 }
 
 const CONTACT_FIELDS = ['name', 'phone_number', 'city', 'state', 'lead_type', 'source', 'notes'] as const;
@@ -188,7 +189,7 @@ export function UserCampaigns() {
     if (!waAccount) return;
     const { data } = await (supabase as any)
       .from('templates')
-      .select('id, name, language, body_text, components, variables, header_sample_url')
+      .select('id, name, language, body_text, components, variables, header_sample_url, category')
       .eq('whatsapp_account_id', waAccount.id)
       .eq('status', 'approved')
       .order('name');
@@ -350,6 +351,21 @@ export function UserCampaigns() {
     setSubmitting(true);
 
     try {
+      // Campaigns go out straight away (no admin approval) — but only if the wallet can pay for them.
+      if (!asDraft && formData.message_mode === 'template') {
+        const recipients = formData.contact_selection === 'manual' ? manualParsed.valid.length : contactCount;
+        const category = String(selectedTemplate?.category || 'marketing').toLowerCase();
+        const [{ data: priceRow }, { data: wallet }] = await Promise.all([
+          (supabase as any).from('message_pricing').select('price_paise').eq('category', category).maybeSingle(),
+          (supabase as any).from('wallets').select('balance_paise').eq('user_id', user.id).maybeSingle(),
+        ]);
+        const price = Number((priceRow as any)?.price_paise ?? 0);
+        const need = recipients * price, have = Number((wallet as any)?.balance_paise ?? 0);
+        if (price > 0 && need > have) {
+          const r = (p: number) => '₹' + (p / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+          throw new Error(`Not enough wallet balance. This campaign needs about ${r(need)} (${recipients} messages × ${r(price)}), and your wallet has ${r(have)}. Please recharge your wallet and try again.`);
+        }
+      }
       const selectedAudience: any = {
         mode: formData.contact_selection,
         source_filter: formData.contact_source_filter || null,

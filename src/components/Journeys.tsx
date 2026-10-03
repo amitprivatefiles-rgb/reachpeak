@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ALL_PRESETS, MASTER_BINDING_FIELDS, JourneyPreset, JourneyStep } from '../lib/journeyPresets';
+import { hasFeature } from '../lib/businessTypes';
 import {
   Zap,
   Plus,
@@ -1160,9 +1161,10 @@ function CreateJourneyModal({
 // ─── Preset Picker Grid ───
 
 function PresetPicker({ onSelect }: { onSelect: (preset: JourneyPreset) => void }) {
+  const { profile } = useAuth();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {ALL_PRESETS.map((preset) => {
+      {ALL_PRESETS.filter((p) => !p.feature || hasFeature(profile, p.feature)).map((preset) => {
         const colors = getPresetColor(preset.key);
         const Icon = getPresetIcon(preset.key);
         const iconBg = getPresetIconBg(preset.key);

@@ -36,11 +36,7 @@ import { Dashboard } from './components/Dashboard';
 import { Campaigns } from './components/Campaigns';
 import { UserCampaigns } from './components/UserCampaigns';
 import { Templates } from './components/Templates';
-import { CampaignApprovals } from './components/CampaignApprovals';
 import { Contacts } from './components/Contacts';
-import { FailedRetry } from './components/FailedRetry';
-import { LeadSources } from './components/LeadSources';
-import { Agents } from './components/Agents';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import { Disputes } from './components/Disputes';
@@ -59,6 +55,8 @@ import { AdminProvisionStore } from './components/AdminProvisionStore';
 import { AIBroadcast } from './components/AIBroadcast';
 import { supabase } from './lib/supabase';
 import { BrandSplash, BrandSpinner } from './components/BrandSpinner';
+import { BusinessTypePrompt } from './components/onboarding/BusinessTypePrompt';
+import { FEATURES, hasFeature } from './lib/businessTypes';
 
 /* ─── LOADING FALLBACK ─── */
 function MarketingLoading() {
@@ -154,7 +152,7 @@ function LoadingScreen() {
 
 function AppDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, profile } = useAuth();
 
   // Onboarding gate: send a non-admin who hasn't picked a WhatsApp model to Setup first.
   useEffect(() => {
@@ -164,6 +162,11 @@ function AppDashboard() {
   }, [user, isAdmin]);
 
   const renderPage = () => {
+    // Pages that depend on the business type: wait for the profile, then show only if enabled for this account.
+    if (FEATURES[currentPage]) {
+      if (!profile) return <BrandSpinner label="Loading…" />;
+      if (!hasFeature(profile, currentPage)) return <Dashboard />;
+    }
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
       case 'setup': return <OnboardingChoice onComplete={() => setCurrentPage('dashboard')} />;
@@ -172,11 +175,7 @@ function AppDashboard() {
       case 'inbox': return <Inbox onNavigate={setCurrentPage} />;
       case 'campaigns': return isAdmin ? <Campaigns /> : <UserCampaigns />;
       case 'templates': return <Templates />;
-      case 'approvals': return <CampaignApprovals />;
       case 'contacts': return <Contacts />;
-      case 'failed': return <FailedRetry />;
-      case 'sources': return <LeadSources />;
-      case 'agents': return <Agents />;
       case 'reports': return <Reports />;
       case 'users': return <UserManagement />;
       case 'integrations': return <Integrations />;
@@ -195,6 +194,7 @@ function AppDashboard() {
   return (
     <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
       {renderPage()}
+      {profile && !isAdmin && !profile.business_type && <BusinessTypePrompt />}
     </Layout>
   );
 }

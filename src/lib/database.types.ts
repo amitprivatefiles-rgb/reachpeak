@@ -21,6 +21,9 @@ export interface Database {
           webhook_url: string | null
           notification_email: boolean
           notification_in_app: boolean
+          business_type: string | null
+          feature_overrides: Record<string, boolean>
+          onboarding_choice: string | null
           created_at: string
           updated_at: string
         }
@@ -35,6 +38,9 @@ export interface Database {
           webhook_url?: string | null
           notification_email?: boolean
           notification_in_app?: boolean
+          business_type?: string | null
+          feature_overrides?: Record<string, boolean>
+          onboarding_choice?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -49,6 +55,9 @@ export interface Database {
           webhook_url?: string | null
           notification_email?: boolean
           notification_in_app?: boolean
+          business_type?: string | null
+          feature_overrides?: Record<string, boolean>
+          onboarding_choice?: string | null
           created_at?: string
           updated_at?: string
         }

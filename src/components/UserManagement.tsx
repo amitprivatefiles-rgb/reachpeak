@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { UserPlus, Trash2, Shield, User, CheckCircle, XCircle, CreditCard, Eye, X, Image } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, CheckCircle, XCircle, CreditCard, Eye, X, Image, SlidersHorizontal } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import type { Subscription } from '../contexts/SubscriptionContext';
 import { BrandSpinner } from './BrandSpinner';
+import { BUSINESS_TYPES, FEATURES, hasFeature, businessTypeLabel } from '../lib/businessTypes';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -24,8 +25,29 @@ export function UserManagement() {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: '', password: '', full_name: '', role: 'user' as 'admin' | 'user',
-    business_name: '', business_type: 'Retail', whatsapp_number: '', contact_person: '', plan_type: 'monthly' as 'monthly' | 'yearly',
+    business_name: '', business_type: 'ecommerce', whatsapp_number: '', contact_person: '', plan_type: 'monthly' as 'monthly' | 'yearly',
   });
+
+  const [featureUser, setFeatureUser] = useState<Profile | null>(null);
+  const [featureDraft, setFeatureDraft] = useState<Record<string, boolean>>({});
+  const [savingFeatures, setSavingFeatures] = useState(false);
+
+  // Admin: change an account's business type (decides its default features).
+  const setBusinessType = async (userId: string, business_type: string) => {
+    const { error } = await supabase.from('profiles').update({ business_type: business_type || null }).eq('id', userId);
+    if (error) { alert('Could not change business type: ' + error.message); return; }
+    setUsers((us) => us.map((u) => (u.id === userId ? { ...u, business_type: business_type || null } : u)));
+  };
+  const openFeatures = (u: Profile) => { setFeatureUser(u); setFeatureDraft({ ...((u as any).feature_overrides || {}) }); };
+  const saveFeatures = async () => {
+    if (!featureUser) return;
+    setSavingFeatures(true);
+    const { error } = await supabase.from('profiles').update({ feature_overrides: featureDraft }).eq('id', featureUser.id);
+    setSavingFeatures(false);
+    if (error) { alert('Could not save features: ' + error.message); return; }
+    setUsers((us) => us.map((u) => (u.id === featureUser.id ? { ...u, feature_overrides: featureDraft } : u)));
+    setFeatureUser(null);
+  };
 
   const fetchUsers = async () => {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
@@ -75,8 +97,9 @@ export function UserManagement() {
       }
       if ((data as any)?.error) throw new Error((data as any).error);
 
+      await supabase.from('profiles').update({ business_type: formData.business_type }).eq('email', formData.email.trim().toLowerCase());
       setCreateSuccess(`User "${formData.full_name}" created successfully!`);
-      setFormData({ email: '', password: '', full_name: '', role: 'user', business_name: '', business_type: 'Retail', whatsapp_number: '', contact_person: '', plan_type: 'monthly' });
+      setFormData({ email: '', password: '', full_name: '', role: 'user', business_name: '', business_type: 'ecommerce', whatsapp_number: '', contact_person: '', plan_type: 'monthly' });
       fetchUsers();
       fetchSubs();
       setTimeout(() => {
@@ -184,11 +207,12 @@ export function UserManagement() {
 
       {activeTab === 'users' ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
-          <table className="w-full min-w-[640px]">
+          <table className="w-full min-w-[820px]">
             <thead className="bg-gray-800 border-b border-gray-700">
               <tr>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">User</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Role</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Business type</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Status</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-300">Created</th>
                 <th className="text-right px-6 py-4 text-sm font-medium text-gray-300">Actions</th>
@@ -207,12 +231,26 @@ export function UserManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
+                    {u.role === 'admin' ? <span className="text-gray-500 text-xs">All features</span> : (
+                      <select value={(u as any).business_type || ''} onChange={(e) => setBusinessType(u.id, e.target.value)}
+                        className="px-2 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-brand max-w-[190px]">
+                        <option value="">Not set (asks user)</option>
+                        {BUSINESS_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
                     <button onClick={() => toggleUserStatus(u.id, u.is_active)} className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${u.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                       {u.is_active ? <><CheckCircle className="w-3 h-3" />Active</> : <><XCircle className="w-3 h-3" />Inactive</>}
                     </button>
                   </td>
                   <td className="px-6 py-4 text-gray-400 text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right whitespace-nowrap">
+                    {u.role !== 'admin' && (
+                      <button onClick={() => openFeatures(u)} className="inline-flex items-center gap-1 px-3 py-1.5 mr-2 bg-gray-800 text-gray-300 rounded hover:bg-gray-700 transition text-sm">
+                        <SlidersHorizontal className="w-3 h-3" />Features
+                      </button>
+                    )}
                     <button onClick={() => deleteUser(u.id)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 transition text-sm">
                       <Trash2 className="w-3 h-3" />Delete
                     </button>
@@ -343,16 +381,7 @@ export function UserManagement() {
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Business Type *</label>
                   <select value={formData.business_type} onChange={(e) => setFormData({ ...formData, business_type: e.target.value })} className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand">
-                    <option value="Retail">Retail</option>
-                    <option value="E-commerce">E-commerce</option>
-                    <option value="Education">Education</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Real Estate">Real Estate</option>
-                    <option value="Food & Restaurant">Food & Restaurant</option>
-                    <option value="Travel & Tourism">Travel & Tourism</option>
-                    <option value="Finance">Finance</option>
-                    <option value="IT & Software">IT & Software</option>
-                    <option value="Other">Other</option>
+                    {BUSINESS_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -460,6 +489,47 @@ export function UserManagement() {
             <div className="flex gap-3">
               <button onClick={() => { setShowRejectModal(null); setRejectReason(''); }} className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition">Cancel</button>
               <button onClick={rejectSub} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {featureUser && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setFeatureUser(null)}>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-800">
+              <div>
+                <h3 className="text-white font-semibold">Features · {featureUser.full_name}</h3>
+                <p className="text-gray-400 text-xs mt-1">Business type: {businessTypeLabel((featureUser as any).business_type)}. "Default" follows the business type.</p>
+              </div>
+              <button onClick={() => setFeatureUser(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              {Object.entries(FEATURES).map(([key, ft]) => {
+                const def = hasFeature({ role: 'user', business_type: (featureUser as any).business_type, feature_overrides: {} }, key);
+                const val = featureDraft[key];
+                const set = (v: boolean | undefined) => setFeatureDraft((d) => { const n = { ...d }; if (v === undefined) delete n[key]; else n[key] = v; return n; });
+                const opts: [string, boolean | undefined][] = [['Default', undefined], ['On', true], ['Off', false]];
+                return (
+                  <div key={key} className="flex items-center justify-between gap-3 bg-gray-800/60 rounded-lg px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-white text-sm font-medium">{ft.label}</p>
+                      <p className="text-gray-400 text-xs">{ft.description}</p>
+                    </div>
+                    <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs flex-shrink-0">
+                      {opts.map(([lbl, v]) => (
+                        <button key={lbl} type="button" onClick={() => set(v)}
+                          className={'px-2.5 py-1.5 ' + (val === v ? 'bg-brand text-white' : 'bg-gray-900 text-gray-400 hover:text-white')}>
+                          {lbl === 'Default' ? 'Default (' + (def ? 'on' : 'off') + ')' : lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-800">
+              <button onClick={() => setFeatureUser(null)} className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 text-sm">Cancel</button>
+              <button onClick={saveFeatures} disabled={savingFeatures} className="px-4 py-2 bg-brand text-white rounded-lg hover:opacity-90 text-sm disabled:opacity-60">{savingFeatures ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
         </div>

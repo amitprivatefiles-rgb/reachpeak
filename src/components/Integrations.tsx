@@ -21,6 +21,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ShopifyConnect from './ShopifyConnect';
+import { hasFeature } from '../lib/businessTypes';
 import { ApiDocs } from './ApiDocs';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -367,7 +368,8 @@ function RevealKeyModal({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function Integrations() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const storeIntegrations = hasFeature(profile, 'store_integrations');
   const userId = user?.id ?? '';
 
   // ── API keys state ──
@@ -942,6 +944,7 @@ export function Integrations() {
           )}
         </section>
 
+        {storeIntegrations && (<>
         {/* ─── Shopify Connection Card ─────────────────────────────────── */}
         <section className="rounded-xl border border-gray-200 bg-white p-6">
           {(() => {
@@ -1060,6 +1063,7 @@ export function Integrations() {
             );
           })()}
         </section>
+        </>)}
 
         {/* Shopify Connect Wizard */}
         {showShopifyWizard && (

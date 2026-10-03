@@ -103,7 +103,7 @@ export function Campaigns() {
     message_version: 'A' as 'A' | 'B',
     daily_limit: 1000,
     message_template: '',
-    status: 'pending_approval' as string,
+    status: 'approved' as string, // no admin approval step any more: created ready to start
     start_time: '',
     end_time: '',
     whatsapp_account_id: '',
@@ -119,7 +119,7 @@ export function Campaigns() {
       message_version: 'A',
       daily_limit: 1000,
       message_template: '',
-      status: 'pending_approval',
+      status: 'approved',
       start_time: '',
       end_time: '',
       whatsapp_account_id: '',

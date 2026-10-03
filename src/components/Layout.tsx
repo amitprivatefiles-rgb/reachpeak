@@ -2,8 +2,9 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Megaphone, Users, AlertCircle, BarChart3, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, CheckSquare, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CircleUser as UserCircle, Settings, LogOut, Shield, ShieldAlert, Activity, X, FileText, MessageSquare, Zap, Key, Wallet, CreditCard, LifeBuoy, Smartphone, Bell, BellOff, Home, LayoutGrid, Bot, Scale, PhoneCall } from 'lucide-react';
 import { enablePush, disablePush, isPushEnabled, pushSupported } from '../lib/push';
+import { hasFeature } from '../lib/businessTypes';
 
 const LOGO_URL = 'https://i.ibb.co/K3M8zPq/Avatar.png';
 const ACCENT = '#E04632';
@@ -18,7 +19,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { profile, isAdmin, signOut } = useAuth();
   const { subscription } = useSubscription();
   const [showMore, setShowMore] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
   const [inboxUnread, setInboxUnread] = useState(0);
   const [waConnected, setWaConnected] = useState(false);
   const [pushOn, setPushOn] = useState(false);
@@ -52,17 +52,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
 
   const logoUrl = subscription?.logo_url || LOGO_URL;
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    const fetchPending = async () => {
-      const { count } = await supabase.from('campaigns').select('id', { count: 'exact', head: true }).eq('status', 'pending_approval');
-      setPendingCount(count || 0);
-    };
-    fetchPending();
-    const channel = supabase.channel('pending-approvals-count')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, () => fetchPending()).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [isAdmin]);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -79,15 +68,11 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const adminNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
-    { id: 'approvals', label: 'Campaign Approvals', icon: CheckSquare, badge: pendingCount > 0 ? pendingCount : undefined },
     { id: 'campaigns', label: 'All Campaigns', icon: Megaphone },
     { id: 'ai-broadcast', label: 'AI Broadcast', icon: Bot },
     { id: 'ai-calling', label: 'AI Calling', icon: PhoneCall },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'contacts', label: 'All Contacts', icon: Users },
-    { id: 'failed', label: 'Failed & Retry', icon: AlertCircle },
-    { id: 'sources', label: 'Lead Sources', icon: BarChart3 },
-    { id: 'agents', label: 'Agents', icon: UserCircle },
     { id: 'reports', label: 'Reports', icon: Activity },
     { id: 'journeys', label: 'Journeys', icon: Zap },
     { id: 'orderguard', label: 'OrderGuard', icon: ShieldAlert },
@@ -119,7 +104,8 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const navItems = isAdmin ? adminNavItems : userNavItems.filter(i => !(i.id === 'setup' && waConnected));
+  // Optional pages follow the account's business type (admins see everything; admin can override per account).
+  const navItems = (isAdmin ? adminNavItems : userNavItems.filter(i => !(i.id === 'setup' && waConnected))).filter(i => hasFeature(profile, i.id));
 
   const handleSignOut = async () => { try { await signOut(); } catch { /* ignore */ } };
   const handleNavigate = (page: string) => { onNavigate(page); setShowMore(false); };
@@ -130,7 +116,8 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'inbox', label: 'Inbox', icon: MessageSquare },
     { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
     { id: 'orderguard', label: 'Guard', icon: ShieldAlert },
-  ].filter(b => navItems.some(n => n.id === b.id));
+    { id: 'ai-calling', label: 'Calls', icon: PhoneCall },
+  ].filter(b => navItems.some(n => n.id === b.id)).slice(0, 4);
   const bottomIds = BOTTOM.map(b => b.id);
   const moreItems = navItems.filter(i => !bottomIds.includes(i.id));
 

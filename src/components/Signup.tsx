@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { User, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, Building2 } from 'lucide-react';
+import { BUSINESS_TYPES } from '../lib/businessTypes';
 import { AuthShell } from './auth/AuthShell';
 
 export function Signup() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ full_name: '', email: '', password: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', business_type: '' });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export function Signup() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { full_name: form.full_name } },
+        options: { data: { full_name: form.full_name, business_type: form.business_type } },
       });
       if (signUpError) {
         if (signUpError.message?.toLowerCase().includes('rate limit') || signUpError.message?.toLowerCase().includes('email')) {
@@ -67,6 +68,18 @@ export function Signup() {
           <div className="rpa-input">
             <User size={18} />
             <input id="su-name" type="text" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required autoComplete="name" placeholder="Your full name" />
+          </div>
+        </div>
+
+        <div className="rpa-field">
+          <label htmlFor="su-type">Business type</label>
+          <div className="rpa-input">
+            <Building2 size={18} />
+            <select id="su-type" value={form.business_type} onChange={(e) => setForm({ ...form, business_type: e.target.value })} required
+              >
+              <option value="" disabled>What does your business do?</option>
+              {BUSINESS_TYPES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
           </div>
         </div>
 
